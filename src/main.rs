@@ -3,6 +3,7 @@ mod config;
 mod downloader;
 mod engine;
 mod hotkey;
+mod tray;
 
 use anyhow::Result;
 use config::Config;
@@ -10,7 +11,6 @@ use engine::LlamaEngine;
 use std::path::Path;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
-use tray_item::{IconSource, TrayItem};
 
 fn main() -> Result<()> {
     println!("=== Starting Rust Grammar Rewriter (Embedded Candle LLM) ===");
@@ -19,30 +19,8 @@ fn main() -> Result<()> {
     let cfg = Config::load_or_create(config_path)?;
     println!("Config loaded. Double-Ctrl timeout: {}ms", cfg.hotkey.double_ctrl_timeout_ms);
 
-    // Initialize Native Windows System Tray Item
-    let mut tray = TrayItem::new("Grammar Rewriter", IconSource::Resource("").into())
-        .or_else(|_| TrayItem::new("Grammar Rewriter", IconSource::Resource("")));
-
-    let mut tray = match tray {
-        Ok(t) => t,
-        Err(_) => {
-            // Fallback to empty resource string if icon not specified
-            TrayItem::new("Grammar Rewriter", IconSource::Resource("")).expect("Failed to initialize Windows Tray")
-        }
-    };
-
-    tray.add_menu_item("🤖 English Grammar Rewriter (Double-Ctrl)", || {})?;
-    tray.add_menu_item("⚙️ Open Config (config.toml)", || {
-        let _ = std::process::Command::new("notepad.exe")
-            .arg("config.toml")
-            .spawn();
-    })?;
-    tray.add_menu_item("❌ Exit", || {
-        println!("Exiting application...");
-        std::process::exit(0);
-    })?;
-
-    println!("System Tray Icon active in Windows taskbar!");
+    // Initialize native Windows System Tray Icon immediately
+    tray::run_tray_loop("English Grammar Rewriter (Double-Ctrl)");
 
     // Start Tokio async runtime for background tasks
     let rt = tokio::runtime::Runtime::new()?;
@@ -163,7 +141,7 @@ fn main() -> Result<()> {
             }
         });
 
-        // Keep main thread event pump running for tray & hotkeys
+        // Keep main thread alive
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
         }

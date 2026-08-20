@@ -15,9 +15,6 @@ tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12", features = ["stream"] }
 futures-util = "0.3"
 
-# Windows System Tray
-tray-item = "0.10"
-
 # System Keystrokes & Clipboard
 arboard = "3.4"
 
@@ -27,12 +24,13 @@ toml = "0.8"
 anyhow = "1.0"
 directories = "6.0"
 
-# Windows Low-Level API Hooks
+# Windows Low-Level API Hooks & System Tray
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
     "Win32_System_LibraryLoader",
     "Win32_System_Threading",
     "Win32_Graphics_Gdi"
