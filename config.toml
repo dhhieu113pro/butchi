@@ -1,0 +1,15 @@
+[model]
+# GGUF model path (relative to application directory or absolute)
+active_model = "models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+
+# Default HuggingFace repository and filename for auto-download
+hf_repo = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+hf_filename = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+
+[hotkey]
+# Max time in milliseconds between two Ctrl presses to trigger rewrite
+double_ctrl_timeout_ms = 350
+
+[prompt]
+# System prompt for grammar correction
+system_prompt = "You are a professional English grammar corrector. Correct spelling, grammar, and punctuation in the text provided. Output ONLY the revised English text. Do NOT add any explanations, introductory text, quotes, or markdown code blocks."

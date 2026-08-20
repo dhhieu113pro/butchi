@@ -1,0 +1,4 @@
+/target
+/models/*.gguf
+/models/*.json
+*.pdb
