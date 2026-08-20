@@ -5,7 +5,7 @@ edition = "2021"
 description = "A self-contained Windows desktop system tray application to rewrite English grammar using local embedded LLM on double-Ctrl press."
 
 [dependencies]
-# Pure Rust Embedded ML / GGUF Inference Engine (No CMake / C++ / libclang required!)
+# Pure Rust Embedded ML / GGUF Inference Engine
 candle-core = "0.8"
 candle-transformers = "0.8"
 tokenizers = "0.21"
@@ -15,9 +15,8 @@ tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12", features = ["stream"] }
 futures-util = "0.3"
 
-# System Tray and Windows GUI
-tray-icon = "0.19"
-winit = { version = "0.30", default-features = false, features = ["rwh_06"] }
+# Windows System Tray
+tray-item = "0.10"
 
 # System Keystrokes & Clipboard
 arboard = "3.4"
