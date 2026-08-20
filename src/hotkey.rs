@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::{SystemTime, UNIX_EPOCH};
 use windows_sys::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
@@ -7,12 +7,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, GetMessageW, SetWindowsHookExW, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MSG,
-    WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WH_KEYBOARD_LL, WM_KEYUP, WM_SYSKEYUP,
 };
 
 static LAST_CTRL_UP_MS: AtomicU64 = AtomicU64::new(0);
-static OTHER_KEY_PRESSED: AtomicBool = AtomicBool::new(false);
-static TIMEOUT_MS: AtomicU64 = AtomicU64::new(350);
+static TIMEOUT_MS: AtomicU64 = AtomicU64::new(500);
 static SENDER_PTR: std::sync::Mutex<Option<Sender<()>>> = std::sync::Mutex::new(None);
 
 pub fn set_double_ctrl_timeout(timeout_ms: u64) {
@@ -40,29 +39,23 @@ unsafe extern "system" fn low_level_keyboard_proc(
 
         let msg = w_param as u32;
 
-        if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
-            if !is_ctrl {
-                OTHER_KEY_PRESSED.store(true, Ordering::Relaxed);
-            }
-        } else if msg == WM_KEYUP || msg == WM_SYSKEYUP {
-            if is_ctrl {
-                if !OTHER_KEY_PRESSED.swap(false, Ordering::Relaxed) {
-                    let now = current_time_ms();
-                    let last = LAST_CTRL_UP_MS.swap(now, Ordering::Relaxed);
-                    let timeout = TIMEOUT_MS.load(Ordering::Relaxed);
+        if is_ctrl && (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+            let now = current_time_ms();
+            let last = LAST_CTRL_UP_MS.swap(now, Ordering::Relaxed);
+            let timeout = TIMEOUT_MS.load(Ordering::Relaxed);
+            let delta = now.saturating_sub(last);
 
-                    if last > 0 && (now - last) <= timeout {
-                        // Double Ctrl detected!
-                        LAST_CTRL_UP_MS.store(0, Ordering::Relaxed);
-                        if let Ok(guard) = SENDER_PTR.lock() {
-                            if let Some(ref tx) = *guard {
-                                let _ = tx.send(());
-                            }
-                        }
+            if last > 0 && delta <= timeout && delta >= 50 {
+                println!("🎯 Double-Ctrl detected! (Interval: {}ms)", delta);
+                LAST_CTRL_UP_MS.store(0, Ordering::Relaxed);
+
+                if let Ok(guard) = SENDER_PTR.lock() {
+                    if let Some(ref tx) = *guard {
+                        let _ = tx.send(());
                     }
                 }
             } else {
-                OTHER_KEY_PRESSED.store(true, Ordering::Relaxed);
+                println!("[Key] Ctrl released. Waiting for 2nd Ctrl tap... (delta: {}ms)", delta);
             }
         }
     }
@@ -89,7 +82,7 @@ pub fn start_keyboard_hook(tx: Sender<()>, timeout_ms: u64) {
             return;
         }
 
-        println!("Windows Low-Level Keyboard Hook active (double-Ctrl listener).");
+        println!("Windows Low-Level Keyboard Hook active (double-Ctrl listener, threshold: 500ms).");
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
             // Keep hook thread message pump alive

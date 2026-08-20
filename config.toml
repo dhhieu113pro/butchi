@@ -8,7 +8,7 @@ hf_filename = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
 [hotkey]
 # Max time in milliseconds between two Ctrl presses to trigger rewrite
-double_ctrl_timeout_ms = 350
+double_ctrl_timeout_ms = 500
 
 [prompt]
 # System prompt for grammar correction
