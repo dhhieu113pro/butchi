@@ -4,7 +4,7 @@ use windows_sys::Win32::UI::Shell::{
     Shell_NotifyIconW, NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DispatchMessageW,
+    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     GetCursorPos, GetMessageW, LoadImageW, PostMessageW, RegisterClassW, SetForegroundWindow,
     TrackPopupMenu, IDI_APPLICATION, IMAGE_ICON, LR_DEFAULTSIZE, LR_SHARED, MF_STRING,
     TPM_BOTTOMALIGN, TPM_LEFTALIGN, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_RBUTTONUP, WM_USER,
@@ -56,6 +56,8 @@ unsafe extern "system" fn window_proc(
             if Shell_NotifyIconW(NIM_ADD, &nid) != 0 {
                 println!("✅ System Tray Icon created and added to Taskbar!");
                 GLOBAL_NID = Some(nid);
+            } else {
+                eprintln!("Shell_NotifyIconW returned 0");
             }
             0
         }
@@ -121,60 +123,89 @@ fn encode_wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+pub struct WinTray {
+    hwnd: HWND,
+}
+
+impl WinTray {
+    pub fn new(_tooltip_text: &str) -> Option<Self> {
+        unsafe {
+            let class_name = encode_wide("RustRewriteTrayClass");
+            let hinstance = GetModuleHandleW(std::ptr::null());
+
+            let wnd_class = WNDCLASSW {
+                style: 0,
+                lpfnWndProc: Some(window_proc),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: hinstance,
+                hIcon: LoadImageW(
+                    std::ptr::null_mut(),
+                    IDI_APPLICATION,
+                    IMAGE_ICON,
+                    0,
+                    0,
+                    LR_SHARED | LR_DEFAULTSIZE,
+                ),
+                hCursor: std::ptr::null_mut(),
+                hbrBackground: std::ptr::null_mut(),
+                lpszMenuName: std::ptr::null(),
+                lpszClassName: class_name.as_ptr(),
+            };
+
+            RegisterClassW(&wnd_class);
+
+            let hwnd = CreateWindowExW(
+                0,
+                class_name.as_ptr(),
+                class_name.as_ptr(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                hinstance,
+                std::ptr::null(),
+            );
+
+            if hwnd.is_null() {
+                eprintln!("Failed creating hidden tray window.");
+                return None;
+            }
+
+            Some(Self { hwnd })
+        }
+    }
+}
+
+impl Drop for WinTray {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(ref nid) = GLOBAL_NID {
+                Shell_NotifyIconW(NIM_DELETE, nid);
+            }
+            if !self.hwnd.is_null() {
+                DestroyWindow(self.hwnd);
+            }
+        }
+    }
+}
+
 pub fn run_tray_loop(tooltip: &str) {
     unsafe {
         TOOLTIP_TEXT = tooltip.to_string();
     }
-    std::thread::spawn(move || unsafe {
-        let class_name = encode_wide("RustRewriteTrayClass");
-        let hinstance = GetModuleHandleW(std::ptr::null());
-
-        let wnd_class = WNDCLASSW {
-            style: 0,
-            lpfnWndProc: Some(window_proc),
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: hinstance,
-            hIcon: LoadImageW(
-                std::ptr::null_mut(),
-                IDI_APPLICATION,
-                IMAGE_ICON,
-                0,
-                0,
-                LR_SHARED | LR_DEFAULTSIZE,
-            ),
-            hCursor: std::ptr::null_mut(),
-            hbrBackground: std::ptr::null_mut(),
-            lpszMenuName: std::ptr::null(),
-            lpszClassName: class_name.as_ptr(),
-        };
-
-        RegisterClassW(&wnd_class);
-
-        let hwnd = CreateWindowExW(
-            0,
-            class_name.as_ptr(),
-            class_name.as_ptr(),
-            0,
-            0,
-            0,
-            0,
-            0,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            hinstance,
-            std::ptr::null(),
-        );
-
-        if hwnd.is_null() {
-            eprintln!("Failed creating hidden tray window.");
-            return;
+    let tooltip = tooltip.to_string();
+    std::thread::spawn(move || {
+        if let Some(_tray) = WinTray::new(&tooltip) {
+            unsafe {
+                let mut msg = std::mem::zeroed();
+                while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
+                    DispatchMessageW(&msg);
+                }
+            }
         }
-
-        let mut msg = std::mem::zeroed();
-        while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
-            DispatchMessageW(&msg);
-        }
-        std::process::exit(0);
     });
 }
