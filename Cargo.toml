@@ -5,9 +5,10 @@ edition = "2021"
 description = "A self-contained Windows desktop system tray application to rewrite English grammar using local embedded LLM on double-Ctrl press."
 
 [dependencies]
-# Pure Rust Embedded ML / GGUF Inference Engine
-candle-core = "0.8"
-candle-transformers = "0.8"
+# Embedded ML / GGUF Inference Engine with CUDA GPU Acceleration
+candle-core = { version = "0.8", features = ["cuda"] }
+candle-nn = { version = "0.8", features = ["cuda"] }
+candle-transformers = { version = "0.8" }
 tokenizers = "0.21"
 
 # Async runtime and networking
