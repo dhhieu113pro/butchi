@@ -20,12 +20,16 @@ impl LlamaEngine {
             return Err(anyhow!("GGUF Model file not found at {:?}", model_path));
         }
 
-        println!("Loading Qwen2 GGUF model weights into RAM...");
+        let device = Device::new_cuda(0).unwrap_or_else(|e| {
+            println!("ℹ️ CUDA GPU notice: {}, using CPU device", e);
+            Device::Cpu
+        });
+
+        println!("Loading Qwen2 GGUF model weights into RAM/VRAM on device {:?}...", device);
         let mut file = File::open(model_path)?;
         let gguf = gguf_file::Content::read(&mut file)
             .map_err(|e| anyhow!("Failed to read GGUF content: {:?}", e))?;
 
-        let device = Device::Cpu;
         let model_weights = ModelWeights::from_gguf(gguf, &mut file, &device)
             .map_err(|e| anyhow!("Failed loading GGUF model weights: {:?}", e))?;
 
@@ -36,7 +40,7 @@ impl LlamaEngine {
             return Err(anyhow!("tokenizer.json not found at {:?}", tokenizer_path));
         };
 
-        println!("✅ GGUF Model weights successfully loaded into RAM!");
+        println!("✅ GGUF Model weights successfully loaded into memory! (Device: {:?})", device);
         Ok(Self {
             model: Mutex::new(model_weights),
             tokenizer,
@@ -45,7 +49,7 @@ impl LlamaEngine {
     }
 
     pub fn rewrite_text(&self, text: &str, system_prompt: &str) -> Result<String> {
-        println!("[LLM Engine] Instant rewrite starting for: {:?}", text);
+        println!("[LLM Engine] Fast rewrite starting for: {:?}", text);
         let prompt = format!(
             "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
             system_prompt, text
@@ -63,7 +67,7 @@ impl LlamaEngine {
 
         let mut model_weights = self.model.lock().map_err(|_| anyhow!("Failed to lock model"))?;
 
-        // Process all prompt tokens in a SINGLE batched forward pass (100x speedup!)
+        // Process all prompt tokens in a SINGLE batched forward pass!
         let input = Tensor::new(prompt_tokens, &self.device)?.unsqueeze(0)?;
         let logits = model_weights.forward(&input, 0)?;
         let logits = logits.squeeze(0)?;
@@ -111,7 +115,7 @@ impl LlamaEngine {
             .trim()
             .to_string();
 
-        println!("✨ [LLM Engine] Instant output: {:?}", cleaned);
+        println!("✨ [LLM Engine] Output: {:?}", cleaned);
         Ok(cleaned)
     }
 }
