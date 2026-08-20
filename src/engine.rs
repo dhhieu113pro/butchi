@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct LlamaEngine {
-    model: Arc<std::sync::Mutex<ModelWeights>>,
+    model_path: std::path::PathBuf,
     tokenizer: Tokenizer,
     device: Device,
 }
@@ -21,16 +21,6 @@ impl LlamaEngine {
         }
 
         println!("Loading Qwen2 GGUF model from {:?} into Candle engine...", model_path);
-        let mut file = File::open(model_path)?;
-        let device = Device::Cpu;
-
-        let gguf = gguf_file::Content::read(&mut file)
-            .map_err(|e| anyhow!("Failed to read GGUF content: {:?}", e))?;
-
-        let model = ModelWeights::from_gguf(gguf, &mut file, &device)
-            .map_err(|e| anyhow!("Failed loading GGUF model weights: {:?}", e))?;
-
-        println!("GGUF Model weights successfully loaded!");
 
         let tokenizer = if tokenizer_path.exists() {
             Tokenizer::from_file(tokenizer_path)
@@ -40,13 +30,14 @@ impl LlamaEngine {
         };
 
         Ok(Self {
-            model: Arc::new(std::sync::Mutex::new(model)),
+            model_path: model_path.to_path_buf(),
             tokenizer,
-            device,
+            device: Device::Cpu,
         })
     }
 
     pub fn rewrite_text(&self, text: &str, system_prompt: &str) -> Result<String> {
+        println!("[LLM Engine] Preparing prompt for text: {:?}", text);
         let prompt = format!(
             "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
             system_prompt, text
@@ -62,18 +53,22 @@ impl LlamaEngine {
             return Err(anyhow!("Empty prompt tokens"));
         }
 
+        println!("[LLM Engine] Encoded {} tokens. Loading GGUF weights...", prompt_tokens.len());
+        let mut file = File::open(&self.model_path)?;
+        let gguf = gguf_file::Content::read(&mut file)
+            .map_err(|e| anyhow!("Failed to read GGUF content: {:?}", e))?;
+
+        let mut model_weights = ModelWeights::from_gguf(gguf, &mut file, &self.device)
+            .map_err(|e| anyhow!("Failed loading GGUF model weights: {:?}", e))?;
+
         let mut logits_processor = LogitsProcessor::new(299792458, Some(0.7), Some(0.9));
         let mut all_tokens = prompt_tokens.to_vec();
         let mut generated_tokens = Vec::new();
 
-        let mut model_guard = self
-            .model
-            .lock()
-            .map_err(|_| anyhow!("Failed to lock model"))?;
-
+        println!("[LLM Engine] Processing prompt tokens...");
         for pos in 0..prompt_tokens.len() {
             let input = Tensor::new(&[prompt_tokens[pos]], &self.device)?.unsqueeze(0)?;
-            let logits = model_guard.forward(&input, pos)?;
+            let logits = model_weights.forward(&input, pos)?;
             let logits = logits.squeeze(0)?;
 
             if pos + 1 == prompt_tokens.len() {
@@ -83,7 +78,8 @@ impl LlamaEngine {
             }
         }
 
-        let max_new_tokens = 512;
+        println!("[LLM Engine] Generating response tokens...");
+        let max_new_tokens = 128;
         for _ in 0..max_new_tokens {
             let pos = all_tokens.len() - 1;
             let last_token = *all_tokens.last().unwrap();
@@ -94,7 +90,7 @@ impl LlamaEngine {
             }
 
             let input = Tensor::new(&[last_token], &self.device)?.unsqueeze(0)?;
-            let logits = model_guard.forward(&input, pos)?;
+            let logits = model_weights.forward(&input, pos)?;
             let logits = logits.squeeze(0)?;
 
             let next_token = logits_processor.sample(&logits)?;
@@ -118,6 +114,7 @@ impl LlamaEngine {
             .trim()
             .to_string();
 
+        println!("[LLM Engine] Generated output: {:?}", cleaned);
         Ok(cleaned)
     }
 }

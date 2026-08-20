@@ -8,11 +8,11 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
-    KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYUP, WM_SYSKEYUP,
+    KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
 static LAST_CTRL_UP_MS: AtomicU64 = AtomicU64::new(0);
-static TIMEOUT_MS: AtomicU64 = AtomicU64::new(500);
+static TIMEOUT_MS: AtomicU64 = AtomicU64::new(600);
 static SENDER_PTR: std::sync::Mutex<Option<Sender<()>>> = std::sync::Mutex::new(None);
 
 pub fn set_double_ctrl_timeout(timeout_ms: u64) {
@@ -36,27 +36,32 @@ unsafe extern "system" fn low_level_keyboard_proc(
         let vk_code = kbd_struct.vkCode as u16;
         let is_ctrl = vk_code == VK_CONTROL
             || vk_code == VK_LCONTROL
-            || vk_code == VK_RCONTROL;
+            || vk_code == VK_RCONTROL
+            || vk_code == 162
+            || vk_code == 163
+            || vk_code == 17;
 
         let msg = w_param as u32;
 
-        if is_ctrl && (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-            let now = current_time_ms();
-            let last = LAST_CTRL_UP_MS.swap(now, Ordering::Relaxed);
-            let timeout = TIMEOUT_MS.load(Ordering::Relaxed);
-            let delta = now.saturating_sub(last);
+        if is_ctrl {
+            if msg == WM_KEYUP || msg == WM_SYSKEYUP {
+                let now = current_time_ms();
+                let last = LAST_CTRL_UP_MS.swap(now, Ordering::Relaxed);
+                let timeout = TIMEOUT_MS.load(Ordering::Relaxed);
+                let delta = now.saturating_sub(last);
 
-            if last > 0 && delta <= timeout && delta >= 50 {
-                println!("\n🎯 Double-Ctrl detected! (Interval: {}ms)", delta);
-                LAST_CTRL_UP_MS.store(0, Ordering::Relaxed);
+                if last > 0 && delta <= timeout {
+                    println!("\n🎯 Double-Ctrl detected! (Interval: {}ms)", delta);
+                    LAST_CTRL_UP_MS.store(0, Ordering::Relaxed);
 
-                if let Ok(guard) = SENDER_PTR.lock() {
-                    if let Some(ref tx) = *guard {
-                        let _ = tx.send(());
+                    if let Ok(guard) = SENDER_PTR.lock() {
+                        if let Some(ref tx) = *guard {
+                            let _ = tx.send(());
+                        }
                     }
+                } else {
+                    println!("[Hook] Ctrl released. Waiting for 2nd Ctrl tap... (vk: {}, delta: {}ms)", vk_code, delta);
                 }
-            } else {
-                println!("[Hook] Ctrl released. Waiting for 2nd Ctrl tap... (delta: {}ms)", delta);
             }
         }
     }
