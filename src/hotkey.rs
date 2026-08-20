@@ -2,12 +2,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::time::{SystemTime, UNIX_EPOCH};
 use windows_sys::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     VK_CONTROL, VK_LCONTROL, VK_RCONTROL,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, GetMessageW, SetWindowsHookExW, UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MSG,
-    WH_KEYBOARD_LL, WM_KEYUP, WM_SYSKEYUP,
+    CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
+    KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
 static LAST_CTRL_UP_MS: AtomicU64 = AtomicU64::new(0);
@@ -46,7 +47,7 @@ unsafe extern "system" fn low_level_keyboard_proc(
             let delta = now.saturating_sub(last);
 
             if last > 0 && delta <= timeout && delta >= 50 {
-                println!("🎯 Double-Ctrl detected! (Interval: {}ms)", delta);
+                println!("\n🎯 Double-Ctrl detected! (Interval: {}ms)", delta);
                 LAST_CTRL_UP_MS.store(0, Ordering::Relaxed);
 
                 if let Ok(guard) = SENDER_PTR.lock() {
@@ -55,7 +56,7 @@ unsafe extern "system" fn low_level_keyboard_proc(
                     }
                 }
             } else {
-                println!("[Key] Ctrl released. Waiting for 2nd Ctrl tap... (delta: {}ms)", delta);
+                println!("[Hook] Ctrl released. Waiting for 2nd Ctrl tap... (delta: {}ms)", delta);
             }
         }
     }
@@ -70,22 +71,23 @@ pub fn start_keyboard_hook(tx: Sender<()>, timeout_ms: u64) {
     }
 
     std::thread::spawn(move || unsafe {
+        let hinstance = GetModuleHandleW(std::ptr::null());
         let hook = SetWindowsHookExW(
             WH_KEYBOARD_LL,
             Some(low_level_keyboard_proc),
-            std::ptr::null_mut() as HINSTANCE,
+            hinstance,
             0,
         );
 
         if hook.is_null() {
-            eprintln!("Failed to install Windows low-level keyboard hook.");
+            eprintln!("❌ Failed to install Windows low-level keyboard hook.");
             return;
         }
 
-        println!("Windows Low-Level Keyboard Hook active (double-Ctrl listener, threshold: 500ms).");
+        println!("✅ Windows Low-Level Keyboard Hook active across all applications!");
         let mut msg: MSG = std::mem::zeroed();
         while GetMessageW(&mut msg, std::ptr::null_mut(), 0, 0) > 0 {
-            // Keep hook thread message pump alive
+            DispatchMessageW(&msg);
         }
 
         UnhookWindowsHookEx(hook);
