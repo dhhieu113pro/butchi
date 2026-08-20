@@ -3,20 +3,47 @@ use arboard::Clipboard;
 use std::thread;
 use std::time::Duration;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, KEYBDINPUT, VK_CONTROL,
+    SendInput, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, KEYBDINPUT, VK_C, VK_CONTROL, VK_LCONTROL,
+    VK_MENU, VK_RCONTROL, VK_SHIFT, VK_V,
 };
 
-const VK_C: u16 = 0x43;
-const VK_V: u16 = 0x56;
-
-fn send_ctrl_combo(vk_key: u16) {
+fn release_key(vk: u16) {
     unsafe {
-        let mut inputs = [
+        let input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: vk,
+                    wScan: 0,
+                    dwFlags: KEYEVENTF_KEYUP,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        SendInput(1, &input, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
+pub fn release_modifier_keys() {
+    release_key(VK_CONTROL);
+    release_key(VK_LCONTROL);
+    release_key(VK_RCONTROL);
+    release_key(VK_SHIFT);
+    release_key(VK_MENU);
+}
+
+fn send_ctrl_combo(vk_code: u16) {
+    unsafe {
+        release_modifier_keys();
+        thread::sleep(Duration::from_millis(20));
+
+        let inputs = [
             INPUT {
                 r#type: INPUT_KEYBOARD,
                 Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
                     ki: KEYBDINPUT {
-                        wVk: VK_CONTROL as u16,
+                        wVk: VK_CONTROL,
                         wScan: 0,
                         dwFlags: 0,
                         time: 0,
@@ -28,7 +55,7 @@ fn send_ctrl_combo(vk_key: u16) {
                 r#type: INPUT_KEYBOARD,
                 Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
                     ki: KEYBDINPUT {
-                        wVk: vk_key,
+                        wVk: vk_code,
                         wScan: 0,
                         dwFlags: 0,
                         time: 0,
@@ -40,7 +67,7 @@ fn send_ctrl_combo(vk_key: u16) {
                 r#type: INPUT_KEYBOARD,
                 Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
                     ki: KEYBDINPUT {
-                        wVk: vk_key,
+                        wVk: vk_code,
                         wScan: 0,
                         dwFlags: KEYEVENTF_KEYUP,
                         time: 0,
@@ -52,7 +79,7 @@ fn send_ctrl_combo(vk_key: u16) {
                 r#type: INPUT_KEYBOARD,
                 Anonymous: windows_sys::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
                     ki: KEYBDINPUT {
-                        wVk: VK_CONTROL as u16,
+                        wVk: VK_CONTROL,
                         wScan: 0,
                         dwFlags: KEYEVENTF_KEYUP,
                         time: 0,
@@ -64,7 +91,7 @@ fn send_ctrl_combo(vk_key: u16) {
 
         SendInput(
             inputs.len() as u32,
-            inputs.as_mut_ptr(),
+            inputs.as_ptr(),
             std::mem::size_of::<INPUT>() as i32,
         );
     }
@@ -74,12 +101,9 @@ pub fn capture_selected_text() -> Result<(String, Option<String>)> {
     let mut clipboard = Clipboard::new().map_err(|e| anyhow!("Failed clipboard init: {}", e))?;
     let backup = clipboard.get_text().ok();
 
-    // Clear current clipboard or write sentinel to ensure we detect new Ctrl+C copy
     let _ = clipboard.set_text("");
-
-    // Simulate Ctrl+C
     send_ctrl_combo(VK_C);
-    thread::sleep(Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(150));
 
     let selected = clipboard.get_text().unwrap_or_default();
     let trimmed = selected.trim().to_string();
@@ -89,17 +113,14 @@ pub fn capture_selected_text() -> Result<(String, Option<String>)> {
 
 pub fn inject_text(new_text: &str, backup: Option<String>) -> Result<()> {
     let mut clipboard = Clipboard::new().map_err(|e| anyhow!("Failed clipboard init: {}", e))?;
-    clipboard
-        .set_text(new_text)
-        .map_err(|e| anyhow!("Failed setting clipboard text: {}", e))?;
+    clipboard.set_text(new_text)?;
 
-    // Simulate Ctrl+V to paste new text over selected text
+    println!("[Clipboard] Pasting corrected text: {:?}", new_text);
     send_ctrl_combo(VK_V);
     thread::sleep(Duration::from_millis(150));
 
-    // Restore backup clipboard text if available
-    if let Some(old_text) = backup {
-        let _ = clipboard.set_text(old_text);
+    if let Some(old) = backup {
+        let _ = clipboard.set_text(&old);
     }
 
     Ok(())
