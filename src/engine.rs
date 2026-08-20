@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use candle_core::quantized::gguf_file;
 use candle_core::{Device, Tensor};
 use candle_transformers::generation::LogitsProcessor;
-use candle_transformers::models::quantized_llama::ModelWeights;
+use candle_transformers::models::quantized_qwen2::ModelWeights;
 use tokenizers::Tokenizer;
 use std::fs::File;
 use std::path::Path;
@@ -20,7 +20,7 @@ impl LlamaEngine {
             return Err(anyhow!("GGUF Model file not found at {:?}", model_path));
         }
 
-        println!("Loading GGUF model from {:?} into Candle engine...", model_path);
+        println!("Loading Qwen2 GGUF model from {:?} into Candle engine...", model_path);
         let mut file = File::open(model_path)?;
         let device = Device::Cpu;
 

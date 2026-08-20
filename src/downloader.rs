@@ -10,16 +10,6 @@ pub async fn ensure_file_downloaded(
     download_url: &str,
     mut progress_cb: impl FnMut(u64, Option<u64>),
 ) -> Result<()> {
-    if file_path.exists() {
-        return Ok(());
-    }
-
-    if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    println!("Downloading file from: {}", download_url);
-
     let client = reqwest::Client::new();
     let response = client
         .get(download_url)
@@ -35,6 +25,28 @@ pub async fn ensure_file_downloaded(
     }
 
     let total_size = response.content_length();
+
+    // Check existing file size
+    if file_path.exists() {
+        if let Ok(metadata) = fs::metadata(file_path) {
+            if let Some(expected) = total_size {
+                if metadata.len() == expected {
+                    return Ok(());
+                }
+                println!("Incomplete file found ({}/{} bytes). Re-downloading...", metadata.len(), expected);
+                let _ = fs::remove_file(file_path);
+            } else if metadata.len() > 0 {
+                return Ok(());
+            }
+        }
+    }
+
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    println!("Downloading file from: {}", download_url);
+
     let mut file = File::create(file_path).await?;
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -47,7 +59,7 @@ pub async fn ensure_file_downloaded(
     }
 
     file.flush().await?;
-    println!("File saved successfully to: {:?}", file_path);
+    println!("\nFile saved successfully to: {:?}", file_path);
     Ok(())
 }
 
@@ -65,7 +77,6 @@ pub async fn ensure_model_and_tokenizer(
     ensure_file_downloaded(model_path, &model_url, progress_cb).await?;
 
     if !tokenizer_path.exists() {
-        // Fetch tokenizer.json from standard base model repo (e.g. Qwen/Qwen2.5-0.5B-Instruct or Qwen/Qwen2.5-0.5B-Instruct-GGUF)
         let tokenizer_url = format!(
             "https://huggingface.co/{}/resolve/main/tokenizer.json",
             hf_repo.replace("-GGUF", "")
