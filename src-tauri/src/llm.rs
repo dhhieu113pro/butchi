@@ -2,23 +2,17 @@ use std::{
     fs,
     num::NonZeroU32,
     path::{Path, PathBuf},
-    sync::Mutex,
 };
 
 use llama_cpp_2::{
     context::params::LlamaContextParams,
     llama_backend::LlamaBackend,
     llama_batch::LlamaBatch,
-    model::{
-        params::LlamaModelParams, AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel,
-    },
+    model::{params::LlamaModelParams, AddBos, LlamaChatMessage, LlamaModel},
     sampling::LlamaSampler,
-    token::{
-        data_array::LlamaTokenDataArray,
-        LlamaToken,
-    },
 };
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 
 use crate::config::{self, AppConfig};
 
@@ -30,8 +24,8 @@ struct LoadedModel {
     model: LlamaModel,
 }
 
-fn backend() -> Result<(), String> {
-    let mut guard = BACKEND.lock().map_err(|e| e.to_string())?;
+fn ensure_backend() -> Result<(), String> {
+    let mut guard = BACKEND.lock();
     if guard.is_none() {
         let backend = LlamaBackend::init().map_err(|e| format!("llama backend init: {e}"))?;
         *guard = Some(backend);
@@ -39,20 +33,13 @@ fn backend() -> Result<(), String> {
     Ok(())
 }
 
-fn with_backend<T>(f: impl FnOnce(&LlamaBackend) -> Result<T, String>) -> Result<T, String> {
-    backend()?;
-    let guard = BACKEND.lock().map_err(|e| e.to_string())?;
-    let backend = guard.as_ref().ok_or_else(|| "backend missing".to_string())?;
-    f(backend)
-}
-
 pub fn model_status(config: &AppConfig) -> ModelStatus {
     let path = config::model_local_path(&config.model_repo, &config.model_file).ok();
     let downloaded = path.as_ref().is_some_and(|p| p.is_file());
     let loaded = ENGINE
         .lock()
-        .ok()
-        .and_then(|g| g.as_ref().map(|m| m.path.clone()))
+        .as_ref()
+        .map(|m| m.path.clone())
         .filter(|p| path.as_ref() == Some(p))
         .is_some();
 
@@ -92,13 +79,6 @@ pub struct ModelStatus {
     pub gpu_feature: String,
 }
 
-#[derive(serde::Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadProgress {
-    pub stage: String,
-    pub message: String,
-}
-
 pub fn download_model(repo: &str, file: &str) -> Result<PathBuf, String> {
     let dest = config::model_local_path(repo, file)?;
     if dest.is_file() {
@@ -123,9 +103,7 @@ pub fn download_model(repo: &str, file: &str) -> Result<PathBuf, String> {
 }
 
 pub fn unload() {
-    if let Ok(mut guard) = ENGINE.lock() {
-        *guard = None;
-    }
+    *ENGINE.lock() = None;
 }
 
 pub fn ensure_loaded(config: &AppConfig) -> Result<(), String> {
@@ -138,28 +116,33 @@ pub fn ensure_loaded(config: &AppConfig) -> Result<(), String> {
     }
 
     {
-        let guard = ENGINE.lock().map_err(|e| e.to_string())?;
+        let guard = ENGINE.lock();
         if guard.as_ref().is_some_and(|m| m.path == path) {
             return Ok(());
         }
     }
 
-    let model = with_backend(|backend| load_model(backend, &path, config.gpu_layers))?;
-    let mut guard = ENGINE.lock().map_err(|e| e.to_string())?;
-    *guard = Some(LoadedModel { path, model });
+    ensure_backend()?;
+    let model = {
+        let backend_guard = BACKEND.lock();
+        let backend = backend_guard
+            .as_ref()
+            .ok_or_else(|| "backend missing".to_string())?;
+        load_model(backend, &path, config.gpu_layers)?
+    };
+
+    *ENGINE.lock() = Some(LoadedModel { path, model });
     Ok(())
 }
 
 fn load_model(backend: &LlamaBackend, path: &Path, gpu_layers: u32) -> Result<LlamaModel, String> {
-    let mut params = LlamaModelParams::default();
     #[cfg(any(feature = "cuda", feature = "vulkan"))]
-    {
-        params = params.with_n_gpu_layers(gpu_layers);
-    }
+    let params = LlamaModelParams::default().with_n_gpu_layers(gpu_layers);
     #[cfg(not(any(feature = "cuda", feature = "vulkan")))]
-    {
+    let params = {
         let _ = gpu_layers;
-    }
+        LlamaModelParams::default()
+    };
 
     LlamaModel::load_from_file(backend, path, &params)
         .map_err(|e| format!("load model {}: {e}", path.display()))
@@ -167,48 +150,44 @@ fn load_model(backend: &LlamaBackend, path: &Path, gpu_layers: u32) -> Result<Ll
 
 pub fn generate(system: &str, user: &str, config: &AppConfig) -> Result<String, String> {
     ensure_loaded(config)?;
+    ensure_backend()?;
 
-    let guard = ENGINE.lock().map_err(|e| e.to_string())?;
-    let loaded = guard
-        .as_ref()
-        .ok_or_else(|| "model not loaded".to_string())?;
-
-    let prompt = build_prompt(&loaded.model, system, user)?;
     let max_tokens = config.max_tokens.max(16) as i32;
     let temperature = config.temperature.clamp(0.0, 2.0);
 
-    run_completion(&loaded.model, &prompt, max_tokens, temperature)
+    // Lock order: backend then engine (never reverse).
+    let backend_guard = BACKEND.lock();
+    let backend = backend_guard
+        .as_ref()
+        .ok_or_else(|| "backend missing".to_string())?;
+    let engine_guard = ENGINE.lock();
+    let loaded = engine_guard
+        .as_ref()
+        .ok_or_else(|| "model not loaded".to_string())?;
+
+    let prompt = build_prompt(&loaded.model, system, user);
+    run_completion(backend, &loaded.model, &prompt, max_tokens, temperature)
 }
 
-fn build_prompt(model: &LlamaModel, system: &str, user: &str) -> Result<String, String> {
+fn build_prompt(model: &LlamaModel, system: &str, user: &str) -> String {
     if let Ok(tmpl) = model.chat_template(None) {
-        if let Ok(messages) = build_chat_messages(system, user) {
-            if let Ok(prompt) = model.apply_chat_template(&tmpl, &messages, true) {
-                return Ok(prompt);
+        if let (Ok(system_msg), Ok(user_msg)) = (
+            LlamaChatMessage::new("system".into(), system.into()),
+            LlamaChatMessage::new("user".into(), user.into()),
+        ) {
+            if let Ok(prompt) = model.apply_chat_template(&tmpl, &[system_msg, user_msg], true) {
+                return prompt;
             }
         }
-        let _ = tmpl;
     }
 
-    // Qwen-style chat template fallback.
-    Ok(format!(
+    format!(
         "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n"
-    ))
-}
-
-fn build_chat_messages(
-    system: &str,
-    user: &str,
-) -> Result<Vec<LlamaChatMessage>, String> {
-    Ok(vec![
-        LlamaChatMessage::new("system".into(), system.into())
-            .map_err(|e| format!("chat message: {e}"))?,
-        LlamaChatMessage::new("user".into(), user.into())
-            .map_err(|e| format!("chat message: {e}"))?,
-    ])
+    )
 }
 
 fn run_completion(
+    backend: &LlamaBackend,
     model: &LlamaModel,
     prompt: &str,
     n_len: i32,
@@ -216,11 +195,10 @@ fn run_completion(
 ) -> Result<String, String> {
     let ctx_params = LlamaContextParams::default()
         .with_n_ctx(NonZeroU32::new(4096))
-        .with_n_batch(512)
-        .with_n_ubatch(512);
+        .with_n_batch(512);
 
     let mut ctx = model
-        .new_context(&*BACKEND.lock().map_err(|e| e.to_string())?.as_ref().unwrap(), ctx_params)
+        .new_context(backend, ctx_params)
         .map_err(|e| format!("new context: {e}"))?;
 
     let tokens = model
@@ -253,9 +231,8 @@ fn run_completion(
 
     let mut output = String::new();
     let mut n_cur = batch.n_tokens();
-    let n_decode = n_len;
 
-    for _ in 0..n_decode {
+    for _ in 0..n_len {
         let token = sampler.sample(&ctx, batch.n_tokens() - 1);
         sampler.accept(token);
 
@@ -263,10 +240,16 @@ fn run_completion(
             break;
         }
 
-        let piece = model
-            .token_to_str(token, llama_cpp_2::model::Special::Tokenize)
-            .map_err(|e| format!("detokenize: {e}"))?;
-        output.push_str(&piece);
+        match model.token_to_piece(token) {
+            Ok(piece) => output.push_str(&piece),
+            Err(_) => {
+                if let Ok(piece) =
+                    model.token_to_str(token, llama_cpp_2::model::Special::Tokenize)
+                {
+                    output.push_str(&piece);
+                }
+            }
+        }
 
         batch.clear();
         batch
@@ -286,7 +269,3 @@ fn clean_output(text: &str) -> String {
         .trim()
         .to_owned()
 }
-
-// Silence unused import warnings for types kept for API stability across llama-cpp-2 versions.
-#[allow(dead_code)]
-fn _keep_types(_: LlamaToken, _: LlamaTokenDataArray, _: LlamaChatTemplate) {}
