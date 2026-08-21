@@ -2,35 +2,53 @@
 
 A Windows-first Tauri utility for acting on selected text from a small cursor-adjacent popover.
 
-The current milestone includes:
+## Features
 
-- A tray-only background app (no centered main window)
+- Tray-only background app (no centered main window)
 - Automatic popover after mouse-drag or double-click text selection
-- `Ctrl+Alt+G` as a fallback for keyboard selection
-- Double-Ctrl tap as an alternate capture / manual-input path
-- Windows UI Automation capture for normal browser/editor selections (no clipboard mutation)
-- Guarded clipboard fallback for the manual shortcut when only restorable plain text/image data is present
-- **Translate** and **Rewrite** actions wired through a Tauri command
-  - Rewrite: offline light grammar cleanup (demo-quality; LLM provider next)
-  - Translate: copies the selection so you can paste into any translator (provider not connected yet)
-  - Successful results are copied to the clipboard
+- `Ctrl+Alt+G` fallback + double-Ctrl tap for keyboard selections
+- Windows UI Automation capture (no clipboard mutation) with guarded clipboard fallback
+- **Translate** and **Rewrite** actions
+- **Settings** window (tray → Settings):
+  - Enable / disable Translate and Rewrite
+  - Target language for translation
+  - Editable rewrite system prompt
+  - Local LLM model picker + Hugging Face download
+- Local GGUF inference via `llama-cpp-2` (default **Qwen3.5 0.8B** Q4_K_M)
+- Optional GPU offload with Cargo features `cuda` or `vulkan`
 
 ## Development
+
+Requirements: Rust, Node, CMake, and a C/C++ toolchain (needed by `llama-cpp-2`).
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-After the tray icon appears, select text in a browser or editor by dragging the mouse or double-clicking a word. The action popover should appear beside the selection. It closes a few seconds after the pointer leaves it. For keyboard-created selections, press `Ctrl+Alt+G`, then release all three keys. Double-tapping Ctrl also opens the flow (with manual input if no selection is found).
+### GPU builds
+
+```sh
+# NVIDIA CUDA (CUDA Toolkit required)
+npm run tauri dev -- -- --features cuda
+
+# Vulkan (Vulkan SDK required on Windows)
+npm run tauri dev -- -- --features vulkan
+```
+
+After the tray icon appears:
+
+1. Open **Settings** from the tray menu
+2. Download the default **Qwen3.5 0.8B** model
+3. Click **Load model**
+4. Select text in a browser/editor — use Translate / Rewrite
 
 ## Build
 
 ```sh
 npm run tauri build
+# or with GPU:
+npm run tauri build -- -- --features cuda
 ```
 
-## Next
-
-- Plug a real translation provider (and optional local LLM for rewrite)
-- Optional: replace selection in the source app instead of clipboard-only
+Models are stored under the OS app data directory (`…/rust-rewrite/models`).
