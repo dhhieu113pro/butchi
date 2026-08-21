@@ -30,10 +30,9 @@ pub fn create(app: &mut App) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => {
-                let handle = app.clone();
-                let _ = handle.run_on_main_thread(move || {
-                    let _ = crate::open_settings_cmd(&handle);
-                });
+                if let Err(error) = open_settings_window(app) {
+                    eprintln!("failed to open settings: {error}");
+                }
             }
             "quit" => app.exit(0),
             _ => {}
@@ -47,8 +46,7 @@ pub fn create(app: &mut App) -> tauri::Result<()> {
     Ok(())
 }
 
-// Helper so tray can open settings without circular visibility issues.
-pub(crate) fn open_settings_cmd(app: &tauri::AppHandle) -> Result<(), String> {
+pub fn open_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
         let _ = window.set_focus();
