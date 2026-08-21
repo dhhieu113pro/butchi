@@ -1,0 +1,227 @@
+/* Hallmark · component: popover · genre: modern-minimal · theme: Cobalt
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass
+ * pre-emit critique: P5 H4 E4 S5 R5 V4
+ */
+@import "../tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: clip;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background: transparent;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.popover {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-raised);
+  color: var(--color-ink);
+  box-shadow: 0 var(--space-2) var(--space-5) var(--color-shadow);
+}
+
+.selection {
+  margin: 0 0 var(--space-2);
+  overflow: hidden;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manual-input {
+  display: block;
+  width: 100%;
+  min-height: 3.5rem;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  resize: none;
+  border: var(--rule-thin) solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  color: var(--color-ink);
+  background: var(--color-paper-raised);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+
+.manual-input:focus {
+  border-color: var(--color-focus);
+  outline-color: var(--color-focus);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.action {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--rule-thin) solid var(--color-rule-strong);
+  border-radius: var(--radius-sm);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  color: var(--color-ink);
+  background: var(--color-paper-raised);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition:
+    background-color var(--dur-short) var(--ease-out),
+    color var(--dur-short) var(--ease-out),
+    transform var(--dur-micro) var(--ease-out);
+}
+
+.action svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.action__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action--primary {
+  border-color: var(--color-ink);
+  color: var(--color-paper-raised);
+  background: var(--color-ink);
+}
+
+.action:focus-visible,
+.action.is-focus {
+  outline-color: var(--color-focus);
+}
+
+.action:active,
+.action.is-active {
+  transform: translateY(1px);
+}
+
+.action:disabled,
+.action.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.action[data-state="loading"] .action__state,
+.action.is-loading .action__state {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+.action[data-state="success"] .action__state::before,
+.action.is-success .action__state::before {
+  color: var(--color-success);
+  content: "✓";
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.action--primary[data-state="success"] .action__state::before,
+.action--primary.is-success .action__state::before {
+  color: var(--color-accent-ink);
+}
+
+.action[data-state="error"],
+.action.is-error {
+  border-color: var(--color-error);
+}
+
+.action[data-state="error"] .action__state::before,
+.action.is-error .action__state::before {
+  color: var(--color-error);
+  content: "!";
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.status {
+  min-height: 1.2em;
+  margin: var(--space-2) 0 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .action:hover,
+  .action.is-hover {
+    background: var(--color-paper-hover);
+  }
+
+  .action--primary:hover,
+  .action--primary.is-hover {
+    background: var(--color-ink-hover);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action {
+    transition-duration: 0ms;
+  }
+
+  .action[data-state="loading"] .action__state,
+  .action.is-loading .action__state {
+    animation-duration: 1400ms;
+  }
+}
