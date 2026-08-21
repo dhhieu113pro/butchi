@@ -83,28 +83,26 @@ select,
 textarea {
   width: 100%;
   padding: var(--space-2);
-  border: var(--rule-thin) solid var(--color-rule-strong);
+  border: var(--rule-thin) solid var(--color-rule);
   border-radius: var(--radius-sm);
-  background: var(--color-paper-raised);
+  background: var(--color-paper);
   color: var(--color-ink);
 }
 
 textarea {
   resize: vertical;
   min-height: 6rem;
-  line-height: 1.4;
 }
 
 .hint {
   margin: 0;
-  color: var(--color-muted);
   font-size: var(--text-xs);
+  color: var(--color-muted);
   line-height: 1.4;
 }
 
 .hint code {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.85em;
 }
 
 .status-line {
@@ -147,4 +145,65 @@ textarea {
 .settings__footer {
   display: grid;
   gap: var(--space-2);
+}
+
+.backend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.backend-label {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.backend-pills {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  color: var(--color-muted);
+  background: transparent;
+  opacity: 0.55;
+}
+
+.pill--active {
+  opacity: 1;
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+  background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+}
+
+.device-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+}
+
+.device-list li {
+  line-height: 1.35;
+}
+
+.device-backend {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.device-desc {
+  color: var(--color-muted);
+  font-size: 0.8rem;
 }
