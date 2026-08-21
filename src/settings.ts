@@ -23,6 +23,13 @@ type ModelOption = {
   sizeHint: string;
 };
 
+type BackendDevice = {
+  id: string;
+  name: string;
+  backend: string;
+  description: string;
+};
+
 type ModelStatus = {
   downloaded: boolean;
   loaded: boolean;
@@ -30,6 +37,10 @@ type ModelStatus = {
   repo: string;
   file: string;
   gpuFeature: string;
+  backend: string;
+  devices: BackendDevice[];
+  gpuOffloadAvailable: boolean;
+  maxDevices: number;
 };
 
 const translateEnabled = document.querySelector<HTMLInputElement>("#translateEnabled");
@@ -38,6 +49,9 @@ const targetLanguage = document.querySelector<HTMLSelectElement>("#targetLanguag
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
 const modelSelect = document.querySelector<HTMLSelectElement>("#modelSelect");
 const modelStatus = document.querySelector<HTMLElement>("#modelStatus");
+const backendPills = document.querySelectorAll<HTMLElement>("#backendPills .pill");
+const deviceList = document.querySelector<HTMLUListElement>("#deviceList");
+const backendHint = document.querySelector<HTMLElement>("#backendHint");
 const downloadBtn = document.querySelector<HTMLButtonElement>("#downloadBtn");
 const loadBtn = document.querySelector<HTMLButtonElement>("#loadBtn");
 const maxTokens = document.querySelector<HTMLInputElement>("#maxTokens");
@@ -97,14 +111,62 @@ function readForm(): AppConfig {
   };
 }
 
+function renderBackend(status: ModelStatus) {
+  const backend = (status.backend || status.gpuFeature || "cpu").toLowerCase();
+  backendPills.forEach((pill) => {
+    const active = pill.dataset.backend === backend;
+    pill.classList.toggle("pill--active", active);
+    pill.setAttribute("aria-current", active ? "true" : "false");
+  });
+
+  if (deviceList) {
+    deviceList.innerHTML = "";
+    const devices = status.devices?.length
+      ? status.devices
+      : [
+          {
+            id: "cpu",
+            name: "CPU",
+            backend: "cpu",
+            description: "Host CPU",
+          },
+        ];
+    for (const d of devices) {
+      const li = document.createElement("li");
+      li.innerHTML = `<strong>${escapeHtml(d.name)}</strong> <span class="device-backend">(${escapeHtml(
+        d.backend,
+      )})</span><br /><span class="device-desc">${escapeHtml(d.description)}</span>`;
+      deviceList.append(li);
+    }
+  }
+
+  if (backendHint) {
+    if (status.gpuOffloadAvailable) {
+      backendHint.textContent = `GPU offload available (max_devices=${status.maxDevices}). Set GPU layers above 0 when loading the model.`;
+    } else {
+      backendHint.textContent =
+        "CPU-only binary. Rebuild with: npm run tauri dev -- -- --features cuda   (or vulkan)";
+    }
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function renderStatus(status: ModelStatus) {
+  renderBackend(status);
   if (!modelStatus) return;
   const state = status.loaded
     ? "loaded in memory"
     : status.downloaded
       ? "downloaded (not loaded)"
       : "not downloaded";
-  modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.gpuFeature}.${
+  modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.backend || status.gpuFeature}.${
     status.localPath ? ` Path: ${status.localPath}` : ""
   }`;
 }

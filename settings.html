@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Settings — Rust Rewrite</title>
+    <title>Rust Rewrite — Settings</title>
     <link rel="stylesheet" href="/src/settings.css" />
-    <script type="module" src="/src/settings.ts" defer></script>
+    <script type="module" src="/src/settings.ts"></script>
   </head>
   <body>
     <main class="settings">
       <header class="settings__header">
         <h1>Settings</h1>
-        <p class="settings__lead">Configure actions and the local LLM.</p>
+        <p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p>
       </header>
 
       <section class="card">
@@ -52,10 +52,32 @@
       </section>
 
       <section class="card">
+        <h2>Inference backend</h2>
+        <p class="hint">
+          Backend is fixed at <strong>build time</strong>. Rebuild with
+          <code>--features cuda</code> or <code>--features vulkan</code> to enable GPU offload.
+        </p>
+        <div class="backend-row">
+          <span class="backend-label">Backend</span>
+          <div class="backend-pills" id="backendPills" aria-live="polite">
+            <span class="pill" data-backend="cpu">cpu</span>
+            <span class="pill" data-backend="cuda">cuda</span>
+            <span class="pill" data-backend="vulkan">vulkan</span>
+          </div>
+        </div>
+        <div class="field">
+          <span>Detected devices</span>
+          <ul class="device-list" id="deviceList">
+            <li>Checking…</li>
+          </ul>
+        </div>
+        <p class="hint" id="backendHint"></p>
+      </section>
+
+      <section class="card">
         <h2>Local LLM</h2>
         <p class="hint">
           Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Download once, then load into memory.
-          GPU offload requires building with <code>--features cuda</code> or <code>--features vulkan</code>.
         </p>
         <label class="field">
           <span>Model</span>
