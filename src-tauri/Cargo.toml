@@ -4,17 +4,20 @@ version = "0.1.0"
 description = "A cursor-adjacent translation and rewrite utility"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lib]
-# The `_lib` suffix may seem redundant but it is necessary
-# to make the lib name unique and wouldn't conflict with the bin name.
-# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "rust_rewrite_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[features]
+default = []
+# Build with GPU acceleration when the matching SDK is installed:
+#   cargo build --features cuda    # NVIDIA CUDA
+#   cargo build --features vulkan  # Vulkan (Windows/Linux)
+cuda = ["llama-cpp-2/cuda"]
+vulkan = ["llama-cpp-2/vulkan"]
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -23,6 +26,12 @@ serde_json = "1"
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-single-instance = "2.4.3"
 arboard = "3.6.1"
+dirs = "6"
+hf-hub = { version = "0.4", default-features = true }
+llama-cpp-2 = { version = "0.1", features = ["sampler"] }
+parking_lot = "0.12"
+once_cell = "1"
+
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
     "Win32_System_DataExchange",
