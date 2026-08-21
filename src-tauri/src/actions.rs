@@ -1,5 +1,7 @@
 use arboard::Clipboard;
 
+use crate::{config, llm};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAction {
     Translate,
@@ -31,15 +33,12 @@ fn copy_to_clipboard(text: &str) -> Result<(), String> {
         .map_err(|error| format!("failed to copy result: {error}"))
 }
 
-/// Lightweight offline rewrite aimed at common selection fixes.
-/// Real LLM / provider wiring belongs in a later milestone.
 fn rewrite_offline(input: &str) -> String {
     let mut text = input.trim().to_owned();
     if text.is_empty() {
         return text;
     }
 
-    // Common spoken / chat patterns
     let replacements = [
         ("me and him ", "he and I "),
         ("me and her ", "she and I "),
@@ -60,7 +59,6 @@ fn rewrite_offline(input: &str) -> String {
     let lower = text.to_ascii_lowercase();
     for (from, to) in replacements {
         if lower.contains(from) {
-            // Case-insensitive replace while keeping a simple implementation.
             let mut result = String::with_capacity(text.len());
             let mut rest = text.as_str();
             while let Some(index) = rest.to_ascii_lowercase().find(from) {
@@ -73,14 +71,12 @@ fn rewrite_offline(input: &str) -> String {
         }
     }
 
-    // Capitalize first alphabetic character.
     let mut chars = text.chars().collect::<Vec<_>>();
     if let Some(pos) = chars.iter().position(|c| c.is_alphabetic()) {
         chars[pos] = chars[pos].to_ascii_uppercase();
         text = chars.into_iter().collect();
     }
 
-    // Ensure terminal punctuation for short sentences.
     let trimmed = text.trim_end();
     if !trimmed.is_empty()
         && !trimmed.ends_with(['.', '!', '?', '…'])
@@ -98,24 +94,21 @@ pub fn process(action: TextAction, input: &str) -> Result<ProcessResult, String>
         return Err("no text to process".into());
     }
 
+    let cfg = config::load();
+
+    match action {
+        TextAction::Translate if !cfg.translate_enabled => {
+            return Err("Translate is disabled in Settings".into());
+        }
+        TextAction::Rewrite if !cfg.rewrite_enabled => {
+            return Err("Rewrite is disabled in Settings".into());
+        }
+        _ => {}
+    }
+
     let (text, message) = match action {
-        TextAction::Rewrite => {
-            let rewritten = rewrite_offline(source);
-            let message = if rewritten == source {
-                "Rewrite complete (no changes). Result copied.".to_owned()
-            } else {
-                "Rewritten offline. Result copied to clipboard.".to_owned()
-            };
-            (rewritten, message)
-        }
-        TextAction::Translate => {
-            // Provider not connected yet — still copy so the user can paste into any translator.
-            (
-                source.to_owned(),
-                "Translation provider not connected yet. Original text copied — paste into your translator."
-                    .to_owned(),
-            )
-        }
+        TextAction::Rewrite => rewrite_with_llm_or_offline(source, &cfg),
+        TextAction::Translate => translate_with_llm(source, &cfg)?,
     };
 
     let copied = match copy_to_clipboard(&text) {
@@ -134,6 +127,56 @@ pub fn process(action: TextAction, input: &str) -> Result<ProcessResult, String>
         message,
         copied,
     })
+}
+
+fn rewrite_with_llm_or_offline(source: &str, cfg: &config::AppConfig) -> (String, String) {
+    match llm::generate(&cfg.rewrite_system_prompt, source, cfg) {
+        Ok(text) if !text.trim().is_empty() => (
+            text,
+            format!(
+                "Rewritten with local LLM ({}). Result copied.",
+                cfg.model_file
+            ),
+        ),
+        Ok(_) => {
+            let rewritten = rewrite_offline(source);
+            (
+                rewritten,
+                "LLM returned empty output — used offline rewrite. Result copied.".into(),
+            )
+        }
+        Err(error) => {
+            let rewritten = rewrite_offline(source);
+            (
+                rewritten,
+                format!("LLM unavailable ({error}). Offline rewrite used. Result copied."),
+            )
+        }
+    }
+}
+
+fn translate_with_llm(
+    source: &str,
+    cfg: &config::AppConfig,
+) -> Result<(String, String), String> {
+    let system = format!(
+        "{}\n\nTarget language: {}.",
+        cfg.translate_system_prompt, cfg.target_language
+    );
+
+    match llm::generate(&system, source, cfg) {
+        Ok(text) if !text.trim().is_empty() => Ok((
+            text,
+            format!(
+                "Translated to {} with local LLM. Result copied.",
+                cfg.target_language
+            ),
+        )),
+        Ok(_) => Err("LLM returned empty translation. Is the model downloaded?".into()),
+        Err(error) => Err(format!(
+            "Translation needs the local model. {error}"
+        )),
+    }
 }
 
 #[cfg(test)]

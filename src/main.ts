@@ -17,11 +17,18 @@ let hasInteraction = false;
 let isManualInput = false;
 let pointerInside = false;
 let currentText = "";
+let translateEnabled = true;
+let rewriteEnabled = true;
 
 type ProcessResult = {
   text: string;
   message: string;
   copied: boolean;
+};
+
+type AppConfig = {
+  translateEnabled: boolean;
+  rewriteEnabled: boolean;
 };
 
 function cancelScheduledHide() {
@@ -58,8 +65,18 @@ popover?.addEventListener("pointerleave", () => {
   scheduleHide(hasInteraction ? interactedLeaveDelay : untouchedHideDelay);
 });
 
+function applyActionVisibility() {
+  actions.forEach((button) => {
+    const action = button.dataset.action;
+    const enabled =
+      action === "translate" ? translateEnabled : action === "rewrite" ? rewriteEnabled : true;
+    button.hidden = !enabled;
+  });
+}
+
 function setActionAvailability(enabled: boolean) {
   actions.forEach((button) => {
+    if (button.hidden) return;
     button.dataset.state = "default";
     button.disabled = !enabled;
   });
@@ -78,10 +95,24 @@ function activeText(): string {
   return currentText.trim();
 }
 
+async function refreshConfig() {
+  try {
+    const cfg = await invoke<AppConfig>("get_config");
+    translateEnabled = cfg.translateEnabled;
+    rewriteEnabled = cfg.rewriteEnabled;
+    applyActionVisibility();
+  } catch {
+    /* keep defaults */
+  }
+}
+
+void refreshConfig();
+
 listen<string>("selection-captured", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
   currentText = payload;
+  void refreshConfig();
   showSelection();
   if (selection) {
     selection.textContent = payload;
@@ -117,6 +148,7 @@ listen<string>("manual-input-requested", () => {
   hasInteraction = true;
   isManualInput = true;
   currentText = "";
+  void refreshConfig();
   if (selection) selection.hidden = true;
   if (manualInput) {
     manualInput.hidden = false;
@@ -142,7 +174,7 @@ window.addEventListener("blur", () => {
 
 function resetActions(active: HTMLButtonElement) {
   actions.forEach((button) => {
-    if (button !== active) {
+    if (button !== active && !button.hidden) {
       button.dataset.state = "default";
       button.disabled = false;
     }
@@ -162,7 +194,7 @@ actions.forEach((button) => {
     keepOpen();
 
     if (status) {
-      status.textContent = action === "rewrite" ? "Rewriting…" : "Preparing translation…";
+      status.textContent = action === "rewrite" ? "Rewriting…" : "Translating…";
       status.removeAttribute("title");
     }
 
