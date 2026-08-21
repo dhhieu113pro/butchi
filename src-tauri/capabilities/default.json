@@ -5,6 +5,7 @@
   "windows": ["popover"],
   "permissions": [
     "core:default",
-    "core:window:allow-hide"
+    "core:window:allow-hide",
+    "allow-process-text"
   ]
 }

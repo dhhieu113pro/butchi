@@ -1,6 +1,7 @@
 import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/ibm-plex-sans";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const status = document.querySelector<HTMLElement>(".status");
@@ -15,6 +16,13 @@ let hideTimer: number | undefined;
 let hasInteraction = false;
 let isManualInput = false;
 let pointerInside = false;
+let currentText = "";
+
+type ProcessResult = {
+  text: string;
+  message: string;
+  copied: boolean;
+};
 
 function cancelScheduledHide() {
   if (hideTimer !== undefined) {
@@ -63,9 +71,17 @@ function showSelection() {
   if (manualInput) manualInput.hidden = true;
 }
 
+function activeText(): string {
+  if (isManualInput) {
+    return manualInput?.value.trim() ?? "";
+  }
+  return currentText.trim();
+}
+
 listen<string>("selection-captured", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
+  currentText = payload;
   showSelection();
   if (selection) {
     selection.textContent = payload;
@@ -82,6 +98,7 @@ listen<string>("selection-captured", ({ payload }) => {
 listen<string>("selection-capture-failed", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
+  currentText = "";
   showSelection();
   if (selection) {
     selection.textContent = "No text selected";
@@ -99,6 +116,7 @@ listen<string>("manual-input-requested", () => {
   cancelScheduledHide();
   hasInteraction = true;
   isManualInput = true;
+  currentText = "";
   if (selection) selection.hidden = true;
   if (manualInput) {
     manualInput.hidden = false;
@@ -114,6 +132,7 @@ listen<string>("manual-input-requested", () => {
 
 manualInput?.addEventListener("input", () => {
   keepOpen();
+  currentText = manualInput.value;
   setActionAvailability(manualInput.value.trim().length > 0);
 });
 
@@ -132,20 +151,48 @@ function resetActions(active: HTMLButtonElement) {
 
 actions.forEach((button) => {
   button.dataset.state = "default";
-  button.addEventListener("click", () => {
-    if (isManualInput && !manualInput?.value.trim()) return;
-    const isRewrite = button.dataset.action === "rewrite";
+  button.addEventListener("click", async () => {
+    const text = activeText();
+    if (!text) return;
+
+    const action = button.dataset.action ?? "rewrite";
     resetActions(button);
     button.dataset.state = "loading";
     button.disabled = true;
+    keepOpen();
 
     if (status) {
-      status.textContent = `${isRewrite ? "Rewrite" : "Translation"} engine will be connected in the next milestone.`;
+      status.textContent = action === "rewrite" ? "Rewriting…" : "Preparing translation…";
+      status.removeAttribute("title");
     }
 
-    window.setTimeout(() => {
+    try {
+      const result = await invoke<ProcessResult>("process_text", { action, text });
+      currentText = result.text;
+      if (selection && !isManualInput) {
+        selection.textContent = result.text;
+        selection.title = result.text;
+      }
+      if (manualInput && isManualInput) {
+        manualInput.value = result.text;
+      }
+      if (status) {
+        status.textContent = result.message;
+        status.title = result.message;
+      }
       button.dataset.state = "success";
       button.disabled = false;
-    }, 450);
+      setActionAvailability(true);
+      scheduleHide(interactedLeaveDelay + 1_500);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (status) {
+        status.textContent = message;
+        status.title = message;
+      }
+      button.dataset.state = "error";
+      button.disabled = false;
+      setActionAvailability(true);
+    }
   });
 });
