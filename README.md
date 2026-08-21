@@ -1,5 +1,7 @@
 # Rust Rewrite
 
+[![CI](https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml/badge.svg)](https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml)
+
 A Windows-first Tauri utility for acting on selected text from a small cursor-adjacent popover.
 
 ## Features
@@ -14,6 +16,7 @@ A Windows-first Tauri utility for acting on selected text from a small cursor-ad
   - Target language for translation
   - Editable rewrite system prompt
   - Local LLM model picker + Hugging Face download
+  - Backend indicator (`cpu` | `cuda` | `vulkan`) + detected devices
 - Local GGUF inference via `llama-cpp-2` (default **Qwen3.5 0.8B** Q4_K_M)
 - Optional GPU offload with Cargo features `cuda` or `vulkan`
 
@@ -42,6 +45,18 @@ After the tray icon appears:
 2. Download the default **Qwen3.5 0.8B** model
 3. Click **Load model**
 4. Select text in a browser/editor — use Translate / Rewrite
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
+
+| Job | Platforms |
+|-----|-----------|
+| `test` | **ubuntu-latest**, **windows-latest**, **macos-latest** |
+| Steps | `tsc --noEmit`, `cargo check`, `cargo test`, optional `clippy` |
+| `feature-gate` | Linux only — best-effort `--features vulkan` check |
+
+CPU builds only in CI (no CUDA/Vulkan SDK on runners). Selection/hotkey code is Windows-gated; other platforms use stubs so unit tests still compile.
 
 ## Build
 
