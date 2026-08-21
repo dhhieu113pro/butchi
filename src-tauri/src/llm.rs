@@ -43,17 +43,24 @@ pub fn model_status(config: &AppConfig) -> ModelStatus {
         .filter(|p| path.as_ref() == Some(p))
         .is_some();
 
+    let backend = current_backend();
+    let devices = detect_devices();
+
     ModelStatus {
         downloaded,
         loaded,
         local_path: path.and_then(|p| p.to_str().map(str::to_owned)),
         repo: config.model_repo.clone(),
         file: config.model_file.clone(),
-        gpu_feature: current_gpu_feature(),
+        gpu_feature: backend.clone(),
+        backend,
+        devices,
+        gpu_offload_available: cfg!(any(feature = "cuda", feature = "vulkan")),
+        max_devices: llama_cpp_2::max_devices() as u32,
     }
 }
 
-fn current_gpu_feature() -> String {
+fn current_backend() -> String {
     #[cfg(feature = "cuda")]
     {
         return "cuda".into();
@@ -68,6 +75,76 @@ fn current_gpu_feature() -> String {
     }
 }
 
+/// Best-effort device list for Settings.
+/// Always includes CPU. When CUDA/Vulkan is compiled in, adds a note that GPU
+/// offload is available (actual device names depend on drivers at runtime).
+fn detect_devices() -> Vec<BackendDevice> {
+    let mut devices = vec![BackendDevice {
+        id: "cpu".into(),
+        name: "CPU".into(),
+        backend: "cpu".into(),
+        description: "Host CPU (always available)".into(),
+    }];
+
+    // Ensure backend is initialized so llama.cpp can see hardware.
+    let _ = ensure_backend();
+
+    #[cfg(feature = "cuda")]
+    {
+        let n = llama_cpp_2::max_devices();
+        if n > 0 {
+            for i in 0..n {
+                devices.push(BackendDevice {
+                    id: format!("cuda:{i}"),
+                    name: format!("CUDA device {i}"),
+                    backend: "cuda".into(),
+                    description: format!(
+                        "NVIDIA GPU slot {i} (compiled with --features cuda). Offload via GPU layers."
+                    ),
+                });
+            }
+        } else {
+            devices.push(BackendDevice {
+                id: "cuda".into(),
+                name: "CUDA".into(),
+                backend: "cuda".into(),
+                description: "CUDA backend compiled in, but max_devices reported 0 (check NVIDIA driver)".into(),
+            });
+        }
+    }
+
+    #[cfg(feature = "vulkan")]
+    {
+        devices.push(BackendDevice {
+            id: "vulkan".into(),
+            name: "Vulkan".into(),
+            backend: "vulkan".into(),
+            description: "Vulkan backend compiled in (--features vulkan). Device selection is handled by llama.cpp.".into(),
+        });
+    }
+
+    #[cfg(not(any(feature = "cuda", feature = "vulkan")))]
+    {
+        devices.push(BackendDevice {
+            id: "gpu-not-built".into(),
+            name: "GPU (not built)".into(),
+            backend: "cpu".into(),
+            description: "This binary was built without cuda/vulkan features. Rebuild with --features cuda or --features vulkan for GPU offload.".into(),
+        });
+    }
+
+    devices
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendDevice {
+    pub id: String,
+    pub name: String,
+    pub backend: String,
+    pub description: String,
+}
+
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatus {
@@ -76,7 +153,13 @@ pub struct ModelStatus {
     pub local_path: Option<String>,
     pub repo: String,
     pub file: String,
+    /// Same as `backend` (kept for older frontend code).
     pub gpu_feature: String,
+    /// Active compile-time backend: "cpu" | "cuda" | "vulkan".
+    pub backend: String,
+    pub devices: Vec<BackendDevice>,
+    pub gpu_offload_available: bool,
+    pub max_devices: u32,
 }
 
 pub fn download_model(repo: &str, file: &str) -> Result<PathBuf, String> {
@@ -157,30 +240,33 @@ pub fn generate(system: &str, user: &str, config: &AppConfig) -> Result<String, 
 
     // Lock order: backend then engine (never reverse).
     let backend_guard = BACKEND.lock();
+    let engine_guard = ENGINE.lock();
     let backend = backend_guard
         .as_ref()
         .ok_or_else(|| "backend missing".to_string())?;
-    let engine_guard = ENGINE.lock();
     let loaded = engine_guard
         .as_ref()
         .ok_or_else(|| "model not loaded".to_string())?;
 
-    let prompt = build_prompt(&loaded.model, system, user);
+    let prompt = build_chat_prompt(&loaded.model, system, user)?;
     run_completion(backend, &loaded.model, &prompt, max_tokens, temperature)
 }
 
-fn build_prompt(model: &LlamaModel, system: &str, user: &str) -> String {
-    if let Ok(tmpl) = model.chat_template(None) {
-        if let (Ok(system_msg), Ok(user_msg)) = (
-            LlamaChatMessage::new("system".into(), system.into()),
-            LlamaChatMessage::new("user".into(), user.into()),
-        ) {
-            if let Ok(prompt) = model.apply_chat_template(&tmpl, &[system_msg, user_msg], true) {
-                return prompt;
-            }
-        }
-    }
+fn build_chat_prompt(model: &LlamaModel, system: &str, user: &str) -> Result<String, String> {
+    let messages = vec![
+        LlamaChatMessage::new("system".into(), system.into())
+            .map_err(|e| format!("chat message system: {e}"))?,
+        LlamaChatMessage::new("user".into(), user.into())
+            .map_err(|e| format!("chat message user: {e}"))?,
+    ];
 
+    match model.apply_chat_template(None, messages.as_slice(), true) {
+        Ok(prompt) => Ok(prompt),
+        Err(_) => Ok(fallback_chat_prompt(system, user)),
+    }
+}
+
+fn fallback_chat_prompt(system: &str, user: &str) -> String {
     format!(
         "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n"
     )
