@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Popover states</title>
+    <link rel="stylesheet" href="./popover.css" />
+    <style>
+      body { min-height: 100vh; padding: var(--space-5); background: var(--color-paper); }
+      .preview { display: grid; gap: var(--space-3); max-width: 24rem; margin: auto; }
+      .preview__row { display: grid; grid-template-columns: 5rem minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+      .preview__label { color: var(--color-muted); font-family: var(--font-mono); font-size: var(--text-xs); }
+    </style>
+  </head>
+  <body>
+    <main class="preview" aria-label="Popover action states">
+      <div class="preview__row"><span class="preview__label">default</span><button class="action">Translate</button></div>
+      <div class="preview__row"><span class="preview__label">hover</span><button class="action is-hover">Translate</button></div>
+      <div class="preview__row"><span class="preview__label">focus</span><button class="action is-focus">Translate</button></div>
+      <div class="preview__row"><span class="preview__label">active</span><button class="action is-active">Translate</button></div>
+      <div class="preview__row"><span class="preview__label">disabled</span><button class="action is-disabled" disabled>Translate</button></div>
+      <div class="preview__row"><span class="preview__label">loading</span><button class="action is-loading">Translate <span class="action__state"></span></button></div>
+      <div class="preview__row"><span class="preview__label">error</span><button class="action is-error">Translate <span class="action__state"></span></button></div>
+      <div class="preview__row"><span class="preview__label">success</span><button class="action is-success">Translate <span class="action__state"></span></button></div>
+    </main>
+  </body>
+</html>

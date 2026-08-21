@@ -1,0 +1,8 @@
+{
+  "date": "2026-08-20",
+  "framework": "Tauri 2 + Vite + vanilla TypeScript",
+  "font_stack": "template replaced",
+  "palette": "template replaced",
+  "motion": "motion-cut",
+  "spacing": "4pt tokens"
+}
