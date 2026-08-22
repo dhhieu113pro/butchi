@@ -1,6 +1,6 @@
 use arboard::Clipboard;
 
-use crate::{config, llm};
+use crate::{config, history, llm};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAction {
@@ -110,6 +110,9 @@ pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessRes
         TextAction::Rewrite => rewrite_with_llm_or_offline(source, &cfg),
         TextAction::Translate => translate_with_llm(source, &cfg)?,
     };
+
+    // Persist for History (Settings → History). Best-effort.
+    history::append(action, source, &text, &message);
 
     if !copy {
         return Ok(ProcessResult {
