@@ -8,7 +8,7 @@ mod selection;
 mod selection_monitor;
 mod tray;
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{ipc::Channel, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[tauri::command]
 fn process_text(
@@ -18,6 +18,19 @@ fn process_text(
 ) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
     actions::process(action, &text, copy.unwrap_or(true))
+}
+
+#[tauri::command]
+fn process_text_stream(
+    action: String,
+    text: String,
+    copy: Option<bool>,
+    on_event: Channel<String>,
+) -> Result<actions::ProcessResult, String> {
+    let action = actions::TextAction::parse(&action)?;
+    actions::process_stream(action, &text, copy.unwrap_or(true), |piece| {
+        let _ = on_event.send(piece.to_owned());
+    })
 }
 
 #[tauri::command]
@@ -114,6 +127,7 @@ pub fn run() {
         }))
         .invoke_handler(tauri::generate_handler![
             process_text,
+            process_text_stream,
             get_config,
             save_config,
             list_models,
