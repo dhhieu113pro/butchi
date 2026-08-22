@@ -15,8 +15,8 @@
       {
         "label": "popover",
         "title": "Text actions",
-        "width": 360,
-        "height": 124,
+        "width": 380,
+        "height": 420,
         "visible": false,
         "focus": false,
         "resizable": false,
