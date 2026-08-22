@@ -88,6 +88,46 @@ npm run tauri build -- -- --features cuda
 
 Models are stored under the OS app data directory (`…/rust-rewrite/models`).
 
+## Microsoft Store (Windows x64 + ARM64)
+
+Partner Center product type: **EXE or MSI app** (Tauri produces NSIS offline installers).
+
+### One-time setup
+
+1. Reserve the app name in [Partner Center](https://partner.microsoft.com/dashboard).
+2. Edit `src-tauri/tauri.store.conf.json` and set `bundle.publisher` to your **Publisher display name** from Partner Center (must differ from the app product name).
+3. Optional: add GitHub secrets `WINDOWS_CERTIFICATE` (base64 PFX) and `WINDOWS_CERTIFICATE_PASSWORD` if you want signed installers for direct download. Microsoft Store offline-installer distribution does not require you to pre-sign for Store acceptance the same way MSIX does.
+
+### Build installers (GitHub Actions)
+
+Workflow: [`.github/workflows/publish-windows-store.yml`](.github/workflows/publish-windows-store.yml)
+
+| Trigger | Result |
+|--------|--------|
+| Push tag `v0.1.0` (or any `v*`) | Build x64 + ARM64 NSIS setup.exe, attach to GitHub Release |
+| Actions → **Publish Windows Store** → Run workflow | Same, draft release unless you use a tag |
+
+Artifacts:
+
+- `rust-rewrite-windows-x64` — NSIS `*-setup.exe`
+- `rust-rewrite-windows-arm64` — NSIS `*-setup.exe` (runner: `windows-11-arm`)
+
+Store config is merged at build time:
+
+```sh
+# local equivalent
+npm run tauri build -- --bundles nsis --config src-tauri/tauri.store.conf.json
+```
+
+### Partner Center upload
+
+1. Create product → **EXE or MSI app**.
+2. Packages → add **offline** installer for **x64** and **ARM64**.
+3. Installer parameters: `/S` (NSIS silent).
+4. Complete Store listing, age ratings, and submit for certification.
+
+WebView2 is configured as `offlineInstaller` in `tauri.store.conf.json` so the Store package does not rely on an online bootstrapper.
+
 ## License
 
 See repository for license details.
