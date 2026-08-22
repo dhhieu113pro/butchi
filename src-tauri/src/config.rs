@@ -81,7 +81,7 @@ pub fn model_catalog() -> Vec<ModelOption> {
 
 pub fn app_data_dir() -> Result<PathBuf, String> {
     let base = dirs::data_dir().ok_or_else(|| "could not resolve app data directory".to_string())?;
-    let dir = base.join("rust-rewrite");
+    let dir = base.join("butchi");
     fs::create_dir_all(&dir).map_err(|e| format!("create data dir: {e}"))?;
     Ok(dir)
 }
