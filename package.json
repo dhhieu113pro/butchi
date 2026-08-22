@@ -4,8 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tauri dev -- --no-default-features",
-    "dev:llm": "tauri dev",
+    "dev": "tauri dev",
     "dev:web": "vite",
     "build": "tsc && vite build",
     "icons": "tauri icon assets/butchi-logo.svg",
