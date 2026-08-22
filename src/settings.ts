@@ -124,11 +124,12 @@ function readForm(): AppConfig {
 }
 
 function escapeHtml(value: string): string {
+  const amp = String.fromCharCode(38);
   return value
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, amp + "amp;")
+    .replace(/</g, amp + "lt;")
+    .replace(/>/g, amp + "gt;")
+    .replace(/"/g, amp + "quot;");
 }
 
 function renderBackend(status: ModelStatus) {
