@@ -58,6 +58,19 @@ fn save_config(config: config::AppConfig) -> Result<config::AppConfig, String> {
 }
 
 #[tauri::command]
+fn set_target_language(language: String) -> Result<config::AppConfig, String> {
+    let language = language.trim();
+    if language.is_empty() {
+        return Err("target language cannot be empty".into());
+    }
+
+    let mut cfg = config::load();
+    cfg.target_language = language.to_owned();
+    config::save(&cfg)?;
+    Ok(cfg)
+}
+
+#[tauri::command]
 fn list_models() -> Vec<config::ModelOption> {
     config::model_catalog()
 }
@@ -143,6 +156,7 @@ pub fn run() {
             replace_selected_text,
             get_config,
             save_config,
+            set_target_language,
             list_models,
             get_model_status,
             download_model,
