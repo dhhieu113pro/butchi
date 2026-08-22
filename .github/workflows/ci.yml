@@ -14,6 +14,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Help cmake / cc crates find tools on Windows runners.
+  CMAKE_GENERATOR: Ninja
 
 jobs:
   test:
@@ -35,6 +37,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             cmake \
+            ninja-build \
             pkg-config \
             libclang-dev \
             clang \
@@ -47,15 +50,15 @@ jobs:
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install cmake || true
+          brew install cmake ninja || true
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          # CMake is usually preinstalled on windows-latest; choco is slow/flaky.
-          cmake --version
-        continue-on-error: true
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup CMake (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/get-cmake@latest
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -66,7 +69,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ runner.os }}-cpu
+          shared-key: ${{ runner.os }}-cpu-v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -80,19 +83,20 @@ jobs:
       - name: Typecheck frontend
         run: npx tsc --noEmit
 
-      # Note: --locked omitted until Cargo.lock is committed in sync with Cargo.toml
-      # (target-specific windows deps change required a lockfile refresh).
       - name: Cargo check (CPU)
         working-directory: src-tauri
-        run: cargo check
+        run: cargo check --locked
+        env:
+          # Avoid interactive prompts from cmake crates
+          CMAKE_BUILD_PARALLEL_LEVEL: 2
 
       - name: Cargo test (CPU)
         working-directory: src-tauri
-        run: cargo test -- --nocapture
+        run: cargo test --locked -- --nocapture
 
       - name: Cargo clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
         continue-on-error: true
 
   feature-gate:
@@ -107,7 +111,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config libclang-dev clang \
+            build-essential cmake ninja-build pkg-config libclang-dev clang \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev patchelf libssl-dev
 
@@ -118,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: linux-feature-gate
+          shared-key: linux-feature-gate-v2
 
       - name: cargo check --features vulkan (best-effort)
         working-directory: src-tauri
