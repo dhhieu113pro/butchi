@@ -111,8 +111,11 @@ pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessRes
         TextAction::Translate => translate_with_llm(source, &cfg)?,
     };
 
-    // Persist for History (Settings → History). Best-effort.
-    history::append(action, source, &text, &message);
+    let target_language = match action {
+        TextAction::Translate => Some(cfg.target_language.as_str()),
+        TextAction::Rewrite => None,
+    };
+    history::append(action, source, &text, &message, target_language);
 
     if !copy {
         return Ok(ProcessResult {
