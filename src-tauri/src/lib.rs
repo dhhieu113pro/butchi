@@ -59,13 +59,8 @@ fn save_config(config: config::AppConfig) -> Result<config::AppConfig, String> {
 
 #[tauri::command]
 fn set_target_language(language: String) -> Result<config::AppConfig, String> {
-    let language = language.trim();
-    if language.is_empty() {
-        return Err("target language cannot be empty".into());
-    }
-
     let mut cfg = config::load();
-    cfg.target_language = language.to_owned();
+    config::update_target_language(&mut cfg, &language)?;
     config::save(&cfg)?;
     Ok(cfg)
 }
