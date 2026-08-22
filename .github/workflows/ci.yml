@@ -14,51 +14,29 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Help cmake / cc crates find tools on Windows runners.
   CMAKE_GENERATOR: Ninja
 
 jobs:
   test:
-    name: Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Test (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        # Windows-first; Linux/macOS still required but secondary for selection stubs
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - arch: windows-x64
+            runner: windows-latest
+          - arch: windows-arm64
+            runner: windows-11-arm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            ninja-build \
-            pkg-config \
-            libclang-dev \
-            clang \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev
-
-      - name: Install macOS build dependencies
-        if: runner.os == 'macOS'
-        run: |
-          brew install cmake ninja || true
-
       - name: Install Windows build dependencies
-        if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Setup CMake (Windows)
-        if: runner.os == 'Windows'
         uses: lukka/get-cmake@latest
 
       - name: Setup Rust
@@ -70,7 +48,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ runner.os }}-cpu-v3-nollm
+          shared-key: ${{ matrix.arch }}-cpu-v4-nollm
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -85,7 +63,6 @@ jobs:
         run: npx tsc --noEmit
 
       # Skip feature `llm` on CI — llama-cpp-sys-2 native build is slow/flaky on GHA.
-      # Local/dev uses default features (includes llm).
       - name: Cargo check (no llm)
         working-directory: src-tauri
         run: cargo check --no-default-features
@@ -97,35 +74,4 @@ jobs:
       - name: Cargo clippy
         working-directory: src-tauri
         run: cargo clippy --no-default-features --all-targets -- -D warnings
-        continue-on-error: true
-
-  feature-gate:
-    name: Feature gate (Linux)
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config libclang-dev clang \
-            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev patchelf libssl-dev
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          shared-key: linux-feature-gate-v2
-
-      - name: cargo check --features llm (best-effort, may fail without full toolchain)
-        working-directory: src-tauri
-        run: |
-          cargo check --features llm || echo "llm feature check skipped/failed (expected on some runners)"
         continue-on-error: true
