@@ -1,7 +1,7 @@
 import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/ibm-plex-sans";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 const status = document.querySelector<HTMLElement>(".status");
@@ -131,6 +131,17 @@ function showResultLoading(kind: "translate" | "rewrite") {
   if (parts.text) parts.text.textContent = "";
 }
 
+function showResultChunk(kind: "translate" | "rewrite", chunk: string) {
+  const parts = cardParts(kind);
+  if (!parts || !chunk) return;
+  parts.card.hidden = false;
+  parts.card.dataset.state = "loading";
+  if (parts.state) parts.state.textContent = "Generating…";
+  if (parts.text) {
+    parts.text.textContent = (parts.text.textContent ?? "") + chunk;
+  }
+}
+
 function showResultOk(kind: "translate" | "rewrite", text: string, message: string) {
   const parts = cardParts(kind);
   if (!parts) return;
@@ -155,12 +166,15 @@ function showResultError(kind: "translate" | "rewrite", message: string) {
   }
 }
 
-async function runProcess(
+async function runProcessStreaming(
   action: "translate" | "rewrite",
   text: string,
   copy: boolean,
+  onChunk: (chunk: string) => void,
 ): Promise<ProcessResult> {
-  return invoke<ProcessResult>("process_text", { action, text, copy });
+  const onEvent = new Channel<string>();
+  onEvent.onmessage = onChunk;
+  return invoke<ProcessResult>("process_text_stream", { action, text, copy, onEvent });
 }
 
 async function autoRunEnabled(text: string) {
@@ -170,7 +184,10 @@ async function autoRunEnabled(text: string) {
   if (translateEnabled) {
     showResultLoading("translate");
     jobs.push(
-      runProcess("translate", text, false)
+      runProcessStreaming("translate", text, false, (chunk) => {
+        if (runId !== autoRunId) return;
+        showResultChunk("translate", chunk);
+      })
         .then((result) => {
           if (runId !== autoRunId) return;
           showResultOk("translate", result.text, result.message);
@@ -185,7 +202,10 @@ async function autoRunEnabled(text: string) {
   if (rewriteEnabled) {
     showResultLoading("rewrite");
     jobs.push(
-      runProcess("rewrite", text, false)
+      runProcessStreaming("rewrite", text, false, (chunk) => {
+        if (runId !== autoRunId) return;
+        showResultChunk("rewrite", chunk);
+      })
         .then((result) => {
           if (runId !== autoRunId) return;
           showResultOk("rewrite", result.text, result.message);
@@ -330,7 +350,9 @@ actions.forEach((button) => {
     }
 
     try {
-      const result = await runProcess(action, text, true);
+      const result = await runProcessStreaming(action, text, true, (chunk) => {
+        showResultChunk(action, chunk);
+      });
       currentText = result.text;
       if (selection && !isManualInput) {
         selection.textContent = result.text;
