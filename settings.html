@@ -76,17 +76,41 @@
       <section class="card">
         <h2>Translation prompt</h2>
         <label class="field">
+          <span>Profile</span>
+          <select id="translatePromptProfile">
+            <option value="natural">Natural — default</option>
+            <option value="literal">Literal</option>
+            <option value="professional">Professional</option>
+            <option value="concise">Concise</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="field">
           <span>System prompt</span>
           <textarea id="translateSystemPrompt" rows="5" spellcheck="true"></textarea>
         </label>
+        <p class="hint">Choose a preset as a starting point, then edit it freely. Editing switches the profile to Custom.</p>
       </section>
 
       <section class="card">
         <h2>Rewrite prompt</h2>
         <label class="field">
+          <span>Profile</span>
+          <select id="rewritePromptProfile">
+            <option value="natural">Clear &amp; natural — default</option>
+            <option value="grammar">Grammar only</option>
+            <option value="professional">Professional</option>
+            <option value="shorter">Shorter</option>
+            <option value="polite">More polite</option>
+            <option value="simple">Simple language</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="field">
           <span>System prompt</span>
           <textarea id="rewriteSystemPrompt" rows="5" spellcheck="true"></textarea>
         </label>
+        <p class="hint">Profiles only change the prompt text. Your saved prompt remains fully editable.</p>
       </section>
 
       <section class="card">
@@ -193,6 +217,50 @@
             delete document.documentElement.dataset.theme;
           }
         });
+      })();
+
+      (() => {
+        const translationProfiles = {
+          natural: "You are a precise translation assistant. Translate the user's text into the target language. Keep meaning and tone. Output only the translation with no quotes or explanation.",
+          literal: "Translate the user's text into the target language as literally and accurately as possible. Preserve names, numbers, terminology, sentence structure, and formatting when practical. Do not add, omit, explain, or rewrite ideas. Output only the translation.",
+          professional: "Translate the user's text into the target language using polished, professional, natural wording suitable for workplace communication. Preserve the original meaning, intent, terminology, and level of formality. Output only the translation.",
+          concise: "Translate the user's text into the target language naturally and concisely. Preserve all important meaning while removing unnecessary verbosity only when it does not change intent. Output only the translation.",
+        };
+        const rewriteProfiles = {
+          natural: "You are a precise writing assistant. Rewrite the user's text so it is clear, natural, and grammatically correct. Keep the original meaning and language. Output only the rewritten text with no quotes or explanation.",
+          grammar: "Correct only grammar, spelling, punctuation, capitalization, and obvious word-choice errors in the user's text. Preserve the original wording, structure, tone, meaning, formatting, and language as much as possible. Output only the corrected text.",
+          professional: "Rewrite the user's text in a clear, polished, professional tone suitable for workplace communication. Preserve the original meaning and language. Avoid unnecessary jargon or extra detail. Output only the rewritten text.",
+          shorter: "Rewrite the user's text to be shorter and more direct while preserving the important meaning, intent, tone, and language. Remove repetition and unnecessary words. Output only the rewritten text.",
+          polite: "Rewrite the user's text to sound more polite, respectful, and natural while preserving its meaning, intent, and language. Do not make it overly formal unless the original context requires it. Output only the rewritten text.",
+          simple: "Rewrite the user's text using simple, clear, easy-to-understand language while preserving the original meaning and language. Prefer short sentences and common words. Output only the rewritten text.",
+        };
+
+        function wireProfiles(selectId, textareaId, profiles) {
+          const select = document.getElementById(selectId);
+          const textarea = document.getElementById(textareaId);
+          if (!(select instanceof HTMLSelectElement) || !(textarea instanceof HTMLTextAreaElement)) return;
+
+          const syncSelection = () => {
+            const value = textarea.value.trim();
+            const match = Object.entries(profiles).find(([, prompt]) => prompt === value);
+            select.value = match ? match[0] : "custom";
+          };
+
+          select.addEventListener("change", () => {
+            if (select.value === "custom") return;
+            const prompt = profiles[select.value];
+            if (prompt) textarea.value = prompt;
+          });
+          textarea.addEventListener("input", syncSelection);
+
+          // settings.ts loads config asynchronously; sync after it has populated the textarea.
+          window.setTimeout(syncSelection, 0);
+          window.setTimeout(syncSelection, 150);
+          window.setTimeout(syncSelection, 500);
+        }
+
+        wireProfiles("translatePromptProfile", "translateSystemPrompt", translationProfiles);
+        wireProfiles("rewritePromptProfile", "rewriteSystemPrompt", rewriteProfiles);
       })();
     </script>
   </body>
