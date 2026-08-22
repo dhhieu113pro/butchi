@@ -57,6 +57,7 @@ type ModelStatus = {
 const translateEnabled = document.querySelector<HTMLInputElement>("#translateEnabled");
 const rewriteEnabled = document.querySelector<HTMLInputElement>("#rewriteEnabled");
 const targetLanguage = document.querySelector<HTMLSelectElement>("#targetLanguage");
+const translateSystemPrompt = document.querySelector<HTMLTextAreaElement>("#translateSystemPrompt");
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
 const modelSelect = document.querySelector<HTMLSelectElement>("#modelSelect");
 const modelStatus = document.querySelector<HTMLElement>("#modelStatus");
@@ -100,6 +101,7 @@ function applyConfig(cfg: AppConfig) {
     }
     targetLanguage.value = cfg.targetLanguage;
   }
+  if (translateSystemPrompt) translateSystemPrompt.value = cfg.translateSystemPrompt;
   if (rewriteSystemPrompt) rewriteSystemPrompt.value = cfg.rewriteSystemPrompt;
   if (maxTokens) maxTokens.value = String(cfg.maxTokens);
   if (temperature) temperature.value = String(cfg.temperature);
@@ -118,7 +120,7 @@ function readForm(): AppConfig {
     rewriteEnabled: rewriteEnabled?.checked ?? true,
     targetLanguage: targetLanguage?.value ?? "Vietnamese",
     rewriteSystemPrompt: rewriteSystemPrompt?.value ?? config?.rewriteSystemPrompt ?? "",
-    translateSystemPrompt: config?.translateSystemPrompt ?? "",
+    translateSystemPrompt: translateSystemPrompt?.value ?? config?.translateSystemPrompt ?? "",
     modelRepo: model?.repo ?? config?.modelRepo ?? "",
     modelFile: model?.file ?? config?.modelFile ?? "",
     maxTokens: Number(maxTokens?.value || 256),
