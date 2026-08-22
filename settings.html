@@ -5,9 +5,7 @@
     <script>
       (() => {
         const theme = localStorage.getItem("butchi.theme");
-        if (theme === "light" || theme === "dark") {
-          document.documentElement.dataset.theme = theme;
-        }
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
       })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,223 +15,81 @@
   </head>
   <body>
     <main class="settings">
-      <header class="settings__header">
-        <h1>Settings</h1>
-        <p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p>
-      </header>
+      <header class="settings__header"><h1>Settings</h1><p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p></header>
 
       <section class="card">
         <h2>Appearance</h2>
-        <label class="field">
-          <span>Theme</span>
-          <select id="themePreference">
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
+        <label class="field"><span>Theme</span><select id="themePreference"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <p class="hint">System follows your Windows light/dark preference automatically.</p>
       </section>
 
       <section class="card">
         <h2>Actions</h2>
-        <label class="row">
-          <span>Enable Translate</span>
-          <input id="translateEnabled" type="checkbox" />
-        </label>
-        <label class="row">
-          <span>Enable Rewrite</span>
-          <input id="rewriteEnabled" type="checkbox" />
-        </label>
-        <label class="field">
-          <span>Target language (Translate)</span>
-          <select id="targetLanguage">
-            <option>Vietnamese</option>
-            <option>English</option>
-            <option>Chinese (Simplified)</option>
-            <option>Chinese (Traditional)</option>
-            <option>Japanese</option>
-            <option>Korean</option>
-            <option>French</option>
-            <option>German</option>
-            <option>Spanish</option>
-            <option>Portuguese</option>
-            <option>Thai</option>
-            <option>Indonesian</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Favorite target languages</span>
-          <select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages">
-            <option>Vietnamese</option>
-            <option>English</option>
-            <option>Chinese (Simplified)</option>
-            <option>Chinese (Traditional)</option>
-            <option>Japanese</option>
-            <option>Korean</option>
-            <option>French</option>
-            <option>German</option>
-            <option>Spanish</option>
-            <option>Portuguese</option>
-            <option>Thai</option>
-            <option>Indonesian</option>
-          </select>
-        </label>
+        <label class="row"><span>Enable Translate</span><input id="translateEnabled" type="checkbox" /></label>
+        <label class="row"><span>Enable Rewrite</span><input id="rewriteEnabled" type="checkbox" /></label>
+        <label class="field"><span>Target language (Translate)</span><select id="targetLanguage"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
+        <label class="field"><span>Favorite target languages</span><select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
         <p class="hint">Choose up to 5. These appear as one-click targets in the Translate result card.</p>
-        <label class="field">
-          <span>After an explicit action</span>
-          <select id="resultAction">
-            <option value="copy">Copy result only</option>
-            <option value="replace">Replace selected text</option>
-            <option value="none">Do nothing automatically</option>
-          </select>
-        </label>
+        <label class="field"><span>After an explicit action</span><select id="resultAction"><option value="copy">Copy result only</option><option value="replace">Replace selected text</option><option value="none">Do nothing automatically</option></select></label>
         <p class="hint">Automatic preview never modifies your text. Copy and Replace stay available on each result card.</p>
       </section>
 
       <section class="card">
         <h2>Translation prompt</h2>
-        <label class="field">
-          <span>Profile</span>
-          <select id="translatePromptProfile">
-            <option value="natural">Natural — default</option>
-            <option value="literal">Literal</option>
-            <option value="professional">Professional</option>
-            <option value="concise">Concise</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>System prompt</span>
-          <textarea id="translateSystemPrompt" rows="5" spellcheck="true"></textarea>
-        </label>
+        <label class="field"><span>Profile</span><select id="translatePromptProfile"><option value="natural">Natural — default</option><option value="literal">Literal</option><option value="professional">Professional</option><option value="concise">Concise</option><option value="custom">Custom</option></select></label>
+        <label class="field"><span>System prompt</span><textarea id="translateSystemPrompt" rows="5" spellcheck="true"></textarea></label>
         <p class="hint">Choose a preset as a starting point, then edit it freely. Editing switches the profile to Custom.</p>
       </section>
 
       <section class="card">
         <h2>Rewrite prompt</h2>
-        <label class="field">
-          <span>Profile</span>
-          <select id="rewritePromptProfile">
-            <option value="natural">Clear &amp; natural — default</option>
-            <option value="grammar">Grammar only</option>
-            <option value="professional">Professional</option>
-            <option value="shorter">Shorter</option>
-            <option value="polite">More polite</option>
-            <option value="simple">Simple language</option>
-            <option value="custom">Custom</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>System prompt</span>
-          <textarea id="rewriteSystemPrompt" rows="5" spellcheck="true"></textarea>
-        </label>
+        <label class="field"><span>Profile</span><select id="rewritePromptProfile"><option value="natural">Clear &amp; natural — default</option><option value="grammar">Grammar only</option><option value="professional">Professional</option><option value="shorter">Shorter</option><option value="polite">More polite</option><option value="simple">Simple language</option><option value="custom">Custom</option></select></label>
+        <label class="field"><span>System prompt</span><textarea id="rewriteSystemPrompt" rows="5" spellcheck="true"></textarea></label>
         <p class="hint">Profiles only change the prompt text. Your saved prompt remains fully editable.</p>
       </section>
 
       <section class="card">
         <h2>Inference backend</h2>
-        <p class="hint">
-          Backend is fixed at <strong>build time</strong>. Rebuild with
-          <code>--features cuda</code> or <code>--features vulkan</code> to enable GPU offload.
-        </p>
-        <div class="backend-row">
-          <span class="backend-label">Backend</span>
-          <div class="backend-pills" id="backendPills" aria-live="polite">
-            <span class="pill" data-backend="cpu">cpu</span>
-            <span class="pill" data-backend="cuda">cuda</span>
-            <span class="pill" data-backend="vulkan">vulkan</span>
-          </div>
-        </div>
-        <div class="field">
-          <span>Detected devices</span>
-          <ul class="device-list" id="deviceList">
-            <li>Checking…</li>
-          </ul>
-        </div>
+        <label class="field"><span>Device preference</span><select id="backendPreference"><option value="auto">Auto — GPU first, CPU fallback</option><option value="gpu">GPU only</option><option value="cpu">CPU only</option></select></label>
+        <p class="hint">Auto uses the GPU backend when this build includes one and falls back to CPU if GPU model loading fails.</p>
+        <div class="backend-row"><span class="backend-label">Active / planned backend</span><div class="backend-pills" id="backendPills" aria-live="polite"><span class="pill" data-backend="cpu">cpu</span><span class="pill" data-backend="cuda">cuda</span><span class="pill" data-backend="vulkan">vulkan</span></div></div>
+        <div class="field"><span>Available backends</span><ul class="device-list" id="deviceList"><li>Checking…</li></ul></div>
         <p class="hint" id="backendHint"></p>
       </section>
 
       <section class="card" id="historySection">
-        <div class="history-header">
-          <h2>History</h2>
-          <div class="row-actions">
-            <button type="button" id="refreshHistoryBtn" class="btn btn--ghost">Refresh</button>
-            <button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button>
-          </div>
-        </div>
+        <div class="history-header"><h2>History</h2><div class="row-actions"><button type="button" id="refreshHistoryBtn" class="btn btn--ghost">Refresh</button><button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button></div></div>
         <p class="hint">Search past Translate / Rewrite results. History is stored only on this device.</p>
-        <div class="history-controls">
-          <input id="historySearch" type="search" placeholder="Search source or result…" aria-label="Search history" />
-          <select id="historyAction" aria-label="Filter history action">
-            <option value="">All actions</option>
-            <option value="translate">Translate</option>
-            <option value="rewrite">Rewrite</option>
-          </select>
-        </div>
-        <label class="field">
-          <span>Keep history</span>
-          <select id="historyRetentionDays">
-            <option value="0">Off</option>
-            <option value="7">7 days</option>
-            <option value="30">30 days</option>
-            <option value="-1">Forever</option>
-          </select>
-        </label>
+        <div class="history-controls"><input id="historySearch" type="search" placeholder="Search source or result…" aria-label="Search history" /><select id="historyAction" aria-label="Filter history action"><option value="">All actions</option><option value="translate">Translate</option><option value="rewrite">Rewrite</option></select></div>
+        <label class="field"><span>Keep history</span><select id="historyRetentionDays"><option value="0">Off</option><option value="7">7 days</option><option value="30">30 days</option><option value="-1">Forever</option></select></label>
         <div id="historyList" class="history-list" aria-live="polite"></div>
       </section>
 
       <section class="card">
         <h2>Local LLM</h2>
-        <p class="hint">
-          Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Download once, then load into memory.
-        </p>
-        <label class="field">
-          <span>Model</span>
-          <select id="modelSelect"></select>
-        </label>
+        <p class="hint">Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Download once, then load into memory.</p>
+        <label class="field"><span>Model</span><select id="modelSelect"></select></label>
         <div class="status-line" id="modelStatus">Checking model…</div>
-        <div class="btn-row">
-          <button type="button" class="btn" id="downloadBtn">Download</button>
-          <button type="button" class="btn btn--primary" id="loadBtn">Load model</button>
-        </div>
-        <label class="field">
-          <span>Max tokens</span>
-          <input id="maxTokens" type="number" min="32" max="1024" step="16" />
-        </label>
-        <label class="field">
-          <span>Temperature</span>
-          <input id="temperature" type="number" min="0" max="1.5" step="0.05" />
-        </label>
-        <label class="field">
-          <span>GPU layers (cuda/vulkan builds)</span>
-          <input id="gpuLayers" type="number" min="0" max="999" step="1" />
-        </label>
+        <div class="btn-row"><button type="button" class="btn" id="downloadBtn">Download</button><button type="button" class="btn btn--primary" id="loadBtn">Load model</button></div>
+        <label class="field"><span>Max tokens</span><input id="maxTokens" type="number" min="32" max="1024" step="16" /></label>
+        <label class="field"><span>Temperature</span><input id="temperature" type="number" min="0" max="1.5" step="0.05" /></label>
+        <label class="field"><span>Maximum GPU layers</span><input id="gpuLayers" type="number" min="0" max="999" step="1" /></label>
+        <p class="hint">999 means offload as much as the model/backend supports. CPU preference ignores this value.</p>
       </section>
 
-      <footer class="settings__footer">
-        <p class="hint" id="saveStatus" aria-live="polite"></p>
-        <button type="button" class="btn btn--primary" id="saveBtn">Save settings</button>
-      </footer>
+      <footer class="settings__footer"><p class="hint" id="saveStatus" aria-live="polite"></p><button type="button" class="btn btn--primary" id="saveBtn">Save settings</button></footer>
     </main>
 
     <script>
       (() => {
         const select = document.getElementById("themePreference");
         if (!(select instanceof HTMLSelectElement)) return;
-
         const saved = localStorage.getItem("butchi.theme");
         select.value = saved === "light" || saved === "dark" ? saved : "system";
-
         select.addEventListener("change", () => {
           const theme = select.value;
-          if (theme === "light" || theme === "dark") {
-            localStorage.setItem("butchi.theme", theme);
-            document.documentElement.dataset.theme = theme;
-          } else {
-            localStorage.removeItem("butchi.theme");
-            delete document.documentElement.dataset.theme;
-          }
+          if (theme === "light" || theme === "dark") { localStorage.setItem("butchi.theme", theme); document.documentElement.dataset.theme = theme; }
+          else { localStorage.removeItem("butchi.theme"); delete document.documentElement.dataset.theme; }
         });
       })();
 
@@ -252,30 +108,14 @@
           polite: "Rewrite the user's text to sound more polite, respectful, and natural while preserving its meaning, intent, and language. Do not make it overly formal unless the original context requires it. Output only the rewritten text.",
           simple: "Rewrite the user's text using simple, clear, easy-to-understand language while preserving the original meaning and language. Prefer short sentences and common words. Output only the rewritten text.",
         };
-
         function wireProfiles(selectId, textareaId, profiles) {
-          const select = document.getElementById(selectId);
-          const textarea = document.getElementById(textareaId);
+          const select = document.getElementById(selectId); const textarea = document.getElementById(textareaId);
           if (!(select instanceof HTMLSelectElement) || !(textarea instanceof HTMLTextAreaElement)) return;
-
-          const syncSelection = () => {
-            const value = textarea.value.trim();
-            const match = Object.entries(profiles).find(([, prompt]) => prompt === value);
-            select.value = match ? match[0] : "custom";
-          };
-
-          select.addEventListener("change", () => {
-            if (select.value === "custom") return;
-            const prompt = profiles[select.value];
-            if (prompt) textarea.value = prompt;
-          });
+          const syncSelection = () => { const value = textarea.value.trim(); const match = Object.entries(profiles).find(([, prompt]) => prompt === value); select.value = match ? match[0] : "custom"; };
+          select.addEventListener("change", () => { if (select.value === "custom") return; const prompt = profiles[select.value]; if (prompt) textarea.value = prompt; });
           textarea.addEventListener("input", syncSelection);
-
-          window.setTimeout(syncSelection, 0);
-          window.setTimeout(syncSelection, 150);
-          window.setTimeout(syncSelection, 500);
+          window.setTimeout(syncSelection, 0); window.setTimeout(syncSelection, 150); window.setTimeout(syncSelection, 500);
         }
-
         wireProfiles("translatePromptProfile", "translateSystemPrompt", translationProfiles);
         wireProfiles("rewritePromptProfile", "rewriteSystemPrompt", rewriteProfiles);
       })();
