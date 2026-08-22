@@ -11,9 +11,14 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::ShortcutState;
 
 #[tauri::command]
-fn process_text(action: String, text: String) -> Result<actions::ProcessResult, String> {
+fn process_text(
+    action: String,
+    text: String,
+    copy: Option<bool>,
+) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
-    actions::process(action, &text)
+    // Default true for manual button clicks; auto-run passes false.
+    actions::process(action, &text, copy.unwrap_or(true))
 }
 
 #[tauri::command]
