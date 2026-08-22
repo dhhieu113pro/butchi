@@ -28,6 +28,7 @@ fn get_config() -> config::AppConfig {
 #[tauri::command]
 fn save_config(config: config::AppConfig) -> Result<config::AppConfig, String> {
     config::save(&config)?;
+    history::apply_retention()?;
     llm::unload();
     Ok(config::load())
 }
@@ -62,8 +63,22 @@ fn load_model() -> Result<llm::ModelStatus, String> {
 }
 
 #[tauri::command]
-fn list_history(limit: Option<usize>) -> Vec<history::HistoryEntry> {
+fn list_history(limit: Option<usize>) -> Result<Vec<history::HistoryEntry>, String> {
     history::list(limit)
+}
+
+#[tauri::command]
+fn search_history(
+    query: Option<String>,
+    action: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<history::HistoryEntry>, String> {
+    history::search(query.as_deref(), action.as_deref(), limit)
+}
+
+#[tauri::command]
+fn delete_history_entry(id: String) -> Result<(), String> {
+    history::delete(&id)
 }
 
 #[tauri::command]
@@ -80,8 +95,8 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     }
 
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("Rust Rewrite — Settings")
-        .inner_size(480.0, 720.0)
+        .title("Butchi — Settings")
+        .inner_size(520.0, 760.0)
         .resizable(true)
         .center()
         .build()
@@ -106,11 +121,14 @@ pub fn run() {
             download_model,
             load_model,
             list_history,
+            search_history,
+            delete_history_entry,
             clear_history,
             open_settings,
         ])
         .setup(|app| {
             tray::create(app)?;
+            let _ = history::apply_retention();
             selection_monitor::start(app.handle().clone());
             keyboard_monitor::start(app.handle().clone());
             Ok(())
