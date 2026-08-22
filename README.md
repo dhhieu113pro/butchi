@@ -8,7 +8,7 @@ A Windows-first Tauri utility for acting on selected text from a small cursor-ad
 
 - Tray-only background app (no centered main window)
 - Automatic popover after mouse-drag or double-click text selection
-- `Ctrl+Alt+G` fallback + double-Ctrl tap for keyboard selections
+- Double-Ctrl tap for keyboard selections
 - Windows UI Automation capture (no clipboard mutation) with guarded clipboard fallback
 - **Translate** and **Rewrite** actions
 - **Settings** window (tray → Settings):
@@ -52,11 +52,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
 
 | Job | Platforms |
 |-----|-----------|
-| `test` | **ubuntu-latest**, **windows-latest**, **macos-latest** |
-| Steps | `tsc --noEmit`, `cargo check`, `cargo test`, optional `clippy` |
-| `feature-gate` | Linux only — best-effort `--features vulkan` check |
+| `test` | **windows-latest**, **ubuntu-latest**, **macos-latest** (Windows first) |
+| Steps | `tsc --noEmit`, `cargo check --no-default-features`, `cargo test` |
+| `feature-gate` | Linux only — best-effort `--features llm` check |
 
-CPU builds only in CI (no CUDA/Vulkan SDK on runners). Selection/hotkey code is Windows-gated; other platforms use stubs so unit tests still compile.
+CI skips the `llm` feature (no llama-cpp-sys-2 compile on runners). Local/dev builds include LLM by default.
 
 ## Build
 
