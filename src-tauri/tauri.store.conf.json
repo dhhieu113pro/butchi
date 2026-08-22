@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "publisher": "REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
+    "shortDescription": "Select text, then Translate or Rewrite offline with a local LLM.",
+    "longDescription": "Rust Rewrite is a Windows tray utility that detects text selection and opens a small cursor-adjacent popover for Translate and Rewrite. Inference runs locally via GGUF models (default Qwen3.5 0.8B).",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"]
+      }
+    }
+  }
+}
