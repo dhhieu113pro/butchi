@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/butchi-hero.png" width="960" alt="Butchi — Translate and Rewrite anywhere with a private local LLM"/>
+  <img src="docs/assets/butchi-hero.svg" width="960" alt="Butchi — Translate and Rewrite anywhere with a private local LLM"/>
 </p>
 
 <p align="center">
