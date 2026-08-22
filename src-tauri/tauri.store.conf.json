@@ -6,7 +6,7 @@
     "longDescription": "Butchi (bút chì) is a Windows tray utility that detects text selection and opens a small cursor-adjacent popover for Translate and Rewrite. Inference runs locally via GGUF models (default Qwen3.5 0.8B).",
     "windows": {
       "webviewInstallMode": {
-        "type": "offlineInstaller"
+        "type": "downloadBootstrapper"
       },
       "nsis": {
         "installMode": "currentUser",
