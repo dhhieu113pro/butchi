@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 const CONFIG_FILE: &str = "config.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppConfig {
     pub translate_enabled: bool,
     pub rewrite_enabled: bool,
@@ -24,6 +24,8 @@ pub struct AppConfig {
     pub temperature: f32,
     /// Offload this many layers to GPU when built with cuda/vulkan features.
     pub gpu_layers: u32,
+    /// History retention: 0 = disabled, -1 = forever, positive = days.
+    pub history_retention_days: i32,
 }
 
 impl Default for AppConfig {
@@ -39,6 +41,7 @@ impl Default for AppConfig {
             max_tokens: 256,
             temperature: 0.3,
             gpu_layers: 999,
+            history_retention_days: 30,
         }
     }
 }
