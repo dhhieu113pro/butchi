@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
 </p>
 
 ## Screenshot
