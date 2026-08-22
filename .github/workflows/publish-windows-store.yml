@@ -75,6 +75,31 @@ jobs:
       - name: Setup CMake
         uses: lukka/get-cmake@latest
 
+      # llama.cpp rejects MSVC as the C/C++ compiler for Windows ARM.
+      # Preserve the Visual Studio SDK/linker environment but use clang-cl
+      # for llama-cpp-sys native compilation on the ARM64 runner.
+      - name: Configure clang-cl for ARM64 llama.cpp
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $cmd = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
+          if ($cmd) {
+            $clang = $cmd.Source
+          } else {
+            $candidates = @(
+              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe",
+              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe"
+            )
+            $clang = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
+          Write-Host "Using clang-cl: $clang"
+          & $clang --version
+          "CC=$clang" >> $env:GITHUB_ENV
+          "CXX=$clang" >> $env:GITHUB_ENV
+          "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
+          "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -90,7 +115,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v2
+          shared-key: store-${{ matrix.arch }}-v3-clang
 
       - name: Install npm dependencies
         run: npm ci
