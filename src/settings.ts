@@ -13,6 +13,7 @@ type AppConfig = {
   maxTokens: number;
   temperature: number;
   gpuLayers: number;
+  historyRetentionDays: number;
 };
 
 type ModelOption = {
@@ -37,6 +38,7 @@ type HistoryEntry = {
   source: string;
   result: string;
   message: string;
+  targetLanguage: string | null;
 };
 
 type ModelStatus = {
@@ -69,11 +71,15 @@ const gpuLayers = document.querySelector<HTMLInputElement>("#gpuLayers");
 const saveBtn = document.querySelector<HTMLButtonElement>("#saveBtn");
 const saveStatus = document.querySelector<HTMLElement>("#saveStatus");
 const historyList = document.querySelector<HTMLElement>("#historyList");
+const historySearch = document.querySelector<HTMLInputElement>("#historySearch");
+const historyAction = document.querySelector<HTMLSelectElement>("#historyAction");
+const historyRetentionDays = document.querySelector<HTMLSelectElement>("#historyRetentionDays");
 const refreshHistoryBtn = document.querySelector<HTMLButtonElement>("#refreshHistoryBtn");
 const clearHistoryBtn = document.querySelector<HTMLButtonElement>("#clearHistoryBtn");
 
 let models: ModelOption[] = [];
 let config: AppConfig | null = null;
+let historySearchTimer: number | undefined;
 
 function selectedModel(): ModelOption | undefined {
   const id = modelSelect?.value;
@@ -98,6 +104,7 @@ function applyConfig(cfg: AppConfig) {
   if (maxTokens) maxTokens.value = String(cfg.maxTokens);
   if (temperature) temperature.value = String(cfg.temperature);
   if (gpuLayers) gpuLayers.value = String(cfg.gpuLayers);
+  if (historyRetentionDays) historyRetentionDays.value = String(cfg.historyRetentionDays);
 
   const match =
     models.find((m) => m.repo === cfg.modelRepo && m.file === cfg.modelFile) ?? models[0];
@@ -110,16 +117,14 @@ function readForm(): AppConfig {
     translateEnabled: translateEnabled?.checked ?? true,
     rewriteEnabled: rewriteEnabled?.checked ?? true,
     targetLanguage: targetLanguage?.value ?? "Vietnamese",
-    rewriteSystemPrompt:
-      rewriteSystemPrompt?.value ??
-      config?.rewriteSystemPrompt ??
-      "",
+    rewriteSystemPrompt: rewriteSystemPrompt?.value ?? config?.rewriteSystemPrompt ?? "",
     translateSystemPrompt: config?.translateSystemPrompt ?? "",
     modelRepo: model?.repo ?? config?.modelRepo ?? "",
     modelFile: model?.file ?? config?.modelFile ?? "",
     maxTokens: Number(maxTokens?.value || 256),
     temperature: Number(temperature?.value || 0.3),
     gpuLayers: Number(gpuLayers?.value || 999),
+    historyRetentionDays: Number(historyRetentionDays?.value ?? config?.historyRetentionDays ?? 30),
   };
 }
 
@@ -153,12 +158,9 @@ function renderBackend(status: ModelStatus) {
   }
 
   if (backendHint) {
-    if (status.gpuOffloadAvailable) {
-      backendHint.textContent = `GPU offload available (max_devices=${status.maxDevices}). Set GPU layers above 0 when loading the model.`;
-    } else {
-      backendHint.textContent =
-        "CPU-only binary. Rebuild with: npm run tauri dev -- -- --features cuda   (or vulkan)";
-    }
+    backendHint.textContent = status.gpuOffloadAvailable
+      ? `GPU offload available (max_devices=${status.maxDevices}). Set GPU layers above 0 when loading the model.`
+      : "CPU-only binary. Build with the Vulkan or CUDA feature to enable GPU offload.";
   }
 }
 
@@ -186,30 +188,46 @@ function formatTs(ts: number): string {
   }
 }
 
+function historyEntryHtml(e: HistoryEntry): string {
+  const language = e.targetLanguage ? ` · ${escapeHtml(e.targetLanguage)}` : "";
+  return `
+    <article class="history-item" data-id="${escapeHtml(e.id)}">
+      <div class="history-meta">
+        <span class="history-action">${escapeHtml(e.action)}${language}</span>
+        <span>${escapeHtml(formatTs(e.ts))}</span>
+      </div>
+      <div class="history-source">${escapeHtml(e.source)}</div>
+      <div class="history-result">${escapeHtml(e.result)}</div>
+      <div class="history-item-actions">
+        <button type="button" class="btn btn--tiny" data-history-copy="source">Copy source</button>
+        <button type="button" class="btn btn--tiny" data-history-copy="result">Copy result</button>
+        <button type="button" class="btn btn--tiny" data-history-reuse>Reuse</button>
+        <button type="button" class="btn btn--tiny" data-history-delete>Delete</button>
+      </div>
+    </article>`;
+}
+
 async function refreshHistory() {
   if (!historyList) return;
   try {
-    const entries = await invoke<HistoryEntry[]>("list_history", { limit: 200 });
+    const entries = await invoke<HistoryEntry[]>("search_history", {
+      query: historySearch?.value.trim() || null,
+      action: historyAction?.value || null,
+      limit: 200,
+    });
     if (!entries.length) {
-      historyList.innerHTML = `<p class="history-empty">No history yet. Run Translate or Rewrite to see entries here.</p>`;
+      historyList.innerHTML = `<p class="history-empty">No matching history.</p>`;
       return;
     }
-    historyList.innerHTML = entries
-      .map(
-        (e) => `
-      <article class="history-item" data-id="${escapeHtml(e.id)}">
-        <div class="history-meta">
-          <span class="history-action">${escapeHtml(e.action)}</span>
-          <span>${escapeHtml(formatTs(e.ts))}</span>
-        </div>
-        <div class="history-source">${escapeHtml(e.source)}</div>
-        <div class="history-result">${escapeHtml(e.result)}</div>
-      </article>`
-      )
-      .join("");
+    historyList.innerHTML = entries.map(historyEntryHtml).join("");
   } catch (error) {
     historyList.innerHTML = `<p class="history-empty">${escapeHtml(String(error))}</p>`;
   }
+}
+
+function scheduleHistoryRefresh() {
+  if (historySearchTimer !== undefined) window.clearTimeout(historySearchTimer);
+  historySearchTimer = window.setTimeout(() => void refreshHistory(), 180);
 }
 
 async function init() {
@@ -237,10 +255,7 @@ downloadBtn?.addEventListener("click", async () => {
   downloadBtn.textContent = "Downloading…";
   if (saveStatus) saveStatus.textContent = "Downloading from Hugging Face — this can take a few minutes…";
   try {
-    const status = await invoke<ModelStatus>("download_model", {
-      repo: model.repo,
-      file: model.file,
-    });
+    const status = await invoke<ModelStatus>("download_model", { repo: model.repo, file: model.file });
     renderStatus(status);
     if (saveStatus) saveStatus.textContent = "Model downloaded.";
   } catch (error) {
@@ -254,8 +269,7 @@ downloadBtn?.addEventListener("click", async () => {
 loadBtn?.addEventListener("click", async () => {
   if (!loadBtn) return;
   try {
-    const cfg = readForm();
-    await invoke("save_config", { config: cfg });
+    await invoke("save_config", { config: readForm() });
   } catch {
     /* ignore */
   }
@@ -277,10 +291,10 @@ saveBtn?.addEventListener("click", async () => {
   if (!saveBtn) return;
   saveBtn.disabled = true;
   try {
-    const cfg = readForm();
-    const saved = await invoke<AppConfig>("save_config", { config: cfg });
+    const saved = await invoke<AppConfig>("save_config", { config: readForm() });
     applyConfig(saved);
     await refreshStatus();
+    await refreshHistory();
     if (saveStatus) saveStatus.textContent = "Settings saved.";
   } catch (error) {
     if (saveStatus) saveStatus.textContent = String(error);
@@ -289,12 +303,41 @@ saveBtn?.addEventListener("click", async () => {
   }
 });
 
-modelSelect?.addEventListener("change", () => {
-  void refreshStatus();
-});
+modelSelect?.addEventListener("change", () => void refreshStatus());
+refreshHistoryBtn?.addEventListener("click", () => void refreshHistory());
+historySearch?.addEventListener("input", scheduleHistoryRefresh);
+historyAction?.addEventListener("change", () => void refreshHistory());
 
-refreshHistoryBtn?.addEventListener("click", () => {
-  void refreshHistory();
+historyList?.addEventListener("click", async (event) => {
+  const target = event.target as HTMLElement;
+  const card = target.closest<HTMLElement>(".history-item");
+  if (!card) return;
+  const id = card.dataset.id;
+  if (!id) return;
+
+  const source = card.querySelector<HTMLElement>(".history-source")?.textContent ?? "";
+  const result = card.querySelector<HTMLElement>(".history-result")?.textContent ?? "";
+
+  if (target.closest("[data-history-copy='source']")) {
+    await navigator.clipboard.writeText(source);
+    if (saveStatus) saveStatus.textContent = "History source copied.";
+    return;
+  }
+  if (target.closest("[data-history-copy='result']")) {
+    await navigator.clipboard.writeText(result);
+    if (saveStatus) saveStatus.textContent = "History result copied.";
+    return;
+  }
+  if (target.closest("[data-history-reuse]")) {
+    await navigator.clipboard.writeText(source);
+    if (saveStatus) saveStatus.textContent = "Source copied — paste it anywhere and run Butchi again.";
+    return;
+  }
+  if (target.closest("[data-history-delete]")) {
+    await invoke("delete_history_entry", { id });
+    await refreshHistory();
+    if (saveStatus) saveStatus.textContent = "History entry deleted.";
+  }
 });
 
 clearHistoryBtn?.addEventListener("click", async () => {
