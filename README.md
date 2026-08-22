@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/assets/butchi-hero.png" width="960" alt="Butchi — Translate and Rewrite anywhere with a private local LLM"/>
+</p>
+
+<p align="center">
   <a href="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
 </p>
 
