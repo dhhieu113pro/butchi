@@ -1,6 +1,6 @@
 [package]
 name = "butchi"
-version = "0.1.0"
+version = "0.1.2"
 description = "Butchi (bút chì) — cursor-adjacent translate and rewrite with a local LLM"
 edition = "2021"
 
@@ -13,7 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 [features]
 default = ["llm"]
-# Local GGUF inference (llama-cpp-2). Disable for faster CI: --no-default-features
+# Local GGUF inference (llama-cpp-2).
 llm = ["dep:llama-cpp-2", "dep:hf-hub", "dep:encoding_rs"]
 # Build with GPU acceleration when the matching SDK is installed:
 #   cargo build --features "llm,cuda"    # NVIDIA CUDA
@@ -29,11 +29,7 @@ tauri-plugin-single-instance = "2.4.3"
 arboard = "3.6.1"
 dirs = "6"
 hf-hub = { version = "0.4", default-features = true, optional = true }
-# llama-cpp-2 enables OpenMP by default. On Windows ARM64 its clang-built ggml
-# objects then reference the LLVM OpenMP runtime (__kmpc_*/omp_*), but the MSVC
-# final link does not receive that runtime. Keep the required common + sampler
-# features explicitly and leave OpenMP off so x64 and ARM64 installers link
-# consistently without an extra libomp runtime dependency.
+# llama.cpp OpenMP is intentionally disabled so Windows ARM64 links cleanly.
 llama-cpp-2 = { version = "0.1", default-features = false, features = ["common", "sampler"], optional = true }
 encoding_rs = { version = "0.8", optional = true }
 parking_lot = "0.12"
