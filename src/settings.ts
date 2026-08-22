@@ -10,6 +10,7 @@ type AppConfig = {
   rewriteSystemPrompt: string;
   translateSystemPrompt: string;
   resultAction: string;
+  backendPreference: string;
   modelRepo: string;
   modelFile: string;
   maxTokens: number;
@@ -18,31 +19,9 @@ type AppConfig = {
   historyRetentionDays: number;
 };
 
-type ModelOption = {
-  id: string;
-  label: string;
-  repo: string;
-  file: string;
-  sizeHint: string;
-};
-
-type BackendDevice = {
-  id: string;
-  name: string;
-  backend: string;
-  description: string;
-};
-
-type HistoryEntry = {
-  id: string;
-  ts: number;
-  action: string;
-  source: string;
-  result: string;
-  message: string;
-  targetLanguage: string | null;
-};
-
+type ModelOption = { id: string; label: string; repo: string; file: string; sizeHint: string };
+type BackendDevice = { id: string; name: string; backend: string; description: string };
+type HistoryEntry = { id: string; ts: number; action: string; source: string; result: string; message: string; targetLanguage: string | null };
 type ModelStatus = {
   downloaded: boolean;
   loaded: boolean;
@@ -61,6 +40,7 @@ const rewriteEnabled = document.querySelector<HTMLInputElement>("#rewriteEnabled
 const targetLanguage = document.querySelector<HTMLSelectElement>("#targetLanguage");
 const favoriteLanguages = document.querySelector<HTMLSelectElement>("#favoriteLanguages");
 const resultAction = document.querySelector<HTMLSelectElement>("#resultAction");
+const backendPreference = document.querySelector<HTMLSelectElement>("#backendPreference");
 const translateSystemPrompt = document.querySelector<HTMLTextAreaElement>("#translateSystemPrompt");
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
 const modelSelect = document.querySelector<HTMLSelectElement>("#modelSelect");
@@ -117,6 +97,7 @@ function applyConfig(cfg: AppConfig) {
     });
   }
   if (resultAction) resultAction.value = cfg.resultAction || "copy";
+  if (backendPreference) backendPreference.value = cfg.backendPreference || "auto";
   if (translateSystemPrompt) translateSystemPrompt.value = cfg.translateSystemPrompt;
   if (rewriteSystemPrompt) rewriteSystemPrompt.value = cfg.rewriteSystemPrompt;
   if (maxTokens) maxTokens.value = String(cfg.maxTokens);
@@ -124,8 +105,7 @@ function applyConfig(cfg: AppConfig) {
   if (gpuLayers) gpuLayers.value = String(cfg.gpuLayers);
   if (historyRetentionDays) historyRetentionDays.value = String(cfg.historyRetentionDays);
 
-  const match =
-    models.find((m) => m.repo === cfg.modelRepo && m.file === cfg.modelFile) ?? models[0];
+  const match = models.find((m) => m.repo === cfg.modelRepo && m.file === cfg.modelFile) ?? models[0];
   if (modelSelect && match) modelSelect.value = match.id;
 }
 
@@ -139,6 +119,7 @@ function readForm(): AppConfig {
     rewriteSystemPrompt: rewriteSystemPrompt?.value ?? config?.rewriteSystemPrompt ?? "",
     translateSystemPrompt: translateSystemPrompt?.value ?? config?.translateSystemPrompt ?? "",
     resultAction: resultAction?.value ?? config?.resultAction ?? "copy",
+    backendPreference: backendPreference?.value ?? config?.backendPreference ?? "auto",
     modelRepo: model?.repo ?? config?.modelRepo ?? "",
     modelFile: model?.file ?? config?.modelFile ?? "",
     maxTokens: Number(maxTokens?.value || 256),
@@ -150,11 +131,7 @@ function readForm(): AppConfig {
 
 function escapeHtml(value: string): string {
   const amp = String.fromCharCode(38);
-  return value
-    .replace(/&/g, amp + "amp;")
-    .replace(/</g, amp + "lt;")
-    .replace(/>/g, amp + "gt;")
-    .replace(/"/g, amp + "quot;");
+  return value.replace(/&/g, amp + "amp;").replace(/</g, amp + "lt;").replace(/>/g, amp + "gt;").replace(/"/g, amp + "quot;");
 }
 
 function renderBackend(status: ModelStatus) {
@@ -167,9 +144,7 @@ function renderBackend(status: ModelStatus) {
 
   if (deviceList) {
     deviceList.innerHTML = "";
-    const devices = status.devices?.length
-      ? status.devices
-      : [{ id: "cpu", name: "CPU", backend: "cpu", description: "Host CPU" }];
+    const devices = status.devices?.length ? status.devices : [{ id: "cpu", name: "CPU", backend: "cpu", description: "Host CPU" }];
     for (const d of devices) {
       const li = document.createElement("li");
       li.innerHTML = `<strong>${escapeHtml(d.name)}</strong> <span class="device-backend">(${escapeHtml(d.backend)})</span><br /><span class="device-desc">${escapeHtml(d.description)}</span>`;
@@ -178,21 +153,18 @@ function renderBackend(status: ModelStatus) {
   }
 
   if (backendHint) {
+    const pref = backendPreference?.value || config?.backendPreference || "auto";
     backendHint.textContent = status.gpuOffloadAvailable
-      ? `GPU offload available (max_devices=${status.maxDevices}). Set GPU layers above 0 when loading the model.`
-      : "CPU-only binary. Build with the Vulkan or CUDA feature to enable GPU offload.";
+      ? `GPU backend compiled in (${status.gpuFeature}). Preference: ${pref}. Auto falls back to CPU if GPU loading fails.`
+      : `This binary is CPU-only. Preference: ${pref}. Install/build with Vulkan or CUDA to enable GPU inference.`;
   }
 }
 
 function renderStatus(status: ModelStatus) {
   renderBackend(status);
   if (!modelStatus) return;
-  const state = status.loaded
-    ? "loaded in memory"
-    : status.downloaded
-      ? "downloaded (not loaded)"
-      : "not downloaded";
-  modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.backend || status.gpuFeature}.${status.localPath ? ` Path: ${status.localPath}` : ""}`;
+  const state = status.loaded ? "loaded in memory" : status.downloaded ? "downloaded (not loaded)" : "not downloaded";
+  modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.backend}.${status.localPath ? ` Path: ${status.localPath}` : ""}`;
 }
 
 async function refreshStatus() {
@@ -201,48 +173,21 @@ async function refreshStatus() {
 }
 
 function formatTs(ts: number): string {
-  try {
-    return new Date(ts).toLocaleString();
-  } catch {
-    return String(ts);
-  }
+  try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
 }
 
 function historyEntryHtml(e: HistoryEntry): string {
   const language = e.targetLanguage ? ` · ${escapeHtml(e.targetLanguage)}` : "";
-  return `
-    <article class="history-item" data-id="${escapeHtml(e.id)}">
-      <div class="history-meta">
-        <span class="history-action">${escapeHtml(e.action)}${language}</span>
-        <span>${escapeHtml(formatTs(e.ts))}</span>
-      </div>
-      <div class="history-source">${escapeHtml(e.source)}</div>
-      <div class="history-result">${escapeHtml(e.result)}</div>
-      <div class="history-item-actions">
-        <button type="button" class="btn btn--tiny" data-history-copy="source">Copy source</button>
-        <button type="button" class="btn btn--tiny" data-history-copy="result">Copy result</button>
-        <button type="button" class="btn btn--tiny" data-history-reuse>Reuse</button>
-        <button type="button" class="btn btn--tiny" data-history-delete>Delete</button>
-      </div>
-    </article>`;
+  return `<article class="history-item" data-id="${escapeHtml(e.id)}"><div class="history-meta"><span class="history-action">${escapeHtml(e.action)}${language}</span><span>${escapeHtml(formatTs(e.ts))}</span></div><div class="history-source">${escapeHtml(e.source)}</div><div class="history-result">${escapeHtml(e.result)}</div><div class="history-item-actions"><button type="button" class="btn btn--tiny" data-history-copy="source">Copy source</button><button type="button" class="btn btn--tiny" data-history-copy="result">Copy result</button><button type="button" class="btn btn--tiny" data-history-reuse>Reuse</button><button type="button" class="btn btn--tiny" data-history-delete>Delete</button></div></article>`;
 }
 
 async function refreshHistory() {
   if (!historyList) return;
   try {
-    const entries = await invoke<HistoryEntry[]>("search_history", {
-      query: historySearch?.value.trim() || null,
-      action: historyAction?.value || null,
-      limit: 200,
-    });
-    if (!entries.length) {
-      historyList.innerHTML = `<p class="history-empty">No matching history.</p>`;
-      return;
-    }
+    const entries = await invoke<HistoryEntry[]>("search_history", { query: historySearch?.value.trim() || null, action: historyAction?.value || null, limit: 200 });
+    if (!entries.length) { historyList.innerHTML = `<p class="history-empty">No matching history.</p>`; return; }
     historyList.innerHTML = entries.map(historyEntryHtml).join("");
-  } catch (error) {
-    historyList.innerHTML = `<p class="history-empty">${escapeHtml(String(error))}</p>`;
-  }
+  } catch (error) { historyList.innerHTML = `<p class="history-empty">${escapeHtml(String(error))}</p>`; }
 }
 
 function scheduleHistoryRefresh() {
@@ -261,7 +206,6 @@ async function init() {
       modelSelect.append(opt);
     }
   }
-
   const cfg = await invoke<AppConfig>("get_config");
   applyConfig(cfg);
   await refreshStatus();
@@ -278,33 +222,21 @@ downloadBtn?.addEventListener("click", async () => {
     const status = await invoke<ModelStatus>("download_model", { repo: model.repo, file: model.file });
     renderStatus(status);
     if (saveStatus) saveStatus.textContent = "Model downloaded.";
-  } catch (error) {
-    if (saveStatus) saveStatus.textContent = String(error);
-  } finally {
-    downloadBtn.disabled = false;
-    downloadBtn.textContent = "Download";
-  }
+  } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
+  finally { downloadBtn.disabled = false; downloadBtn.textContent = "Download"; }
 });
 
 loadBtn?.addEventListener("click", async () => {
   if (!loadBtn) return;
-  try {
-    await invoke("save_config", { config: readForm() });
-  } catch {
-    /* ignore */
-  }
+  try { await invoke("save_config", { config: readForm() }); } catch { /* ignore */ }
   loadBtn.disabled = true;
   loadBtn.textContent = "Loading…";
   try {
     const status = await invoke<ModelStatus>("load_model");
     renderStatus(status);
-    if (saveStatus) saveStatus.textContent = "Model loaded into memory.";
-  } catch (error) {
-    if (saveStatus) saveStatus.textContent = String(error);
-  } finally {
-    loadBtn.disabled = false;
-    loadBtn.textContent = "Load model";
-  }
+    if (saveStatus) saveStatus.textContent = `Model loaded with ${status.backend}.`;
+  } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
+  finally { loadBtn.disabled = false; loadBtn.textContent = "Load model"; }
 });
 
 saveBtn?.addEventListener("click", async () => {
@@ -316,11 +248,8 @@ saveBtn?.addEventListener("click", async () => {
     await refreshStatus();
     await refreshHistory();
     if (saveStatus) saveStatus.textContent = "Settings saved.";
-  } catch (error) {
-    if (saveStatus) saveStatus.textContent = String(error);
-  } finally {
-    saveBtn.disabled = false;
-  }
+  } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
+  finally { saveBtn.disabled = false; }
 });
 
 favoriteLanguages?.addEventListener("change", () => {
@@ -330,6 +259,7 @@ favoriteLanguages?.addEventListener("change", () => {
   if (saveStatus) saveStatus.textContent = "Choose up to 5 favorite languages.";
 });
 
+backendPreference?.addEventListener("change", () => void refreshStatus());
 modelSelect?.addEventListener("change", () => void refreshStatus());
 refreshHistoryBtn?.addEventListener("click", () => void refreshHistory());
 historySearch?.addEventListener("input", scheduleHistoryRefresh);
@@ -341,41 +271,18 @@ historyList?.addEventListener("click", async (event) => {
   if (!card) return;
   const id = card.dataset.id;
   if (!id) return;
-
   const source = card.querySelector<HTMLElement>(".history-source")?.textContent ?? "";
   const result = card.querySelector<HTMLElement>(".history-result")?.textContent ?? "";
-
-  if (target.closest("[data-history-copy='source']")) {
-    await navigator.clipboard.writeText(source);
-    if (saveStatus) saveStatus.textContent = "History source copied.";
-    return;
-  }
-  if (target.closest("[data-history-copy='result']")) {
-    await navigator.clipboard.writeText(result);
-    if (saveStatus) saveStatus.textContent = "History result copied.";
-    return;
-  }
-  if (target.closest("[data-history-reuse]")) {
-    await navigator.clipboard.writeText(source);
-    if (saveStatus) saveStatus.textContent = "Source copied — paste it anywhere and run Butchi again.";
-    return;
-  }
-  if (target.closest("[data-history-delete]")) {
-    await invoke("delete_history_entry", { id });
-    await refreshHistory();
-    if (saveStatus) saveStatus.textContent = "History entry deleted.";
-  }
+  if (target.closest("[data-history-copy='source']")) { await navigator.clipboard.writeText(source); if (saveStatus) saveStatus.textContent = "History source copied."; return; }
+  if (target.closest("[data-history-copy='result']")) { await navigator.clipboard.writeText(result); if (saveStatus) saveStatus.textContent = "History result copied."; return; }
+  if (target.closest("[data-history-reuse]")) { await navigator.clipboard.writeText(source); if (saveStatus) saveStatus.textContent = "Source copied — paste it anywhere and run Butchi again."; return; }
+  if (target.closest("[data-history-delete]")) { await invoke("delete_history_entry", { id }); await refreshHistory(); if (saveStatus) saveStatus.textContent = "History entry deleted."; }
 });
 
 clearHistoryBtn?.addEventListener("click", async () => {
   if (!confirm("Clear all history?")) return;
-  try {
-    await invoke("clear_history");
-    await refreshHistory();
-    if (saveStatus) saveStatus.textContent = "History cleared.";
-  } catch (error) {
-    if (saveStatus) saveStatus.textContent = String(error);
-  }
+  try { await invoke("clear_history"); await refreshHistory(); if (saveStatus) saveStatus.textContent = "History cleared."; }
+  catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
 });
 
 void init();
