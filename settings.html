@@ -17,6 +17,13 @@
     <main class="settings">
       <header class="settings__header"><h1>Settings</h1><p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p></header>
 
+      <section class="card" id="gettingStartedCard" hidden>
+        <h2>Get started</h2>
+        <p><strong>Butchi needs one local GGUF model before Translate can work.</strong></p>
+        <p class="hint">1. Choose a model below. 2. Download it once from Hugging Face. 3. Click Load model. After that, text is processed locally on this device.</p>
+        <p class="hint">If you are offline, you can keep using Butchi after the model has already been downloaded.</p>
+      </section>
+
       <section class="card">
         <h2>Appearance</h2>
         <label class="field"><span>Theme</span><select id="themePreference"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -67,7 +74,7 @@
 
       <section class="card">
         <h2>Local LLM</h2>
-        <p class="hint">Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Download once, then load into memory.</p>
+        <p class="hint">Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Model download contacts Hugging Face; inference is local after download.</p>
         <label class="field"><span>Model</span><select id="modelSelect"></select></label>
         <div class="status-line" id="modelStatus">Checking model…</div>
         <div class="btn-row"><button type="button" class="btn" id="downloadBtn">Download</button><button type="button" class="btn btn--primary" id="loadBtn">Load model</button></div>
@@ -75,6 +82,20 @@
         <label class="field"><span>Temperature</span><input id="temperature" type="number" min="0" max="1.5" step="0.05" /></label>
         <label class="field"><span>Maximum GPU layers</span><input id="gpuLayers" type="number" min="0" max="999" step="1" /></label>
         <p class="hint">999 means offload as much as the model/backend supports. CPU preference ignores this value.</p>
+      </section>
+
+      <section class="card">
+        <h2>Privacy & local data</h2>
+        <p class="hint">Selected text is processed locally by the configured GGUF model. Butchi does not send selected text or history to a cloud AI service. History and downloaded models stay on this device.</p>
+        <p class="hint">Network access is used to download model files from Hugging Face when you explicitly choose Download.</p>
+        <div class="btn-row"><button type="button" class="btn btn--ghost" id="clearLocalDataBtn">Delete history + downloaded models</button></div>
+      </section>
+
+      <section class="card">
+        <h2>About</h2>
+        <p><strong>Butchi <span id="appVersion">0.1.2</span></strong></p>
+        <p class="hint">Private local Translate & Rewrite for Windows. License: MIT.</p>
+        <p class="hint">Project and support: github.com/dhhieu113pro/butchi</p>
       </section>
 
       <footer class="settings__footer"><p class="hint" id="saveStatus" aria-live="polite"></p><button type="button" class="btn btn--primary" id="saveBtn">Save settings</button></footer>
