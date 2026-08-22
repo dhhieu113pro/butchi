@@ -318,3 +318,36 @@ button {
   color: var(--color-ink);
   border-color: var(--color-rule-strong);
 }
+
+.language-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 var(--space-2);
+}
+
+.language-target {
+  max-width: 100%;
+  padding: 0.15rem 0.5rem;
+  overflow: hidden;
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.language-target:hover {
+  border-color: var(--color-rule-strong);
+  color: var(--color-ink);
+}
+
+.language-target[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper-raised);
+}
