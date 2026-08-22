@@ -14,6 +14,19 @@ mod windows {
 
     static TARGET_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
+    fn validate_replace_target(target: usize, foreground: usize) -> Result<(), String> {
+        if target == 0 {
+            return Err("the original selected-text window is no longer available".into());
+        }
+        if foreground != target {
+            return Err(
+                "the original app is no longer active; select the text again before replacing"
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+
     pub fn remember_selection_target() -> Result<(), String> {
         let foreground = unsafe { GetForegroundWindow() } as usize;
         if foreground == 0 {
@@ -29,14 +42,8 @@ mod windows {
         }
 
         let target = TARGET_WINDOW.load(Ordering::Acquire);
-        if target == 0 {
-            return Err("the original selected-text window is no longer available".into());
-        }
-
         let foreground = unsafe { GetForegroundWindow() } as usize;
-        if foreground != target {
-            return Err("the original app is no longer active; select the text again before replacing".into());
-        }
+        validate_replace_target(target, foreground)?;
 
         let mut clipboard = Clipboard::new().map_err(|e| format!("clipboard unavailable: {e}"))?;
         clipboard
@@ -55,6 +62,28 @@ mod windows {
         }
 
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn replace_target_accepts_original_foreground_window() {
+            assert!(validate_replace_target(42, 42).is_ok());
+        }
+
+        #[test]
+        fn replace_target_rejects_missing_original_window() {
+            let error = validate_replace_target(0, 42).unwrap_err();
+            assert!(error.contains("original selected-text window"));
+        }
+
+        #[test]
+        fn replace_target_rejects_different_foreground_window() {
+            let error = validate_replace_target(42, 99).unwrap_err();
+            assert!(error.contains("original app is no longer active"));
+        }
     }
 }
 
