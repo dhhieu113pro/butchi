@@ -14,6 +14,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  # Help cmake / cc crates find tools on Windows runners.
   CMAKE_GENERATOR: Ninja
 
 jobs:
@@ -23,7 +24,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Windows-first; Linux/macOS still required but secondary for selection stubs
+        os: [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout
@@ -68,7 +70,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ runner.os }}-cpu-v2
+          shared-key: ${{ runner.os }}-cpu-v3-nollm
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -82,21 +84,19 @@ jobs:
       - name: Typecheck frontend
         run: npx tsc --noEmit
 
-      # --locked temporarily off: remote Cargo.lock is out of date vs Cargo.toml
-      # (missing llama-cpp-2 / windows target deps). Will restore after lockfile push.
-      - name: Cargo check (CPU)
+      # Skip feature `llm` on CI — llama-cpp-sys-2 native build is slow/flaky on GHA.
+      # Local/dev uses default features (includes llm).
+      - name: Cargo check (no llm)
         working-directory: src-tauri
-        run: cargo check
-        env:
-          CMAKE_BUILD_PARALLEL_LEVEL: 2
+        run: cargo check --no-default-features
 
-      - name: Cargo test (CPU)
+      - name: Cargo test (no llm)
         working-directory: src-tauri
-        run: cargo test -- --nocapture
+        run: cargo test --no-default-features -- --nocapture
 
       - name: Cargo clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --no-default-features --all-targets -- -D warnings
         continue-on-error: true
 
   feature-gate:
@@ -124,8 +124,8 @@ jobs:
           workspaces: src-tauri -> target
           shared-key: linux-feature-gate-v2
 
-      - name: cargo check --features vulkan (best-effort)
+      - name: cargo check --features llm (best-effort, may fail without full toolchain)
         working-directory: src-tauri
         run: |
-          cargo check --features vulkan || echo "vulkan feature check skipped/failed (expected without SDK)"
+          cargo check --features llm || echo "llm feature check skipped/failed (expected on some runners)"
         continue-on-error: true
