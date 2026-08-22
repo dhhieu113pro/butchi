@@ -10,14 +10,39 @@
 
   <body>
     <main class="popover" aria-label="Text actions">
-      <p class="selection" title="Selected text">me and him goes to store yesterday</p>
-      <textarea
-        class="manual-input"
-        rows="3"
-        placeholder="Type or paste text…"
-        aria-label="Text to translate or rewrite"
-        hidden
-      ></textarea>
+      <section class="source-block">
+        <header class="block-head">
+          <span class="block-title">Source</span>
+        </header>
+        <p class="selection" title="Selected text">me and him goes to store yesterday</p>
+        <textarea
+          class="manual-input"
+          rows="3"
+          placeholder="Type or paste text…"
+          aria-label="Text to translate or rewrite"
+          hidden
+        ></textarea>
+      </section>
+
+      <div class="results" id="results">
+        <section class="result-card" data-kind="translate" hidden>
+          <header class="block-head">
+            <span class="block-title">Translate</span>
+            <span class="result-state" data-role="state">…</span>
+            <button type="button" class="icon-btn" data-copy="translate" title="Copy translation" aria-label="Copy translation">Copy</button>
+          </header>
+          <p class="result-text" data-role="text"></p>
+        </section>
+        <section class="result-card" data-kind="rewrite" hidden>
+          <header class="block-head">
+            <span class="block-title">Rewrite</span>
+            <span class="result-state" data-role="state">…</span>
+            <button type="button" class="icon-btn" data-copy="rewrite" title="Copy rewrite" aria-label="Copy rewrite">Copy</button>
+          </header>
+          <p class="result-text" data-role="text"></p>
+        </section>
+      </div>
+
       <div class="actions" role="group" aria-label="Choose a text action">
         <button class="action" type="button" data-action="translate">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h8M8 3v2m3 0c-.8 3.3-3.2 6.1-6.5 7.5M6 8c1.1 2 2.8 3.7 5 4.7M14 19l3.2-8 3.3 8m-5.3-3h4"/></svg>
