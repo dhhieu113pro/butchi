@@ -4,6 +4,7 @@ mod history;
 mod keyboard_monitor;
 mod llm;
 mod popover;
+mod replacement;
 mod selection;
 mod selection_monitor;
 mod tray;
@@ -31,6 +32,11 @@ fn process_text_stream(
     actions::process_stream(action, &text, copy.unwrap_or(true), |piece| {
         let _ = on_event.send(piece.to_owned());
     })
+}
+
+#[tauri::command]
+fn replace_selected_text(text: String) -> Result<(), String> {
+    replacement::replace_selected_text(&text)
 }
 
 #[tauri::command]
@@ -128,6 +134,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             process_text,
             process_text_stream,
+            replace_selected_text,
             get_config,
             save_config,
             list_models,
