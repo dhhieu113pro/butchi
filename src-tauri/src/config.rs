@@ -135,3 +135,34 @@ pub fn ensure_parent(path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_result_action_is_copy() {
+        assert_eq!(AppConfig::default().result_action, "copy");
+    }
+
+    #[test]
+    fn old_config_without_result_action_migrates_to_copy() {
+        let raw = r#"{
+            "translateEnabled": true,
+            "rewriteEnabled": true,
+            "targetLanguage": "English"
+        }"#;
+        let config: AppConfig = serde_json::from_str(raw).expect("old config should deserialize");
+        assert_eq!(config.result_action, "copy");
+        assert_eq!(config.target_language, "English");
+    }
+
+    #[test]
+    fn result_action_round_trips_replace() {
+        let mut config = AppConfig::default();
+        config.result_action = "replace".into();
+        let json = serde_json::to_string(&config).expect("serialize config");
+        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
+        assert_eq!(restored.result_action, "replace");
+    }
+}
