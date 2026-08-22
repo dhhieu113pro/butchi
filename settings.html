@@ -63,6 +63,24 @@
           </select>
         </label>
         <label class="field">
+          <span>Favorite target languages</span>
+          <select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages">
+            <option>Vietnamese</option>
+            <option>English</option>
+            <option>Chinese (Simplified)</option>
+            <option>Chinese (Traditional)</option>
+            <option>Japanese</option>
+            <option>Korean</option>
+            <option>French</option>
+            <option>German</option>
+            <option>Spanish</option>
+            <option>Portuguese</option>
+            <option>Thai</option>
+            <option>Indonesian</option>
+          </select>
+        </label>
+        <p class="hint">Choose up to 5. These appear as one-click targets in the Translate result card.</p>
+        <label class="field">
           <span>After an explicit action</span>
           <select id="resultAction">
             <option value="copy">Copy result only</option>
@@ -253,7 +271,6 @@
           });
           textarea.addEventListener("input", syncSelection);
 
-          // settings.ts loads config asynchronously; sync after it has populated the textarea.
           window.setTimeout(syncSelection, 0);
           window.setTimeout(syncSelection, 150);
           window.setTimeout(syncSelection, 500);
