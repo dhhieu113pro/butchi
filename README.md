@@ -48,21 +48,29 @@
 
 ## Development
 
-Requirements: Rust, Node, CMake, and a C/C++ toolchain (needed by `llama-cpp-2` when the `llm` feature is on).
+Requirements: Rust, Node, CMake, and a C/C++ toolchain. LLVM with
+`libclang` is additionally required only when developing the local LLM backend.
 
 ```sh
 npm install
-npm run tauri dev
+npm run dev
+```
+
+This starts the complete desktop shell without the unfinished LLM backend. To
+develop the local LLM backend, install LLVM so `libclang` is available, then run:
+
+```sh
+npm run dev:llm
 ```
 
 ### GPU builds
 
 ```sh
-# NVIDIA CUDA (CUDA Toolkit required)
-npm run tauri dev -- -- --features cuda
+# NVIDIA CUDA (CUDA Toolkit and LLVM required)
+npm run dev:llm -- --features cuda
 
-# Vulkan (Vulkan SDK required on Windows)
-npm run tauri dev -- -- --features vulkan
+# Vulkan (Vulkan SDK and LLVM required on Windows)
+npm run dev:llm -- --features vulkan
 ```
 
 After the tray icon appears:
