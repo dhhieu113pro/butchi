@@ -46,14 +46,15 @@ button {
 }
 
 .selection {
-  margin: 0 0 var(--space-2);
-  overflow: hidden;
+  margin: 0;
+  overflow: auto;
+  max-height: 3.2rem;
   color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .manual-input {
@@ -224,4 +225,96 @@ button {
   .action.is-loading .action__state {
     animation-duration: 1400ms;
   }
+}
+
+.source-block {
+  margin-bottom: var(--space-2);
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 0.25rem;
+}
+
+.block-title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.results {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.result-card {
+  padding: var(--space-2);
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+}
+
+.result-card[data-state="loading"] {
+  opacity: 0.85;
+}
+
+.result-card[data-state="error"] {
+  border-color: var(--color-error);
+}
+
+.result-card[data-state="success"] {
+  border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-rule));
+}
+
+.result-state {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.result-card[data-state="loading"] .result-state {
+  color: var(--color-ink);
+}
+
+.result-card[data-state="success"] .result-state {
+  color: var(--color-success);
+}
+
+.result-card[data-state="error"] .result-state {
+  color: var(--color-error);
+}
+
+.result-text {
+  margin: 0;
+  max-height: 5.5rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+.icon-btn {
+  padding: 0.15rem 0.45rem;
+  border: var(--rule-thin) solid var(--color-rule);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--color-ink);
+  border-color: var(--color-rule-strong);
 }
