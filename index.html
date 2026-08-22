@@ -2,9 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        const theme = localStorage.getItem("butchi.theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.dataset.theme = theme;
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/src/popover.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Text actions</title>
+    <title>Butchi — Text actions</title>
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
