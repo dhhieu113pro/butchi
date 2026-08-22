@@ -15,7 +15,7 @@ pub fn create(app: &mut App) -> tauri::Result<()> {
     let shortcut = MenuItem::with_id(
         app,
         "shortcut-status",
-        "Fallback shortcut: Ctrl+Alt+G",
+        "Double-Ctrl: capture keyboard selection",
         false,
         None::<&str>,
     )?;
@@ -26,7 +26,7 @@ pub fn create(app: &mut App) -> tauri::Result<()> {
 
     let mut tray = TrayIconBuilder::with_id("main")
         .menu(&menu)
-        .tooltip("Rust Rewrite — Ctrl+Alt+G")
+        .tooltip("Rust Rewrite — double-Ctrl")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => {

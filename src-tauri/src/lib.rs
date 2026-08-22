@@ -8,8 +8,6 @@ mod selection_monitor;
 mod tray;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::ShortcutState;
-
 #[tauri::command]
 fn process_text(
     action: String,
@@ -103,18 +101,6 @@ pub fn run() {
             tray::create(app)?;
             selection_monitor::start(app.handle().clone())?;
             keyboard_monitor::start(app.handle().clone())?;
-
-            #[cfg(desktop)]
-            app.handle().plugin(
-                tauri_plugin_global_shortcut::Builder::new()
-                    .with_shortcuts(["ctrl+alt+g"])?
-                    .with_handler(|app, _, event| {
-                        if event.state == ShortcutState::Released {
-                            popover::capture_and_show(app.clone());
-                        }
-                    })
-                    .build(),
-            )?;
 
             Ok(())
         })
