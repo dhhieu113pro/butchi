@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="640" viewBox="0 0 920 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="920" height="640" fill="url(#bg)"/>
+  <rect x="270" y="110" width="380" height="420" rx="16" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+  <rect x="270" y="110" width="380" height="36" rx="16" fill="#1e293b"/>
+  <rect x="270" y="130" width="380" height="16" fill="#1e293b"/>
+  <text x="286" y="133" fill="#f8fafc" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600">Rust Rewrite</text>
+  <circle cx="600" cy="128" r="5" fill="#ef4444"/>
+  <circle cx="618" cy="128" r="5" fill="#eab308"/>
+  <circle cx="636" cy="128" r="5" fill="#22c55e"/>
+  <rect x="286" y="160" width="348" height="70" rx="10" fill="#1e293b" stroke="#475569"/>
+  <text x="300" y="180" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="11">Source</text>
+  <text x="300" y="204" fill="#e2e8f0" font-family="Segoe UI, system-ui, sans-serif" font-size="13">Please rewrite this email more politely.</text>
+  <rect x="286" y="244" width="348" height="95" rx="10" fill="#162134" stroke="#f97316"/>
+  <text x="300" y="266" fill="#f97316" font-family="Segoe UI, system-ui, sans-serif" font-size="12" font-weight="600">Translate  ·  vi</text>
+  <text x="300" y="292" fill="#f1f5f9" font-family="Segoe UI, system-ui, sans-serif" font-size="13">Vui lòng viết lại email này lịch sự hơn.</text>
+  <text x="300" y="320" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="11">Copy</text>
+  <rect x="286" y="352" width="348" height="110" rx="10" fill="#162134" stroke="#38bdf8"/>
+  <text x="300" y="374" fill="#38bdf8" font-family="Segoe UI, system-ui, sans-serif" font-size="12" font-weight="600">Rewrite</text>
+  <text x="300" y="400" fill="#f1f5f9" font-family="Segoe UI, system-ui, sans-serif" font-size="13">Could you please rewrite this email in a</text>
+  <text x="300" y="420" fill="#f1f5f9" font-family="Segoe UI, system-ui, sans-serif" font-size="13">more polite tone? Thank you.</text>
+  <text x="300" y="446" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="11">Copy</text>
+  <text x="300" y="500" fill="#64748b" font-family="Segoe UI, system-ui, sans-serif" font-size="11">Double-Ctrl  ·  selection auto-run</text>
+  <rect x="720" y="575" width="176" height="40" rx="10" fill="#0f172a" stroke="#f97316"/>
+  <text x="740" y="600" fill="#f8fafc" font-family="Segoe UI, system-ui, sans-serif" font-size="12">Rust Rewrite  ·  tray</text>
+</svg>
