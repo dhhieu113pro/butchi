@@ -1,16 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Butchi logo">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#1e293b"/>
+    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#24b7ff"/>
+      <stop offset="38%" stop-color="#5b5df6"/>
+      <stop offset="70%" stop-color="#f24ed2"/>
+      <stop offset="100%" stop-color="#ff9828"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#21b6ff"/>
+      <stop offset="45%" stop-color="#7658f4"/>
+      <stop offset="72%" stop-color="#ef4ecb"/>
+      <stop offset="100%" stop-color="#ff9a28"/>
     </linearGradient>
   </defs>
-  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#g)"/>
-  <rect x="30" y="30" width="452" height="452" rx="90" fill="none" stroke="#f97316" stroke-width="4" opacity="0.7"/>
-  <rect x="140" y="150" width="28" height="190" rx="10" fill="#f8fafc"/>
-  <rect x="190" y="170" width="170" height="28" rx="8" fill="#f97316"/>
-  <rect x="190" y="220" width="140" height="28" rx="8" fill="#94a3b8" opacity="0.85"/>
-  <rect x="190" y="270" width="110" height="28" rx="8" fill="#94a3b8" opacity="0.65"/>
-  <path d="M 370 280 A 70 70 0 1 1 280 370" fill="none" stroke="#f97316" stroke-width="14" stroke-linecap="round"/>
-  <path d="M 268 358 L 280 370 L 255 385 Z" fill="#f97316"/>
+  <rect x="28" y="28" width="456" height="456" rx="104" fill="#091127" stroke="url(#border)" stroke-width="10"/>
+
+  <path d="M155 155h150c48 0 82 27 82 69 0 29-17 51-44 61 35 8 56 34 56 70 0 45-36 78-88 78H155z"
+        fill="none" stroke="url(#brand)" stroke-width="42" stroke-linejoin="round"/>
+
+  <path d="M150 245h105c31 0 56 24 56 53s-25 53-56 53h-62l-43 34v-140z"
+        fill="#091127" stroke="url(#brand)" stroke-width="18" stroke-linejoin="round"/>
+  <circle cx="205" cy="298" r="8" fill="#7c66ff"/>
+  <circle cx="238" cy="298" r="8" fill="#9a5dff"/>
+  <circle cx="271" cy="298" r="8" fill="#c458ef"/>
+
+  <path d="M296 382l78-78c10-10 26-10 36 0s10 26 0 36l-78 78-42 11z"
+        fill="url(#brand)" stroke="#091127" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M302 414l-12 15 15-4z" fill="#091127"/>
+
+  <path d="M105 244h44M95 276h54M108 309h41M126 342h23" stroke="url(#brand)" stroke-width="14" stroke-linecap="round"/>
 </svg>
