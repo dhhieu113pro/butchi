@@ -1,11 +1,11 @@
 [package]
-name = "rust-rewrite"
+name = "butchi"
 version = "0.1.0"
-description = "A cursor-adjacent translation and rewrite utility"
+description = "Butchi (bút chì) — cursor-adjacent translate and rewrite with a local LLM"
 edition = "2021"
 
 [lib]
-name = "rust_rewrite_lib"
+name = "butchi_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
