@@ -12,22 +12,13 @@ mod tray;
 use tauri::{ipc::Channel, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[tauri::command]
-fn process_text(
-    action: String,
-    text: String,
-    copy: Option<bool>,
-) -> Result<actions::ProcessResult, String> {
+fn process_text(action: String, text: String, copy: Option<bool>) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
     actions::process(action, &text, copy.unwrap_or(true))
 }
 
 #[tauri::command]
-fn process_text_stream(
-    action: String,
-    text: String,
-    copy: Option<bool>,
-    on_event: Channel<String>,
-) -> Result<actions::ProcessResult, String> {
+fn process_text_stream(action: String, text: String, copy: Option<bool>, on_event: Channel<String>) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
     actions::process_stream(action, &text, copy.unwrap_or(true), |piece| {
         let _ = on_event.send(piece.to_owned());
@@ -35,19 +26,13 @@ fn process_text_stream(
 }
 
 #[tauri::command]
-fn remember_selection_target() -> Result<(), String> {
-    replacement::remember_selection_target()
-}
+fn remember_selection_target() -> Result<(), String> { replacement::remember_selection_target() }
 
 #[tauri::command]
-fn replace_selected_text(text: String) -> Result<(), String> {
-    replacement::replace_selected_text(&text)
-}
+fn replace_selected_text(text: String) -> Result<(), String> { replacement::replace_selected_text(&text) }
 
 #[tauri::command]
-fn get_config() -> config::AppConfig {
-    config::load()
-}
+fn get_config() -> config::AppConfig { config::load() }
 
 #[tauri::command]
 fn save_config(config: config::AppConfig) -> Result<config::AppConfig, String> {
@@ -66,9 +51,7 @@ fn set_target_language(language: String) -> Result<config::AppConfig, String> {
 }
 
 #[tauri::command]
-fn list_models() -> Vec<config::ModelOption> {
-    config::model_catalog()
-}
+fn list_models() -> Vec<config::ModelOption> { config::model_catalog() }
 
 #[tauri::command]
 fn get_model_status() -> llm::ModelStatus {
@@ -78,7 +61,9 @@ fn get_model_status() -> llm::ModelStatus {
 
 #[tauri::command]
 fn download_model(repo: String, file: String) -> Result<llm::ModelStatus, String> {
-    llm::download_model(&repo, &file)?;
+    llm::download_model(&repo, &file).map_err(|error| {
+        format!("Model download failed. Check your internet connection and try again. {error}")
+    })?;
     let mut cfg = config::load();
     cfg.model_repo = repo;
     cfg.model_file = file;
@@ -95,27 +80,29 @@ fn load_model() -> Result<llm::ModelStatus, String> {
 }
 
 #[tauri::command]
-fn list_history(limit: Option<usize>) -> Result<Vec<history::HistoryEntry>, String> {
-    history::list(limit)
-}
+fn list_history(limit: Option<usize>) -> Result<Vec<history::HistoryEntry>, String> { history::list(limit) }
 
 #[tauri::command]
-fn search_history(
-    query: Option<String>,
-    action: Option<String>,
-    limit: Option<usize>,
-) -> Result<Vec<history::HistoryEntry>, String> {
+fn search_history(query: Option<String>, action: Option<String>, limit: Option<usize>) -> Result<Vec<history::HistoryEntry>, String> {
     history::search(query.as_deref(), action.as_deref(), limit)
 }
 
 #[tauri::command]
-fn delete_history_entry(id: String) -> Result<(), String> {
-    history::delete(&id)
-}
+fn delete_history_entry(id: String) -> Result<(), String> { history::delete(&id) }
 
 #[tauri::command]
-fn clear_history() -> Result<(), String> {
-    history::clear()
+fn clear_history() -> Result<(), String> { history::clear() }
+
+#[tauri::command]
+fn clear_local_ai_data() -> Result<(), String> {
+    llm::unload();
+    history::clear()?;
+    let models = config::models_dir()?;
+    if models.exists() {
+        std::fs::remove_dir_all(&models).map_err(|e| format!("remove downloaded models: {e}"))?;
+    }
+    std::fs::create_dir_all(&models).map_err(|e| format!("recreate models directory: {e}"))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -125,7 +112,6 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         let _ = window.set_focus();
         return Ok(());
     }
-
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Butchi — Settings")
         .inner_size(520.0, 760.0)
@@ -140,9 +126,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("settings") {
-                let _ = window.set_focus();
-            }
+            if let Some(window) = app.get_webview_window("settings") { let _ = window.set_focus(); }
         }))
         .invoke_handler(tauri::generate_handler![
             process_text,
@@ -160,6 +144,7 @@ pub fn run() {
             search_history,
             delete_history_entry,
             clear_history,
+            clear_local_ai_data,
             open_settings,
         ])
         .setup(|app| {
@@ -167,6 +152,13 @@ pub fn run() {
             let _ = history::apply_retention();
             selection_monitor::start(app.handle().clone());
             keyboard_monitor::start(app.handle().clone());
+
+            // First-run experience: if the configured model is not present,
+            // show Settings immediately with the download/setup guidance.
+            let cfg = config::load();
+            if !config::model_is_downloaded(&cfg.model_repo, &cfg.model_file) {
+                let _ = tray::open_settings_window(app.handle());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
