@@ -1,22 +1,3 @@
-# Build Windows Store–ready offline installers (NSIS) for x64 and ARM64.
-#
-# Microsoft Partner Center product type: "EXE or MSI app"
-# Silent install argument for NSIS: /S
-#
-# Triggers:
-#   - Push tag v* (e.g. v0.1.0)
-#   - Manual workflow_dispatch
-#
-# Before first Store submission:
-#   1. Reserve the app name "Butchi" in Partner Center
-#   2. Set bundle.publisher in src-tauri/tauri.store.conf.json
-#      to your Partner Center publisher display name
-#   3. (Optional) Add WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
-#      secrets for code signing if you host the installer yourself
-#
-# Upload the produced *-setup.exe (x64 + arm64) as offline installers
-# in Partner Center. See README "Microsoft Store".
-
 name: Publish Windows Store
 
 on:
@@ -30,7 +11,7 @@ on:
         type: boolean
         default: true
       ref_name:
-        description: "Optional release name override (defaults to tag or run id)"
+        description: "Optional release name override"
         type: string
         required: false
 
@@ -48,7 +29,7 @@ env:
 
 jobs:
   build-windows:
-    name: Windows ${{ matrix.arch }}
+    name: Windows ${{ matrix.arch }} Store RC
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -67,6 +48,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Store secrets and release version
+        shell: pwsh
+        env:
+          STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:STORE_PUBLISHER)) { throw "Missing STORE_PUBLISHER secret (Partner Center publisher display name)." }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) { throw "Missing WINDOWS_CERTIFICATE secret. Microsoft Store EXE/MSI submissions require a CA-trusted Authenticode signature." }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) { throw "Missing WINDOWS_CERTIFICATE_PASSWORD secret." }
+
+          $tauri = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $package = Get-Content package.json -Raw | ConvertFrom-Json
+          $cargoVersion = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $version = $tauri.version
+          if ($package.version -ne $version -or $cargoVersion -ne $version) {
+            throw "Version mismatch: tauri=$version npm=$($package.version) cargo=$cargoVersion"
+          }
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $tagVersion = '${{ github.ref_name }}' -replace '^v',''
+            if ($tagVersion -ne $version) { throw "Tag version $tagVersion does not match app version $version" }
+          }
+          "BUTCHI_VERSION=$version" >> $env:GITHUB_ENV
+
       - name: MSVC developer command prompt
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -75,18 +80,12 @@ jobs:
       - name: Setup CMake
         uses: lukka/get-cmake@latest
 
-      # llama.cpp rejects MSVC as the C/C++ compiler for Windows ARM.
-      # Preserve the Visual Studio SDK/linker environment but use clang-cl
-      # for llama-cpp-sys native compilation on the ARM64 runner. Its wrapper
-      # uses try/catch, so force C++ exception handling as well.
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'arm64'
         shell: pwsh
         run: |
           $cmd = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
-          if ($cmd) {
-            $clang = $cmd.Source
-          } else {
+          if ($cmd) { $clang = $cmd.Source } else {
             $candidates = @(
               "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe",
               "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe"
@@ -94,16 +93,10 @@ jobs:
             $clang = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
           if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
-          Write-Host "Using clang-cl: $clang"
-          & $clang --version
-
           "CC=$clang" >> $env:GITHUB_ENV
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
-
-          # cc-rs checks both generic and target-specific CXXFLAGS. Set both to
-          # guarantee wrapper_common.cpp is built with exception support.
           "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
           "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
 
@@ -122,28 +115,45 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v5-clang-exceptions
+          shared-key: store-${{ matrix.arch }}-v8-signed-offline
 
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Import Windows code-signing certificate
-        if: env.WINDOWS_CERTIFICATE != ''
+      - name: Run frontend and Rust tests
+        shell: pwsh
+        run: |
+          npm run build
+          Push-Location src-tauri
+          cargo test --all-targets -- --nocapture
+          Pop-Location
+
+      - name: Import Authenticode certificate and inject Store identity
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path certificate | Out-Null
           Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
-          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx | Out-Null
           Remove-Item certificate/tempCert.txt -Force
-          Import-PfxCertificate `
+          $cert = Import-PfxCertificate `
             -FilePath certificate/certificate.pfx `
             -CertStoreLocation Cert:\CurrentUser\My `
             -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+          if (-not $cert.Thumbprint) { throw "Certificate import did not return a thumbprint" }
 
-      - name: Build Store offline installer (NSIS)
+          $path = "src-tauri/tauri.store.conf.json"
+          $cfg = Get-Content $path -Raw | ConvertFrom-Json
+          $cfg.bundle.publisher = $env:STORE_PUBLISHER
+          $cfg.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $cert.Thumbprint -Force
+          $cfg | ConvertTo-Json -Depth 20 | Set-Content $path -Encoding utf8
+          Write-Host "Store publisher: $env:STORE_PUBLISHER"
+          Write-Host "Signing certificate: $($cert.Subject) [$($cert.Thumbprint)]"
+
+      - name: Build Store standalone installer (NSIS)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -154,7 +164,7 @@ jobs:
             --bundles nsis
             --config src-tauri/tauri.store.conf.json
 
-      - name: Collect installer artifacts
+      - name: Collect and verify signed installer
         shell: pwsh
         run: |
           $out = "dist-store/${{ matrix.arch }}"
@@ -167,16 +177,53 @@ jobs:
           foreach ($root in $roots) {
             if (Test-Path $root) {
               Get-ChildItem -Path $root -Filter "*-setup.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-                $dest = Join-Path $out $_.Name
+                $destName = "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}-setup.exe"
+                $dest = Join-Path $out $destName
                 Copy-Item $_.FullName $dest -Force
+                $sig = Get-AuthenticodeSignature $dest
+                if ($sig.Status -ne 'Valid') { throw "Installer Authenticode signature is not valid: $($sig.Status) $($sig.StatusMessage)" }
                 $found += $dest
-                Write-Host "Collected $($_.FullName) -> $dest"
+                Write-Host "Verified signed installer: $dest"
               }
             }
           }
-          if ($found.Count -eq 0) {
-            throw "NSIS setup.exe not found for ${{ matrix.arch }}"
+          if ($found.Count -eq 0) { throw "NSIS setup.exe not found for ${{ matrix.arch }}" }
+
+      - name: Silent install and uninstall smoke test
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "dist-store/${{ matrix.arch }}" -Filter "*-setup.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Installer missing" }
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Silent install failed with exit code $($p.ExitCode)" }
+          Start-Sleep -Seconds 2
+
+          $uninstallRoots = @(
+            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          $entry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Butchi*' } | Select-Object -First 1
+          if (-not $entry) { throw "Butchi was not registered in Add/Remove Programs after silent install" }
+          if ([string]::IsNullOrWhiteSpace($entry.UninstallString)) { throw "Butchi uninstall command is missing" }
+
+          $exePath = $entry.InstallLocation
+          if ($exePath -and (Test-Path $exePath)) {
+            Get-ChildItem $exePath -Filter '*.exe' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+              $sig = Get-AuthenticodeSignature $_.FullName
+              if ($sig.Status -ne 'Valid') { throw "Installed PE is not validly signed: $($_.FullName) [$($sig.Status)]" }
+            }
           }
+
+          $uninstall = $entry.UninstallString.Trim()
+          if ($uninstall.StartsWith('"')) {
+            $end = $uninstall.IndexOf('"', 1)
+            $uninstallExe = $uninstall.Substring(1, $end - 1)
+          } else {
+            $uninstallExe = $uninstall.Split(' ')[0]
+          }
+          $u = Start-Process -FilePath $uninstallExe -ArgumentList '/S' -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "Silent uninstall failed with exit code $($u.ExitCode)" }
 
       - name: Upload Windows ${{ matrix.arch }} installer
         uses: actions/upload-artifact@v4
@@ -210,22 +257,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('store-{0}', github.run_id) }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Store build {0}', github.run_id) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Store RC {0}', github.run_id) }}
           draft: ${{ github.ref_type != 'tag' }}
           generate_release_notes: true
           body: |
-            ## Butchi — Windows installers
+            ## Butchi — signed Windows Store RC installers
 
-            Download the installer that matches your Windows device:
+            - x64 and ARM64 standalone NSIS installers
+            - embedded/offline WebView2 runtime
+            - Authenticode signature verified in CI
+            - silent `/S` install/uninstall smoke-tested
+            - local GGUF model downloads separately after installation
 
-            Architecture | Installer | Typical devices
-            --- | --- | ---
-            x64 | `*-x64-setup.exe` (or similar) | Most Intel / AMD Windows PCs
-            ARM64 | `*-aarch64-setup.exe` (or similar) | Windows on ARM devices
-
-            Run the downloaded `.exe` and follow the installer. Windows SmartScreen may warn for unsigned builds; review the publisher/source before continuing.
-
-            The local LLM model is downloaded separately from inside Butchi after installation.
+            Use these immutable versioned release assets as the HTTPS package URLs in Partner Center.
           files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
