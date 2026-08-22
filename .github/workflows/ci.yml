@@ -69,9 +69,6 @@ jobs:
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
-
-          # cc-rs checks generic and target-specific CXXFLAGS. Set both so the
-          # wrapper compile definitely receives /EHsc.
           "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
           "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
 
@@ -84,7 +81,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v7-llm-clang-exceptions
+          shared-key: ${{ matrix.arch }}-cpu-v8-tests
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -98,15 +95,17 @@ jobs:
       - name: Typecheck frontend
         run: npx tsc --noEmit
 
+      - name: Build frontend
+        run: npm run build
+
       # `llm` is a default feature and is core to Butchi's translate/rewrite path.
-      # Keep default features enabled so CI compiles llama-cpp-2 and hf-hub.
       - name: Cargo check (llm)
         working-directory: src-tauri
-        run: cargo check
+        run: cargo check --all-targets
 
-      - name: Cargo test (llm)
+      - name: Cargo test (llm, all targets)
         working-directory: src-tauri
-        run: cargo test -- --nocapture
+        run: cargo test --all-targets -- --nocapture
 
       - name: Cargo clippy (llm)
         working-directory: src-tauri
