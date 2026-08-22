@@ -1,13 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "publisher": "REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
-    "shortDescription": "Select text, then Translate or Rewrite offline with a local LLM.",
-    "longDescription": "Butchi (bút chì) is a Windows tray utility that detects text selection and opens a small cursor-adjacent popover for Translate and Rewrite. Inference runs locally via GGUF models (default Qwen3.5 0.8B).",
+    "publisher": "SET_BY_STORE_PUBLISHER_SECRET",
+    "shortDescription": "Select text, then Translate or Rewrite privately with a local LLM.",
+    "longDescription": "Butchi (bút chì) is a Windows tray utility for translating and rewriting selected text with a private local GGUF model. Text processing stays on the device. Models are downloaded separately after installation.",
     "windows": {
       "webviewInstallMode": {
-        "type": "downloadBootstrapper"
+        "type": "offlineInstaller"
       },
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
       "nsis": {
         "installMode": "currentUser",
         "languages": ["English"]
