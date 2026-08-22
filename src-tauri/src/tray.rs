@@ -26,7 +26,7 @@ pub fn create(app: &mut App) -> tauri::Result<()> {
 
     let mut tray = TrayIconBuilder::with_id("main")
         .menu(&menu)
-        .tooltip("Rust Rewrite — double-Ctrl")
+        .tooltip("Butchi — double-Ctrl")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "settings" => {
@@ -58,7 +58,7 @@ pub fn open_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
         "settings",
         tauri::WebviewUrl::App("settings.html".into()),
     )
-    .title("Rust Rewrite — Settings")
+    .title("Butchi — Settings")
     .inner_size(480.0, 720.0)
     .resizable(true)
     .center()
