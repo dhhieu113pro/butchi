@@ -88,7 +88,7 @@ fn rewrite_offline(input: &str) -> String {
     text
 }
 
-pub fn process(action: TextAction, input: &str) -> Result<ProcessResult, String> {
+pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessResult, String> {
     let source = input.trim();
     if source.is_empty() {
         return Err("no text to process".into());
@@ -110,6 +110,14 @@ pub fn process(action: TextAction, input: &str) -> Result<ProcessResult, String>
         TextAction::Rewrite => rewrite_with_llm_or_offline(source, &cfg),
         TextAction::Translate => translate_with_llm(source, &cfg)?,
     };
+
+    if !copy {
+        return Ok(ProcessResult {
+            text,
+            message,
+            copied: false,
+        });
+    }
 
     let copied = match copy_to_clipboard(&text) {
         Ok(()) => true,
@@ -192,6 +200,6 @@ mod tests {
 
     #[test]
     fn empty_input_is_rejected() {
-        assert!(process(TextAction::Rewrite, "   ").is_err());
+        assert!(process(TextAction::Rewrite, "   ", false).is_err());
     }
 }
