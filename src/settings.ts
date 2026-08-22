@@ -1,5 +1,6 @@
 import "@fontsource-variable/space-grotesk";
 import "@fontsource-variable/ibm-plex-sans";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 
 type AppConfig = {
@@ -45,11 +46,14 @@ const translateSystemPrompt = document.querySelector<HTMLTextAreaElement>("#tran
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
 const modelSelect = document.querySelector<HTMLSelectElement>("#modelSelect");
 const modelStatus = document.querySelector<HTMLElement>("#modelStatus");
+const gettingStartedCard = document.querySelector<HTMLElement>("#gettingStartedCard");
+const appVersion = document.querySelector<HTMLElement>("#appVersion");
 const backendPills = document.querySelectorAll<HTMLElement>("#backendPills .pill");
 const deviceList = document.querySelector<HTMLUListElement>("#deviceList");
 const backendHint = document.querySelector<HTMLElement>("#backendHint");
 const downloadBtn = document.querySelector<HTMLButtonElement>("#downloadBtn");
 const loadBtn = document.querySelector<HTMLButtonElement>("#loadBtn");
+const clearLocalDataBtn = document.querySelector<HTMLButtonElement>("#clearLocalDataBtn");
 const maxTokens = document.querySelector<HTMLInputElement>("#maxTokens");
 const temperature = document.querySelector<HTMLInputElement>("#temperature");
 const gpuLayers = document.querySelector<HTMLInputElement>("#gpuLayers");
@@ -162,8 +166,9 @@ function renderBackend(status: ModelStatus) {
 
 function renderStatus(status: ModelStatus) {
   renderBackend(status);
+  if (gettingStartedCard) gettingStartedCard.hidden = status.downloaded;
   if (!modelStatus) return;
-  const state = status.loaded ? "loaded in memory" : status.downloaded ? "downloaded (not loaded)" : "not downloaded";
+  const state = status.loaded ? "loaded in memory" : status.downloaded ? "downloaded (not loaded)" : "not downloaded — internet is only needed for this one-time model download";
   modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.backend}.${status.localPath ? ` Path: ${status.localPath}` : ""}`;
 }
 
@@ -206,6 +211,7 @@ async function init() {
       modelSelect.append(opt);
     }
   }
+  try { if (appVersion) appVersion.textContent = await getVersion(); } catch { /* keep static fallback */ }
   const cfg = await invoke<AppConfig>("get_config");
   applyConfig(cfg);
   await refreshStatus();
@@ -217,11 +223,11 @@ downloadBtn?.addEventListener("click", async () => {
   if (!model || !downloadBtn) return;
   downloadBtn.disabled = true;
   downloadBtn.textContent = "Downloading…";
-  if (saveStatus) saveStatus.textContent = "Downloading from Hugging Face — this can take a few minutes…";
+  if (saveStatus) saveStatus.textContent = "Downloading the model from Hugging Face. Selected text is not uploaded.";
   try {
     const status = await invoke<ModelStatus>("download_model", { repo: model.repo, file: model.file });
     renderStatus(status);
-    if (saveStatus) saveStatus.textContent = "Model downloaded.";
+    if (saveStatus) saveStatus.textContent = "Model downloaded. Click Load model to make Butchi ready.";
   } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
   finally { downloadBtn.disabled = false; downloadBtn.textContent = "Download"; }
 });
@@ -234,7 +240,7 @@ loadBtn?.addEventListener("click", async () => {
   try {
     const status = await invoke<ModelStatus>("load_model");
     renderStatus(status);
-    if (saveStatus) saveStatus.textContent = `Model loaded with ${status.backend}.`;
+    if (saveStatus) saveStatus.textContent = `Ready. Model loaded with ${status.backend}.`;
   } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
   finally { loadBtn.disabled = false; loadBtn.textContent = "Load model"; }
 });
@@ -250,6 +256,18 @@ saveBtn?.addEventListener("click", async () => {
     if (saveStatus) saveStatus.textContent = "Settings saved.";
   } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
   finally { saveBtn.disabled = false; }
+});
+
+clearLocalDataBtn?.addEventListener("click", async () => {
+  if (!confirm("Delete all Butchi history and downloaded GGUF models from this device? Your settings will be kept.")) return;
+  if (clearLocalDataBtn) clearLocalDataBtn.disabled = true;
+  try {
+    await invoke("clear_local_ai_data");
+    await refreshStatus();
+    await refreshHistory();
+    if (saveStatus) saveStatus.textContent = "Local history and downloaded models deleted.";
+  } catch (error) { if (saveStatus) saveStatus.textContent = String(error); }
+  finally { if (clearLocalDataBtn) clearLocalDataBtn.disabled = false; }
 });
 
 favoriteLanguages?.addEventListener("change", () => {
