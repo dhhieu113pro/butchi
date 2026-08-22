@@ -84,8 +84,9 @@ fn show_event_at(
     };
 
     let (width, height) = match mode {
-        PopoverMode::Selection => (360.0, 124.0),
-        PopoverMode::Input => (360.0, 176.0),
+        // Taller panel to show Pot-style source + auto Translate/Rewrite results.
+        PopoverMode::Selection => (380.0, 420.0),
+        PopoverMode::Input => (380.0, 240.0),
     };
     window.set_size(LogicalSize::new(width, height))?;
 
