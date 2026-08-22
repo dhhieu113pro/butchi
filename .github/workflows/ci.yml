@@ -45,7 +45,8 @@ jobs:
 
       # llama.cpp intentionally rejects the MSVC compiler for Windows ARM.
       # Keep the MSVC SDK/linker environment, but compile its native C/C++
-      # sources with clang-cl on ARM64.
+      # sources with clang-cl on ARM64. llama-cpp-sys wrapper_common.cpp uses
+      # try/catch, so explicitly enable C++ exceptions for cc-rs/clang-cl.
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'windows-arm64'
         shell: pwsh
@@ -63,10 +64,16 @@ jobs:
           if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
           Write-Host "Using clang-cl: $clang"
           & $clang --version
+
           "CC=$clang" >> $env:GITHUB_ENV
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
+
+          # cc-rs checks generic and target-specific CXXFLAGS. Set both so the
+          # wrapper compile definitely receives /EHsc.
+          "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
+          "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -77,7 +84,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v6-llm-clang
+          shared-key: ${{ matrix.arch }}-cpu-v7-llm-clang-exceptions
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
