@@ -100,6 +100,11 @@ jobs:
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
 
+          # clang-cl does not enable C++ exceptions by default. llama-cpp-sys
+          # wrapper_common.cpp uses try/catch, so enable standard C++ exception
+          # handling for the ARM64 target. cc-rs reads this target-specific var.
+          "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -115,7 +120,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v3-clang
+          shared-key: store-${{ matrix.arch }}-v4-clang-exceptions
 
       - name: Install npm dependencies
         run: npm ci
