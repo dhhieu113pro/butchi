@@ -165,4 +165,24 @@ mod tests {
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
         assert_eq!(restored.result_action, "replace");
     }
+
+    #[test]
+    fn default_prompts_match_default_profiles() {
+        let config = AppConfig::default();
+        assert!(config.translate_system_prompt.starts_with("You are a precise translation assistant."));
+        assert!(config.rewrite_system_prompt.starts_with("You are a precise writing assistant."));
+    }
+
+    #[test]
+    fn custom_prompts_round_trip_without_profile_metadata() {
+        let mut config = AppConfig::default();
+        config.translate_system_prompt = "Translate like a technical localization expert.".into();
+        config.rewrite_system_prompt = "Rewrite as concise release notes.".into();
+
+        let json = serde_json::to_string(&config).expect("serialize config");
+        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
+
+        assert_eq!(restored.translate_system_prompt, config.translate_system_prompt);
+        assert_eq!(restored.rewrite_system_prompt, config.rewrite_system_prompt);
+    }
 }
