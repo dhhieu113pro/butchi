@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="640" viewBox="0 0 920 640">
+  <rect width="920" height="640" fill="#0f172a"/>
+  <rect x="180" y="40" width="560" height="560" rx="14" fill="#1e293b" stroke="#334155"/>
+  <text x="210" y="78" fill="#f8fafc" font-family="Segoe UI, system-ui, sans-serif" font-size="20" font-weight="700">Settings</text>
+  <text x="210" y="120" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="12">Actions</text>
+  <rect x="210" y="132" width="490" height="44" rx="8" fill="#0f172a"/>
+  <text x="230" y="160" fill="#e2e8f0" font-family="Segoe UI, system-ui, sans-serif" font-size="14">[x] Translate     [x] Rewrite</text>
+  <text x="210" y="210" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="12">Target language</text>
+  <rect x="210" y="222" width="490" height="40" rx="8" fill="#0f172a"/>
+  <text x="230" y="248" fill="#e2e8f0" font-family="Segoe UI, system-ui, sans-serif" font-size="14">vi  (Vietnamese)</text>
+  <text x="210" y="298" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="12">Backend</text>
+  <rect x="210" y="310" width="490" height="60" rx="8" fill="#0f172a"/>
+  <text x="230" y="335" fill="#f97316" font-family="Segoe UI, system-ui, sans-serif" font-size="14">cpu  ·  GPU offload available with --features</text>
+  <text x="230" y="356" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="13">Devices: CPU</text>
+  <text x="210" y="408" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="12">Model</text>
+  <rect x="210" y="420" width="490" height="65" rx="8" fill="#0f172a"/>
+  <text x="230" y="448" fill="#e2e8f0" font-family="Segoe UI, system-ui, sans-serif" font-size="14">Qwen3.5 0.8B  Q4_K_M</text>
+  <text x="230" y="470" fill="#94a3b8" font-family="Segoe UI, system-ui, sans-serif" font-size="13">Status: not downloaded</text>
+  <rect x="210" y="510" width="130" height="40" rx="8" fill="#f97316"/>
+  <text x="235" y="536" fill="#0f172a" font-family="Segoe UI, system-ui, sans-serif" font-size="14" font-weight="600">Download</text>
+  <rect x="360" y="510" width="100" height="40" rx="8" fill="#334155"/>
+  <text x="390" y="536" fill="#e2e8f0" font-family="Segoe UI, system-ui, sans-serif" font-size="14">Load</text>
+</svg>
