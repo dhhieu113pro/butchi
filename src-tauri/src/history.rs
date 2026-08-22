@@ -22,6 +22,7 @@ pub struct HistoryEntry {
     pub source: String,
     pub result: String,
     pub message: String,
+    #[serde(default)]
     pub target_language: Option<String>,
 }
 
