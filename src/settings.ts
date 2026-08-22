@@ -8,6 +8,7 @@ type AppConfig = {
   targetLanguage: string;
   rewriteSystemPrompt: string;
   translateSystemPrompt: string;
+  resultAction: string;
   modelRepo: string;
   modelFile: string;
   maxTokens: number;
@@ -57,6 +58,7 @@ type ModelStatus = {
 const translateEnabled = document.querySelector<HTMLInputElement>("#translateEnabled");
 const rewriteEnabled = document.querySelector<HTMLInputElement>("#rewriteEnabled");
 const targetLanguage = document.querySelector<HTMLSelectElement>("#targetLanguage");
+const resultAction = document.querySelector<HTMLSelectElement>("#resultAction");
 const translateSystemPrompt = document.querySelector<HTMLTextAreaElement>("#translateSystemPrompt");
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
 const modelSelect = document.querySelector<HTMLSelectElement>("#modelSelect");
@@ -101,6 +103,7 @@ function applyConfig(cfg: AppConfig) {
     }
     targetLanguage.value = cfg.targetLanguage;
   }
+  if (resultAction) resultAction.value = cfg.resultAction || "copy";
   if (translateSystemPrompt) translateSystemPrompt.value = cfg.translateSystemPrompt;
   if (rewriteSystemPrompt) rewriteSystemPrompt.value = cfg.rewriteSystemPrompt;
   if (maxTokens) maxTokens.value = String(cfg.maxTokens);
@@ -121,6 +124,7 @@ function readForm(): AppConfig {
     targetLanguage: targetLanguage?.value ?? "Vietnamese",
     rewriteSystemPrompt: rewriteSystemPrompt?.value ?? config?.rewriteSystemPrompt ?? "",
     translateSystemPrompt: translateSystemPrompt?.value ?? config?.translateSystemPrompt ?? "",
+    resultAction: resultAction?.value ?? config?.resultAction ?? "copy",
     modelRepo: model?.repo ?? config?.modelRepo ?? "",
     modelFile: model?.file ?? config?.modelFile ?? "",
     maxTokens: Number(maxTokens?.value || 256),
