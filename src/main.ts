@@ -9,6 +9,7 @@ const actions = document.querySelectorAll<HTMLButtonElement>(".action");
 const selection = document.querySelector<HTMLElement>(".selection");
 const manualInput = document.querySelector<HTMLTextAreaElement>(".manual-input");
 const popover = document.querySelector<HTMLElement>(".popover");
+const favoriteLanguageButtons = document.querySelector<HTMLElement>("#favoriteLanguageButtons");
 const resultCards = {
   translate: document.querySelector<HTMLElement>('.result-card[data-kind="translate"]'),
   rewrite: document.querySelector<HTMLElement>('.result-card[data-kind="rewrite"]'),
@@ -22,9 +23,12 @@ let hasInteraction = false;
 let isManualInput = false;
 let pointerInside = false;
 let currentText = "";
+let sourceText = "";
 let translateEnabled = true;
 let rewriteEnabled = true;
 let resultAction = "copy";
+let targetLanguage = "Vietnamese";
+let favoriteLanguages: string[] = ["Vietnamese", "English"];
 let autoRunId = 0;
 
 type ProcessResult = {
@@ -37,6 +41,8 @@ type AppConfig = {
   translateEnabled: boolean;
   rewriteEnabled: boolean;
   resultAction: string;
+  targetLanguage: string;
+  favoriteLanguages: string[];
 };
 
 function cancelScheduledHide() {
@@ -88,6 +94,22 @@ function setActionAvailability(enabled: boolean) {
     button.dataset.state = "default";
     button.disabled = !enabled;
   });
+}
+
+function renderFavoriteLanguages() {
+  if (!favoriteLanguageButtons) return;
+  favoriteLanguageButtons.innerHTML = "";
+  for (const language of favoriteLanguages.slice(0, 5)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "language-target";
+    button.dataset.language = language;
+    button.textContent = language;
+    button.title = `Translate again to ${language}`;
+    button.setAttribute("aria-pressed", language === targetLanguage ? "true" : "false");
+    favoriteLanguageButtons.append(button);
+  }
+  favoriteLanguageButtons.hidden = favoriteLanguages.length === 0;
 }
 
 function showSelection() {
@@ -186,6 +208,40 @@ async function replaceSelection(text: string): Promise<void> {
   await invoke("replace_selected_text", { text });
 }
 
+async function rerunTranslation(language: string) {
+  const text = sourceText.trim() || activeText();
+  if (!text || !language) return;
+
+  keepOpen();
+  const runId = ++autoRunId;
+  targetLanguage = language;
+  renderFavoriteLanguages();
+  showResultLoading("translate");
+  if (status) status.textContent = `Translating to ${language}…`;
+
+  try {
+    const saved = await invoke<AppConfig>("set_target_language", { language });
+    if (runId !== autoRunId) return;
+    targetLanguage = saved.targetLanguage;
+    favoriteLanguages = saved.favoriteLanguages ?? favoriteLanguages;
+    renderFavoriteLanguages();
+
+    const result = await runProcessStreaming("translate", text, false, (chunk) => {
+      if (runId !== autoRunId) return;
+      showResultChunk("translate", chunk);
+    });
+    if (runId !== autoRunId) return;
+    showResultOk("translate", result.text, result.message);
+    if (status) status.textContent = `Translated to ${targetLanguage}.`;
+    scheduleHide(interactedLeaveDelay + 2_000);
+  } catch (error) {
+    if (runId !== autoRunId) return;
+    const message = error instanceof Error ? error.message : String(error);
+    showResultError("translate", message);
+    if (status) status.textContent = message;
+  }
+}
+
 async function autoRunEnabled(text: string) {
   const runId = ++autoRunId;
   const jobs: Array<Promise<void>> = [];
@@ -253,7 +309,10 @@ async function refreshConfig() {
     translateEnabled = cfg.translateEnabled;
     rewriteEnabled = cfg.rewriteEnabled;
     resultAction = cfg.resultAction || "copy";
+    targetLanguage = cfg.targetLanguage || "Vietnamese";
+    favoriteLanguages = cfg.favoriteLanguages ?? ["Vietnamese", "English"];
     applyActionVisibility();
+    renderFavoriteLanguages();
   } catch {
     /* keep defaults */
   }
@@ -265,6 +324,7 @@ listen<string>("selection-captured", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
   currentText = payload;
+  sourceText = payload;
   void invoke("remember_selection_target").catch(() => undefined);
   void refreshConfig().then(() => {
     showSelection();
@@ -287,6 +347,7 @@ listen<string>("selection-capture-failed", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
   currentText = "";
+  sourceText = "";
   autoRunId += 1;
   showSelection();
   hideResults();
@@ -307,6 +368,7 @@ listen<string>("manual-input-requested", () => {
   hasInteraction = true;
   isManualInput = true;
   currentText = "";
+  sourceText = "";
   autoRunId += 1;
   void refreshConfig();
   hideResults();
@@ -326,7 +388,15 @@ listen<string>("manual-input-requested", () => {
 manualInput?.addEventListener("input", () => {
   keepOpen();
   currentText = manualInput.value;
+  sourceText = manualInput.value;
   setActionAvailability(manualInput.value.trim().length > 0);
+});
+
+favoriteLanguageButtons?.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-language]");
+  const language = button?.dataset.language;
+  if (!language) return;
+  void rerunTranslation(language);
 });
 
 window.addEventListener("blur", () => {
