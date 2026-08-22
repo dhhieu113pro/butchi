@@ -2,8 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (() => {
+        const theme = localStorage.getItem("butchi.theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.dataset.theme = theme;
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rust Rewrite — Settings</title>
+    <title>Butchi — Settings</title>
     <link rel="stylesheet" href="/src/settings.css" />
     <script type="module" src="/src/settings.ts"></script>
   </head>
@@ -13,6 +21,19 @@
         <h1>Settings</h1>
         <p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p>
       </header>
+
+      <section class="card">
+        <h2>Appearance</h2>
+        <label class="field">
+          <span>Theme</span>
+          <select id="themePreference">
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+        <p class="hint">System follows your Windows light/dark preference automatically.</p>
+      </section>
 
       <section class="card">
         <h2>Actions</h2>
@@ -119,5 +140,26 @@
         <button type="button" class="btn btn--primary" id="saveBtn">Save settings</button>
       </footer>
     </main>
+
+    <script>
+      (() => {
+        const select = document.getElementById("themePreference");
+        if (!(select instanceof HTMLSelectElement)) return;
+
+        const saved = localStorage.getItem("butchi.theme");
+        select.value = saved === "light" || saved === "dark" ? saved : "system";
+
+        select.addEventListener("change", () => {
+          const theme = select.value;
+          if (theme === "light" || theme === "dark") {
+            localStorage.setItem("butchi.theme", theme);
+            document.documentElement.dataset.theme = theme;
+          } else {
+            localStorage.removeItem("butchi.theme");
+            delete document.documentElement.dataset.theme;
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
