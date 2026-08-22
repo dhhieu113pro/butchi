@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "allow-settings-api"
-description = "Allow reading/writing settings and managing local LLM models."
+description = "Allow reading/writing settings, managing local LLM models, and viewing history."
 commands.allow = [
   "get_config",
   "save_config",
@@ -8,5 +8,7 @@ commands.allow = [
   "get_model_status",
   "download_model",
   "load_model",
+  "list_history",
+  "clear_history",
   "open_settings"
 ]

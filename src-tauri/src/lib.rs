@@ -1,5 +1,6 @@
 mod actions;
 mod config;
+mod history;
 mod keyboard_monitor;
 mod llm;
 mod popover;
@@ -8,6 +9,7 @@ mod selection_monitor;
 mod tray;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
 #[tauri::command]
 fn process_text(
     action: String,
@@ -15,7 +17,6 @@ fn process_text(
     copy: Option<bool>,
 ) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
-    // Default true for manual button clicks; auto-run passes false.
     actions::process(action, &text, copy.unwrap_or(true))
 }
 
@@ -27,7 +28,6 @@ fn get_config() -> config::AppConfig {
 #[tauri::command]
 fn save_config(config: config::AppConfig) -> Result<config::AppConfig, String> {
     config::save(&config)?;
-    // Model path may have changed — drop current weights.
     llm::unload();
     Ok(config::load())
 }
@@ -62,6 +62,16 @@ fn load_model() -> Result<llm::ModelStatus, String> {
 }
 
 #[tauri::command]
+fn list_history(limit: Option<usize>) -> Vec<history::HistoryEntry> {
+    history::list(limit)
+}
+
+#[tauri::command]
+fn clear_history() -> Result<(), String> {
+    history::clear()
+}
+
+#[tauri::command]
 fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
@@ -71,7 +81,7 @@ fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
 
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("settings.html".into()))
         .title("Rust Rewrite — Settings")
-        .inner_size(440.0, 640.0)
+        .inner_size(480.0, 720.0)
         .resizable(true)
         .center()
         .build()
@@ -95,13 +105,14 @@ pub fn run() {
             get_model_status,
             download_model,
             load_model,
-            open_settings
+            list_history,
+            clear_history,
+            open_settings,
         ])
         .setup(|app| {
             tray::create(app)?;
-            selection_monitor::start(app.handle().clone())?;
-            keyboard_monitor::start(app.handle().clone())?;
-
+            selection_monitor::start(app.handle().clone());
+            keyboard_monitor::start(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -59,7 +59,7 @@ pub fn open_settings_window(app: &tauri::AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("settings.html".into()),
     )
     .title("Rust Rewrite — Settings")
-    .inner_size(440.0, 640.0)
+    .inner_size(480.0, 720.0)
     .resizable(true)
     .center()
     .build()
