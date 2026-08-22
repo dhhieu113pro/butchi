@@ -35,6 +35,11 @@ fn process_text_stream(
 }
 
 #[tauri::command]
+fn remember_selection_target() -> Result<(), String> {
+    replacement::remember_selection_target()
+}
+
+#[tauri::command]
 fn replace_selected_text(text: String) -> Result<(), String> {
     replacement::replace_selected_text(&text)
 }
@@ -134,6 +139,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             process_text,
             process_text_stream,
+            remember_selection_target,
             replace_selected_text,
             get_config,
             save_config,
