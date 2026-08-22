@@ -72,6 +72,18 @@ mod stubs {
     pub fn generate(_system: &str, _user: &str, _config: &AppConfig) -> Result<String, String> {
         Err("LLM not compiled in (use default features)".into())
     }
+
+    pub fn generate_streaming<F>(
+        _system: &str,
+        _user: &str,
+        _config: &AppConfig,
+        _on_piece: F,
+    ) -> Result<String, String>
+    where
+        F: FnMut(&str),
+    {
+        Err("LLM not compiled in (use default features)".into())
+    }
 }
 
 #[cfg(not(feature = "llm"))]
