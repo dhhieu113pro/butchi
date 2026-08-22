@@ -1,0 +1,204 @@
+# Build Windows Store–ready offline installers (NSIS) for x64 and ARM64.
+#
+# Microsoft Partner Center product type: "EXE or MSI app"
+# Silent install argument for NSIS: /S
+#
+# Triggers:
+#   - Push tag v* (e.g. v0.1.0)
+#   - Manual workflow_dispatch
+#
+# Before first Store submission:
+#   1. Reserve the app name in Partner Center
+#   2. Set bundle.publisher in src-tauri/tauri.store.conf.json
+#      to your Partner Center publisher display name
+#   3. (Optional) Add WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
+#      secrets for code signing if you host the installer yourself
+#
+# Upload the produced *-setup.exe (x64 + arm64) as offline installers
+# in Partner Center. See README "Microsoft Store".
+
+name: Publish Windows Store
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create/update a GitHub Release and attach installers"
+        type: boolean
+        default: true
+      ref_name:
+        description: "Optional release name override (defaults to tag or run id)"
+        type: string
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-windows-store-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CMAKE_GENERATOR: Ninja
+
+jobs:
+  build-windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            msvc_arch: x64
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            msvc_arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: MSVC developer command prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: store-${{ matrix.arch }}-v1
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # Optional code signing for host-yourself installers (not required for
+      # Partner Center offline-installer packaging — Store re-signs distribution).
+      - name: Import Windows code-signing certificate
+        if: env.WINDOWS_CERTIFICATE != ''
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path certificate | Out-Null
+          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          Remove-Item certificate/tempCert.txt -Force
+          Import-PfxCertificate `
+            -FilePath certificate/certificate.pfx `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+
+      # Build only (release is created in the following job with both arches).
+      - name: Build Store offline installer (NSIS)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          uploadUpdaterJson: false
+          args: >-
+            --target ${{ matrix.target }}
+            --bundles nsis
+            --config src-tauri/tauri.store.conf.json
+
+      - name: Collect installer artifacts
+        shell: pwsh
+        run: |
+          $out = "dist-store/${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $roots = @(
+            "src-tauri/target/${{ matrix.target }}/release/bundle/nsis",
+            "src-tauri/target/release/bundle/nsis"
+          )
+          $found = @()
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              Get-ChildItem -Path $root -Filter "*-setup.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                $dest = Join-Path $out $_.Name
+                Copy-Item $_.FullName $dest -Force
+                $found += $dest
+                Write-Host "Collected $($_.FullName) -> $dest"
+              }
+            }
+          }
+          if ($found.Count -eq 0) {
+            Write-Host "No *-setup.exe found. Listing target tree:"
+            Get-ChildItem -Path src-tauri/target -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue |
+              Select-Object -First 40 FullName | ForEach-Object { $_.FullName }
+            throw "NSIS setup.exe not found for ${{ matrix.arch }}"
+          }
+
+      - name: Upload Windows ${{ matrix.arch }} installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-rewrite-windows-${{ matrix.arch }}
+          path: dist-store/${{ matrix.arch }}/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: GitHub Release (optional)
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    steps:
+      - name: Download x64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-rewrite-windows-x64
+          path: artifacts
+
+      - name: Download arm64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-rewrite-windows-arm64
+          path: artifacts
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('store-{0}', github.run_id) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Store build {0}', github.run_id) }}
+          draft: ${{ github.ref_type != 'tag' }}
+          generate_release_notes: true
+          body: |
+            ## Windows Store offline installers
+
+            Architecture | Installer | Partner Center silent args
+            --- | --- | ---
+            x64 | `*-x64-setup.exe` (or similar) | `/S`
+            ARM64 | `*-aarch64-setup.exe` (or similar) | `/S`
+
+            Product type in Partner Center: **EXE or MSI app**.
+
+            Upload each offline installer under Packages, set installer parameters to `/S`.
+            WebView2 is bundled via Tauri `offlineInstaller` mode (`tauri.store.conf.json`).
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
