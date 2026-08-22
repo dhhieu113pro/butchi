@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --color-paper: oklch(97% 0.009 255);
   --color-paper-raised: oklch(99% 0.005 255);
   --color-paper-hover: oklch(94% 0.015 255);
@@ -38,4 +39,44 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-paper: oklch(17% 0.025 255);
+  --color-paper-raised: oklch(21% 0.03 255);
+  --color-paper-hover: oklch(25% 0.035 255);
+  --color-rule: oklch(32% 0.035 255);
+  --color-rule-strong: oklch(49% 0.045 255);
+  --color-muted: oklch(72% 0.025 255);
+  --color-ink: oklch(94% 0.012 255);
+  --color-ink-hover: oklch(99% 0.006 255);
+  --color-accent: oklch(70% 0.17 275);
+  --color-accent-hover: oklch(76% 0.17 275);
+  --color-accent-ink: oklch(16% 0.025 255);
+  --color-focus: oklch(72% 0.19 270);
+  --color-error: oklch(69% 0.17 28);
+  --color-success: oklch(70% 0.13 155);
+  --color-shadow: oklch(5% 0.02 255 / 48%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --color-paper: oklch(17% 0.025 255);
+    --color-paper-raised: oklch(21% 0.03 255);
+    --color-paper-hover: oklch(25% 0.035 255);
+    --color-rule: oklch(32% 0.035 255);
+    --color-rule-strong: oklch(49% 0.045 255);
+    --color-muted: oklch(72% 0.025 255);
+    --color-ink: oklch(94% 0.012 255);
+    --color-ink-hover: oklch(99% 0.006 255);
+    --color-accent: oklch(70% 0.17 275);
+    --color-accent-hover: oklch(76% 0.17 275);
+    --color-accent-ink: oklch(16% 0.025 255);
+    --color-focus: oklch(72% 0.19 270);
+    --color-error: oklch(69% 0.17 28);
+    --color-success: oklch(70% 0.13 155);
+    --color-shadow: oklch(5% 0.02 255 / 48%);
+  }
 }
