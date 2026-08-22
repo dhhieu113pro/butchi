@@ -125,10 +125,10 @@ function readForm(): AppConfig {
 
 function escapeHtml(value: string): string {
   return value
-    .split("&").join("&")
-    .split("<").join("<")
-    .split(">").join(">")
-    .split('"').join(""");
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """);
 }
 
 function renderBackend(status: ModelStatus) {
