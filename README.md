@@ -5,7 +5,7 @@
 <h1 align="center">Butchi</h1>
 
 <p align="center">
-  <em>bút chì</em> — Windows-first Tauri tray utility for Translate & Rewrite with a local LLM
+  <em>bút chì</em> — private local Translate & Rewrite for Windows
 </p>
 
 <p align="center">
@@ -16,128 +16,118 @@
   <a href="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
 </p>
 
-## Screenshot
+## What Butchi does
 
-<p align="center">
-  <img src="docs/assets/screenshot-popover.svg" width="640" alt="Popover with Translate and Rewrite result cards"/>
-</p>
+Butchi is a Windows tray utility that captures selected text and opens a small cursor-adjacent popover for **Translate** and **Rewrite**. Generation runs through a local GGUF model via llama.cpp.
 
-<p align="center"><em>Cursor-adjacent popover — source block + Pot-style Translate / Rewrite cards</em></p>
+### Highlights
 
-<p align="center">
-  <img src="docs/assets/screenshot-settings.svg" width="640" alt="Settings window"/>
-</p>
+- Automatic popover for supported mouse selections.
+- **Double-Ctrl** for keyboard-selected text.
+- Windows UI Automation capture with guarded clipboard fallback.
+- Local GGUF inference via `llama-cpp-2`.
+- Streaming Translate / Rewrite output.
+- Optional **Copy result**, **Replace selected text**, or no automatic action.
+- Editable Translate and Rewrite system prompts.
+- Prompt profiles: Natural, Literal, Professional, Grammar only, Shorter, More polite, Simple language, and Custom.
+- Favorite target languages with one-click rerun.
+- Searchable local history with configurable retention.
+- Auto / CPU / GPU inference preference with CPU fallback when supported by the build.
+- System / Light / Dark appearance.
+- First-run model setup and local-data deletion controls.
 
-<p align="center"><em>Settings — actions, language, backend, model download</em></p>
+## Privacy
 
-## Features
+Selected text, prompts, generated results, and history are processed/stored locally and are not sent to a cloud AI service. Network access is used when the user explicitly downloads a GGUF model from Hugging Face.
 
-- Tray-only background app (no centered main window)
-- Automatic popover after mouse-drag or double-click text selection
-- Double-Ctrl tap for keyboard selections
-- Windows UI Automation capture (no clipboard mutation) with guarded clipboard fallback
-- **Translate** and **Rewrite** actions (auto-run on open when enabled)
-- **Settings** window (tray → Settings):
-  - Enable / disable Translate and Rewrite
-  - Target language for translation
-  - Editable rewrite system prompt
-  - Local LLM model picker + Hugging Face download
-  - Backend indicator (`cpu` | `cuda` | `vulkan`) + detected devices
-- Local GGUF inference via `llama-cpp-2` (default **Qwen3.5 0.8B** Q4_K_M),
-  adapted from [`dhhieu113pro/llama-rust`](https://github.com/dhhieu113pro/llama-rust)
-- Optional GPU offload with Cargo features `cuda` or `vulkan`
+See [PRIVACY.md](PRIVACY.md).
 
 ## Development
 
-Requirements: Rust, Node, CMake, a C/C++ toolchain, and LLVM with `libclang`.
+Requirements: Rust, Node.js, CMake, a C/C++ toolchain, and LLVM/libclang.
 
 ```sh
 npm install
 npm run dev
 ```
 
-The normal development command includes the local LLM backend by default.
+The local LLM feature is enabled by default.
 
 ### GPU builds
 
 ```sh
-# NVIDIA CUDA (CUDA Toolkit and LLVM required)
-npm run dev -- --features cuda
+# NVIDIA CUDA
+npm run tauri build -- --features cuda
 
-# Vulkan (Vulkan SDK and LLVM required on Windows)
-npm run dev -- --features vulkan
+# Vulkan
+npm run tauri build -- --features vulkan
 ```
 
-After the tray icon appears:
-
-1. Open **Settings** from the tray menu
-2. Download the default **Qwen3.5 0.8B** model
-3. Click **Load model**
-4. Select text in a browser/editor — use Translate / Rewrite
+The default public build can still be CPU-only; Auto mode only uses GPU backends that were compiled into that binary.
 
 ## CI
 
-GitHub Actions runs on every push/PR to `main`:
+GitHub Actions runs on every push/PR to `main` for:
 
-| Job | Platforms |
-|-----|-----------|
-| `test` | **windows-latest**, ubuntu-latest, macos-latest (Windows first) |
-| Steps | `tsc --noEmit`, `cargo check --no-default-features`, `cargo test` |
-| `feature-gate` | Linux — best-effort `--features llm` |
+- Windows x64 (`windows-latest`)
+- Windows ARM64 (`windows-11-arm`)
 
-CI skips the `llm` feature (no `llama-cpp-sys-2` compile on runners). Local/dev builds include LLM by default.
+CI runs frontend type/build checks and Rust `cargo check`, `cargo test --all-targets`, and Clippy with the local LLM enabled.
 
-## Build
+## Model setup
 
-```sh
-npm run tauri build
-# or with GPU:
-npm run tauri build -- -- --features cuda
-```
+On first launch, Settings opens automatically if no GGUF model is installed.
 
-Models are stored under the OS app data directory (`…/butchi/models`).
+1. Choose a model.
+2. Click **Download** (default Qwen3.5 0.8B Q4_K_M is about 530 MB).
+3. Click **Load model**.
+4. Select text and use Butchi.
 
-## Microsoft Store (Windows x64 + ARM64)
+Models are stored in Butchi's OS application-data directory.
 
-Partner Center product type: **EXE or MSI app** (Tauri produces NSIS offline installers).
-Reserve the Store product name as **Butchi**.
+## Windows releases
 
-### One-time setup
+The GitHub release workflow builds x64 and ARM64 NSIS installers from `v*` tags.
 
-1. Reserve the app name in [Partner Center](https://partner.microsoft.com/dashboard).
-2. Edit `src-tauri/tauri.store.conf.json` and set `bundle.publisher` to your **Publisher display name** from Partner Center (must differ from the app product name).
-3. Optional: add GitHub secrets `WINDOWS_CERTIFICATE` (base64 PFX) and `WINDOWS_CERTIFICATE_PASSWORD` if you want signed installers for direct download. Microsoft Store offline-installer distribution does not require you to pre-sign for Store acceptance the same way MSIX does.
+For a normal direct-download build, WebView2 may use a smaller bootstrapper configuration. The dedicated Microsoft Store configuration is different: it embeds the offline WebView2 installer so the submitted EXE is a standalone installer.
 
-### Build installers (GitHub Actions)
+## Microsoft Store
 
-Workflow: [`.github/workflows/publish-windows-store.yml`](.github/workflows/publish-windows-store.yml)
+Butchi uses the Partner Center **MSI/EXE app** submission path.
 
-| Trigger | Result |
-|--------|--------|
-| Push tag `v0.1.0` (or any `v*`) | Build x64 + ARM64 NSIS setup.exe, attach to GitHub Release |
-| Actions → **Publish Windows Store** → Run workflow | Same, draft release unless you use a tag |
+The Store workflow (`.github/workflows/publish-windows-store.yml`) enforces the important submission constraints:
 
-Artifacts:
+- app/tag version consistency;
+- x64 + ARM64 builds;
+- standalone/offline WebView2 installation;
+- required CA-trusted Authenticode certificate;
+- Partner Center publisher injected from a GitHub secret;
+- Authenticode verification;
+- silent `/S` install and uninstall smoke test;
+- immutable versioned GitHub Release assets.
 
-- `butchi-windows-x64` — NSIS `*-setup.exe`
-- `butchi-windows-arm64` — NSIS `*-setup.exe` (runner: `windows-11-arm`)
+Required GitHub secrets:
 
-Store config is merged at build time:
+- `STORE_PUBLISHER`
+- `WINDOWS_CERTIFICATE`
+- `WINDOWS_CERTIFICATE_PASSWORD`
 
-```sh
-# local equivalent
-npm run tauri build -- --bundles nsis --config src-tauri/tauri.store.conf.json
-```
+The certificate must be a CA-trusted Authenticode code-signing certificate. Microsoft Store does **not** re-sign EXE/MSI submissions.
 
-### Partner Center upload
+Full listing copy, certification notes, screenshot plan, system requirements, and release checklist are in [docs/STORE_SUBMISSION.md](docs/STORE_SUBMISSION.md).
 
-1. Create product → **EXE or MSI app**.
-2. Packages → add **offline** installer for **x64** and **ARM64**.
-3. Installer parameters: `/S` (NSIS silent).
-4. Complete Store listing, age ratings, and submit for certification.
+## Screenshots
 
-WebView2 is configured as `offlineInstaller` in `tauri.store.conf.json` so the Store package does not rely on an online bootstrapper.
+<p align="center">
+  <img src="docs/assets/screenshot-popover.svg" width="640" alt="Butchi popover"/>
+</p>
+
+<p align="center">
+  <img src="docs/assets/screenshot-settings.svg" width="640" alt="Butchi settings"/>
+</p>
+
+These SVGs are repository illustrations. For Microsoft Store submission, capture real PNG/JPEG screenshots from the signed release candidate.
 
 ## License
 
-See repository for license details.
+[MIT](LICENSE)
