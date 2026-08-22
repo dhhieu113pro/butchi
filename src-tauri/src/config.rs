@@ -121,6 +121,15 @@ pub fn save(config: &AppConfig) -> Result<(), String> {
     fs::write(&path, raw).map_err(|e| format!("write config: {e}"))
 }
 
+pub fn update_target_language(config: &mut AppConfig, language: &str) -> Result<(), String> {
+    let language = language.trim();
+    if language.is_empty() {
+        return Err("target language cannot be empty".into());
+    }
+    config.target_language = language.to_owned();
+    Ok(())
+}
+
 pub fn model_local_path(repo: &str, file: &str) -> Result<PathBuf, String> {
     let safe_repo = repo.replace('/', "__");
     Ok(models_dir()?.join(safe_repo).join(file))
@@ -181,6 +190,20 @@ mod tests {
 
         assert_eq!(restored.favorite_languages, config.favorite_languages);
         assert_eq!(restored.target_language, "Japanese");
+    }
+
+    #[test]
+    fn target_language_update_trims_and_remembers_selection() {
+        let mut config = AppConfig::default();
+        update_target_language(&mut config, "  Japanese  ").expect("valid language");
+        assert_eq!(config.target_language, "Japanese");
+    }
+
+    #[test]
+    fn target_language_update_rejects_empty_values() {
+        let mut config = AppConfig::default();
+        assert!(update_target_language(&mut config, "   ").is_err());
+        assert_eq!(config.target_language, "Vietnamese");
     }
 
     #[test]
