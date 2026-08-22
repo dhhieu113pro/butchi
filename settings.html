@@ -103,7 +103,24 @@
             <button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button>
           </div>
         </div>
-        <p class="hint">Last 200 Translate / Rewrite results (newest first). Stored locally on this device.</p>
+        <p class="hint">Search past Translate / Rewrite results. History is stored only on this device.</p>
+        <div class="history-controls">
+          <input id="historySearch" type="search" placeholder="Search source or result…" aria-label="Search history" />
+          <select id="historyAction" aria-label="Filter history action">
+            <option value="">All actions</option>
+            <option value="translate">Translate</option>
+            <option value="rewrite">Rewrite</option>
+          </select>
+        </div>
+        <label class="field">
+          <span>Keep history</span>
+          <select id="historyRetentionDays">
+            <option value="0">Off</option>
+            <option value="7">7 days</option>
+            <option value="30">30 days</option>
+            <option value="-1">Forever</option>
+          </select>
+        </label>
         <div id="historyList" class="history-list" aria-live="polite"></div>
       </section>
 
