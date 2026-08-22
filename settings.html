@@ -74,6 +74,18 @@
         <p class="hint" id="backendHint"></p>
       </section>
 
+      <section class="card" id="historySection">
+        <div class="history-header">
+          <h2>History</h2>
+          <div class="row-actions">
+            <button type="button" id="refreshHistoryBtn" class="btn btn--ghost">Refresh</button>
+            <button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button>
+          </div>
+        </div>
+        <p class="hint">Last 200 Translate / Rewrite results (newest first). Stored locally on this device.</p>
+        <div id="historyList" class="history-list" aria-live="polite"></div>
+      </section>
+
       <section class="card">
         <h2>Local LLM</h2>
         <p class="hint">
