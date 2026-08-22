@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    name: Test (${{ matrix.arch }})
+    name: Test (${{ matrix.arch }}, llm)
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -48,7 +48,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v4-nollm
+          shared-key: ${{ matrix.arch }}-cpu-v5-llm
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,16 +62,17 @@ jobs:
       - name: Typecheck frontend
         run: npx tsc --noEmit
 
-      # Skip feature `llm` on CI — llama-cpp-sys-2 native build is slow/flaky on GHA.
-      - name: Cargo check (no llm)
+      # `llm` is a default feature and is core to Butchi's translate/rewrite path.
+      # Keep default features enabled so CI compiles llama-cpp-2 and hf-hub.
+      - name: Cargo check (llm)
         working-directory: src-tauri
-        run: cargo check --no-default-features
+        run: cargo check
 
-      - name: Cargo test (no llm)
+      - name: Cargo test (llm)
         working-directory: src-tauri
-        run: cargo test --no-default-features -- --nocapture
+        run: cargo test -- --nocapture
 
-      - name: Cargo clippy
+      - name: Cargo clippy (llm)
         working-directory: src-tauri
-        run: cargo clippy --no-default-features --all-targets -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
         continue-on-error: true
