@@ -77,7 +77,8 @@ jobs:
 
       # llama.cpp rejects MSVC as the C/C++ compiler for Windows ARM.
       # Preserve the Visual Studio SDK/linker environment but use clang-cl
-      # for llama-cpp-sys native compilation on the ARM64 runner.
+      # for llama-cpp-sys native compilation on the ARM64 runner. Its wrapper
+      # uses try/catch, so force C++ exception handling as well.
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'arm64'
         shell: pwsh
@@ -95,14 +96,15 @@ jobs:
           if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
           Write-Host "Using clang-cl: $clang"
           & $clang --version
+
           "CC=$clang" >> $env:GITHUB_ENV
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
 
-          # clang-cl does not enable C++ exceptions by default. llama-cpp-sys
-          # wrapper_common.cpp uses try/catch, so enable standard C++ exception
-          # handling for the ARM64 target. cc-rs reads this target-specific var.
+          # cc-rs checks both generic and target-specific CXXFLAGS. Set both to
+          # guarantee wrapper_common.cpp is built with exception support.
+          "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
           "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
 
       - name: Setup Node.js
@@ -120,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v4-clang-exceptions
+          shared-key: store-${{ matrix.arch }}-v5-clang-exceptions
 
       - name: Install npm dependencies
         run: npm ci
