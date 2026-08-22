@@ -20,13 +20,15 @@ pub struct AppConfig {
     pub translate_system_prompt: String,
     /// What to do after an explicit Translate/Rewrite action: copy, replace, or none.
     pub result_action: String,
+    /// Preferred inference device: auto, cpu, or gpu.
+    pub backend_preference: String,
     /// Hugging Face repo id, e.g. "unsloth/Qwen3.5-0.8B-GGUF".
     pub model_repo: String,
     /// GGUF filename inside the repo.
     pub model_file: String,
     pub max_tokens: u32,
     pub temperature: f32,
-    /// Offload this many layers to GPU when built with cuda/vulkan features.
+    /// Maximum layers to offload when GPU inference is selected.
     pub gpu_layers: u32,
     /// History retention: 0 = disabled, -1 = forever, positive = days.
     pub history_retention_days: i32,
@@ -42,6 +44,7 @@ impl Default for AppConfig {
             rewrite_system_prompt: "You are a precise writing assistant. Rewrite the user's text so it is clear, natural, and grammatically correct. Keep the original meaning and language. Output only the rewritten text with no quotes or explanation.".into(),
             translate_system_prompt: "You are a precise translation assistant. Translate the user's text into the target language. Keep meaning and tone. Output only the translation with no quotes or explanation.".into(),
             result_action: "copy".into(),
+            backend_preference: "auto".into(),
             model_repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
             model_file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(),
             max_tokens: 256,
@@ -130,6 +133,14 @@ pub fn update_target_language(config: &mut AppConfig, language: &str) -> Result<
     Ok(())
 }
 
+pub fn normalize_backend_preference(value: &str) -> &str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "cpu" => "cpu",
+        "gpu" => "gpu",
+        _ => "auto",
+    }
+}
+
 pub fn model_local_path(repo: &str, file: &str) -> Result<PathBuf, String> {
     let safe_repo = repo.replace('/', "__");
     Ok(models_dir()?.join(safe_repo).join(file))
@@ -158,7 +169,12 @@ mod tests {
     }
 
     #[test]
-    fn old_config_without_result_action_or_favorites_uses_defaults() {
+    fn default_backend_preference_is_auto() {
+        assert_eq!(AppConfig::default().backend_preference, "auto");
+    }
+
+    #[test]
+    fn old_config_without_new_options_uses_defaults() {
         let raw = r#"{
             "translateEnabled": true,
             "rewriteEnabled": true,
@@ -166,8 +182,16 @@ mod tests {
         }"#;
         let config: AppConfig = serde_json::from_str(raw).expect("old config should deserialize");
         assert_eq!(config.result_action, "copy");
+        assert_eq!(config.backend_preference, "auto");
         assert_eq!(config.target_language, "English");
         assert_eq!(config.favorite_languages, vec!["Vietnamese", "English"]);
+    }
+
+    #[test]
+    fn backend_preference_normalizes_unknown_values_to_auto() {
+        assert_eq!(normalize_backend_preference("GPU"), "gpu");
+        assert_eq!(normalize_backend_preference(" cpu "), "cpu");
+        assert_eq!(normalize_backend_preference("something-else"), "auto");
     }
 
     #[test]
