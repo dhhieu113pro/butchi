@@ -24,6 +24,7 @@ let pointerInside = false;
 let currentText = "";
 let translateEnabled = true;
 let rewriteEnabled = true;
+let resultAction = "copy";
 let autoRunId = 0;
 
 type ProcessResult = {
@@ -35,6 +36,7 @@ type ProcessResult = {
 type AppConfig = {
   translateEnabled: boolean;
   rewriteEnabled: boolean;
+  resultAction: string;
 };
 
 function cancelScheduledHide() {
@@ -177,6 +179,13 @@ async function runProcessStreaming(
   return invoke<ProcessResult>("process_text_stream", { action, text, copy, onEvent });
 }
 
+async function replaceSelection(text: string): Promise<void> {
+  if (isManualInput) {
+    throw new Error("Replace is available when Butchi was opened from a selected text.");
+  }
+  await invoke("replace_selected_text", { text });
+}
+
 async function autoRunEnabled(text: string) {
   const runId = ++autoRunId;
   const jobs: Array<Promise<void>> = [];
@@ -234,7 +243,7 @@ async function autoRunEnabled(text: string) {
   await Promise.all(jobs);
   if (runId !== autoRunId) return;
 
-  if (status) status.textContent = "Results ready — hover to keep open, or use Copy.";
+  if (status) status.textContent = "Results ready — use Copy or Replace.";
   scheduleHide(untouchedHideDelay + 2_000);
 }
 
@@ -243,6 +252,7 @@ async function refreshConfig() {
     const cfg = await invoke<AppConfig>("get_config");
     translateEnabled = cfg.translateEnabled;
     rewriteEnabled = cfg.rewriteEnabled;
+    resultAction = cfg.resultAction || "copy";
     applyActionVisibility();
   } catch {
     /* keep defaults */
@@ -350,9 +360,15 @@ actions.forEach((button) => {
     }
 
     try {
-      const result = await runProcessStreaming(action, text, true, (chunk) => {
+      const shouldCopy = resultAction === "copy";
+      const result = await runProcessStreaming(action, text, shouldCopy, (chunk) => {
         showResultChunk(action, chunk);
       });
+
+      if (resultAction === "replace" && !isManualInput) {
+        await replaceSelection(result.text);
+      }
+
       currentText = result.text;
       if (selection && !isManualInput) {
         selection.textContent = result.text;
@@ -363,7 +379,12 @@ actions.forEach((button) => {
       }
       showResultOk(action, result.text, result.message);
       if (status) {
-        status.textContent = result.message;
+        status.textContent =
+          resultAction === "replace" && !isManualInput
+            ? "Selected text replaced."
+            : resultAction === "copy"
+              ? "Result copied."
+              : "Result ready.";
         status.title = result.message;
       }
       button.dataset.state = "success";
@@ -397,6 +418,24 @@ document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => 
       if (status) status.textContent = `Copied ${kind} result.`;
     } catch {
       if (status) status.textContent = "Clipboard copy failed.";
+    }
+  });
+});
+
+document.querySelectorAll<HTMLButtonElement>("[data-replace]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const kind = button.dataset.replace as "translate" | "rewrite" | undefined;
+    if (!kind) return;
+    const parts = cardParts(kind);
+    const text = parts?.text?.textContent?.trim() ?? "";
+    if (!text) return;
+    keepOpen();
+    try {
+      await replaceSelection(text);
+      if (status) status.textContent = `Replaced selected text with ${kind} result.`;
+      scheduleHide(interactedLeaveDelay);
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : String(error);
     }
   });
 });
