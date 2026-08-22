@@ -88,29 +88,26 @@ fn rewrite_offline(input: &str) -> String {
     text
 }
 
-pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessResult, String> {
-    let source = input.trim();
-    if source.is_empty() {
-        return Err("no text to process".into());
-    }
-
-    let cfg = config::load();
-
+fn validate_action(action: TextAction, cfg: &config::AppConfig) -> Result<(), String> {
     match action {
         TextAction::Translate if !cfg.translate_enabled => {
-            return Err("Translate is disabled in Settings".into());
+            Err("Translate is disabled in Settings".into())
         }
         TextAction::Rewrite if !cfg.rewrite_enabled => {
-            return Err("Rewrite is disabled in Settings".into());
+            Err("Rewrite is disabled in Settings".into())
         }
-        _ => {}
+        _ => Ok(()),
     }
+}
 
-    let (text, message) = match action {
-        TextAction::Rewrite => rewrite_with_llm_or_offline(source, &cfg),
-        TextAction::Translate => translate_with_llm(source, &cfg)?,
-    };
-
+fn finish_result(
+    action: TextAction,
+    source: &str,
+    text: String,
+    message: String,
+    copy: bool,
+    cfg: &config::AppConfig,
+) -> ProcessResult {
     let target_language = match action {
         TextAction::Translate => Some(cfg.target_language.as_str()),
         TextAction::Rewrite => None,
@@ -118,79 +115,94 @@ pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessRes
     history::append(action, source, &text, &message, target_language);
 
     if !copy {
-        return Ok(ProcessResult {
+        return ProcessResult {
             text,
             message,
             copied: false,
-        });
+        };
     }
 
-    let copied = match copy_to_clipboard(&text) {
-        Ok(()) => true,
-        Err(error) => {
-            return Ok(ProcessResult {
-                text,
-                message: format!("{message} (copy failed: {error})"),
-                copied: false,
-            });
+    match copy_to_clipboard(&text) {
+        Ok(()) => ProcessResult {
+            text,
+            message,
+            copied: true,
+        },
+        Err(error) => ProcessResult {
+            text,
+            message: format!("{message} (copy failed: {error})"),
+            copied: false,
+        },
+    }
+}
+
+pub fn process(action: TextAction, input: &str, copy: bool) -> Result<ProcessResult, String> {
+    process_stream(action, input, copy, |_| {})
+}
+
+pub fn process_stream<F>(
+    action: TextAction,
+    input: &str,
+    copy: bool,
+    mut on_piece: F,
+) -> Result<ProcessResult, String>
+where
+    F: FnMut(&str),
+{
+    let source = input.trim();
+    if source.is_empty() {
+        return Err("no text to process".into());
+    }
+
+    let cfg = config::load();
+    validate_action(action, &cfg)?;
+
+    let (text, message) = match action {
+        TextAction::Rewrite => {
+            match llm::generate_streaming(&cfg.rewrite_system_prompt, source, &cfg, |piece| {
+                on_piece(piece)
+            }) {
+                Ok(text) if !text.trim().is_empty() => (
+                    text,
+                    format!("Rewritten with local LLM ({}). Result copied.", cfg.model_file),
+                ),
+                Ok(_) => {
+                    let rewritten = rewrite_offline(source);
+                    on_piece(&rewritten);
+                    (
+                        rewritten,
+                        "LLM returned empty output — used offline rewrite. Result copied.".into(),
+                    )
+                }
+                Err(error) => {
+                    let rewritten = rewrite_offline(source);
+                    on_piece(&rewritten);
+                    (
+                        rewritten,
+                        format!("LLM unavailable ({error}). Offline rewrite used. Result copied."),
+                    )
+                }
+            }
+        }
+        TextAction::Translate => {
+            let system = format!(
+                "{}\n\nTarget language: {}.",
+                cfg.translate_system_prompt, cfg.target_language
+            );
+            match llm::generate_streaming(&system, source, &cfg, |piece| on_piece(piece)) {
+                Ok(text) if !text.trim().is_empty() => (
+                    text,
+                    format!("Translated to {} with local LLM. Result copied.", cfg.target_language),
+                ),
+                Ok(_) => return Err("LLM returned empty translation. Is the model downloaded?".into()),
+                Err(error) => {
+                    return Err(format!("Translation needs the local model. {error}"));
+                }
+            }
         }
     };
 
-    Ok(ProcessResult {
-        text,
-        message,
-        copied,
-    })
-}
-
-fn rewrite_with_llm_or_offline(source: &str, cfg: &config::AppConfig) -> (String, String) {
-    match llm::generate(&cfg.rewrite_system_prompt, source, cfg) {
-        Ok(text) if !text.trim().is_empty() => (
-            text,
-            format!(
-                "Rewritten with local LLM ({}). Result copied.",
-                cfg.model_file
-            ),
-        ),
-        Ok(_) => {
-            let rewritten = rewrite_offline(source);
-            (
-                rewritten,
-                "LLM returned empty output — used offline rewrite. Result copied.".into(),
-            )
-        }
-        Err(error) => {
-            let rewritten = rewrite_offline(source);
-            (
-                rewritten,
-                format!("LLM unavailable ({error}). Offline rewrite used. Result copied."),
-            )
-        }
-    }
-}
-
-fn translate_with_llm(
-    source: &str,
-    cfg: &config::AppConfig,
-) -> Result<(String, String), String> {
-    let system = format!(
-        "{}\n\nTarget language: {}.",
-        cfg.translate_system_prompt, cfg.target_language
-    );
-
-    match llm::generate(&system, source, cfg) {
-        Ok(text) if !text.trim().is_empty() => Ok((
-            text,
-            format!(
-                "Translated to {} with local LLM. Result copied.",
-                cfg.target_language
-            ),
-        )),
-        Ok(_) => Err("LLM returned empty translation. Is the model downloaded?".into()),
-        Err(error) => Err(format!(
-            "Translation needs the local model. {error}"
-        )),
-    }
+    Ok(finish_result(action, source, text, message, copy, &cfg))
 }
 
 #[cfg(test)]
