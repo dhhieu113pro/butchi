@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub rewrite_enabled: bool,
     /// BCP-47 / common language name used in the translation prompt.
     pub target_language: String,
+    /// Languages shown as quick Translate targets in the popover.
+    pub favorite_languages: Vec<String>,
     pub rewrite_system_prompt: String,
     pub translate_system_prompt: String,
     /// What to do after an explicit Translate/Rewrite action: copy, replace, or none.
@@ -36,6 +38,7 @@ impl Default for AppConfig {
             translate_enabled: true,
             rewrite_enabled: true,
             target_language: "Vietnamese".into(),
+            favorite_languages: vec!["Vietnamese".into(), "English".into()],
             rewrite_system_prompt: "You are a precise writing assistant. Rewrite the user's text so it is clear, natural, and grammatically correct. Keep the original meaning and language. Output only the rewritten text with no quotes or explanation.".into(),
             translate_system_prompt: "You are a precise translation assistant. Translate the user's text into the target language. Keep meaning and tone. Output only the translation with no quotes or explanation.".into(),
             result_action: "copy".into(),
@@ -146,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn old_config_without_result_action_migrates_to_copy() {
+    fn old_config_without_result_action_or_favorites_uses_defaults() {
         let raw = r#"{
             "translateEnabled": true,
             "rewriteEnabled": true,
@@ -155,6 +158,7 @@ mod tests {
         let config: AppConfig = serde_json::from_str(raw).expect("old config should deserialize");
         assert_eq!(config.result_action, "copy");
         assert_eq!(config.target_language, "English");
+        assert_eq!(config.favorite_languages, vec!["Vietnamese", "English"]);
     }
 
     #[test]
@@ -164,6 +168,19 @@ mod tests {
         let json = serde_json::to_string(&config).expect("serialize config");
         let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
         assert_eq!(restored.result_action, "replace");
+    }
+
+    #[test]
+    fn favorite_languages_round_trip() {
+        let mut config = AppConfig::default();
+        config.favorite_languages = vec!["English".into(), "Japanese".into(), "German".into()];
+        config.target_language = "Japanese".into();
+
+        let json = serde_json::to_string(&config).expect("serialize config");
+        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
+
+        assert_eq!(restored.favorite_languages, config.favorite_languages);
+        assert_eq!(restored.target_language, "Japanese");
     }
 
     #[test]
