@@ -16,6 +16,8 @@ pub struct AppConfig {
     pub target_language: String,
     pub rewrite_system_prompt: String,
     pub translate_system_prompt: String,
+    /// What to do after an explicit Translate/Rewrite action: copy, replace, or none.
+    pub result_action: String,
     /// Hugging Face repo id, e.g. "unsloth/Qwen3.5-0.8B-GGUF".
     pub model_repo: String,
     /// GGUF filename inside the repo.
@@ -36,6 +38,7 @@ impl Default for AppConfig {
             target_language: "Vietnamese".into(),
             rewrite_system_prompt: "You are a precise writing assistant. Rewrite the user's text so it is clear, natural, and grammatically correct. Keep the original meaning and language. Output only the rewritten text with no quotes or explanation.".into(),
             translate_system_prompt: "You are a precise translation assistant. Translate the user's text into the target language. Keep meaning and tone. Output only the translation with no quotes or explanation.".into(),
+            result_action: "copy".into(),
             model_repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
             model_file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(),
             max_tokens: 256,
