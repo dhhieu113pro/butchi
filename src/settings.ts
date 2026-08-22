@@ -6,6 +6,7 @@ type AppConfig = {
   translateEnabled: boolean;
   rewriteEnabled: boolean;
   targetLanguage: string;
+  favoriteLanguages: string[];
   rewriteSystemPrompt: string;
   translateSystemPrompt: string;
   resultAction: string;
@@ -58,6 +59,7 @@ type ModelStatus = {
 const translateEnabled = document.querySelector<HTMLInputElement>("#translateEnabled");
 const rewriteEnabled = document.querySelector<HTMLInputElement>("#rewriteEnabled");
 const targetLanguage = document.querySelector<HTMLSelectElement>("#targetLanguage");
+const favoriteLanguages = document.querySelector<HTMLSelectElement>("#favoriteLanguages");
 const resultAction = document.querySelector<HTMLSelectElement>("#resultAction");
 const translateSystemPrompt = document.querySelector<HTMLTextAreaElement>("#translateSystemPrompt");
 const rewriteSystemPrompt = document.querySelector<HTMLTextAreaElement>("#rewriteSystemPrompt");
@@ -89,6 +91,11 @@ function selectedModel(): ModelOption | undefined {
   return models.find((m) => m.id === id) ?? models[0];
 }
 
+function selectedFavorites(): string[] {
+  if (!favoriteLanguages) return config?.favoriteLanguages ?? ["Vietnamese", "English"];
+  return [...favoriteLanguages.selectedOptions].map((option) => option.value).slice(0, 5);
+}
+
 function applyConfig(cfg: AppConfig) {
   config = cfg;
   if (translateEnabled) translateEnabled.checked = cfg.translateEnabled;
@@ -102,6 +109,12 @@ function applyConfig(cfg: AppConfig) {
       targetLanguage.append(opt);
     }
     targetLanguage.value = cfg.targetLanguage;
+  }
+  if (favoriteLanguages) {
+    const favorites = new Set(cfg.favoriteLanguages ?? []);
+    favoriteLanguages.querySelectorAll<HTMLOptionElement>("option").forEach((option) => {
+      option.selected = favorites.has(option.value);
+    });
   }
   if (resultAction) resultAction.value = cfg.resultAction || "copy";
   if (translateSystemPrompt) translateSystemPrompt.value = cfg.translateSystemPrompt;
@@ -122,6 +135,7 @@ function readForm(): AppConfig {
     translateEnabled: translateEnabled?.checked ?? true,
     rewriteEnabled: rewriteEnabled?.checked ?? true,
     targetLanguage: targetLanguage?.value ?? "Vietnamese",
+    favoriteLanguages: selectedFavorites(),
     rewriteSystemPrompt: rewriteSystemPrompt?.value ?? config?.rewriteSystemPrompt ?? "",
     translateSystemPrompt: translateSystemPrompt?.value ?? config?.translateSystemPrompt ?? "",
     resultAction: resultAction?.value ?? config?.resultAction ?? "copy",
@@ -307,6 +321,13 @@ saveBtn?.addEventListener("click", async () => {
   } finally {
     saveBtn.disabled = false;
   }
+});
+
+favoriteLanguages?.addEventListener("change", () => {
+  const selected = [...favoriteLanguages.selectedOptions];
+  if (selected.length <= 5) return;
+  selected[selected.length - 1].selected = false;
+  if (saveStatus) saveStatus.textContent = "Choose up to 5 favorite languages.";
 });
 
 modelSelect?.addEventListener("change", () => void refreshStatus());
