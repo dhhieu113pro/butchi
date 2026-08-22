@@ -56,6 +56,19 @@ impl LlamaEngine {
     }
 
     fn generate(&mut self, system: &str, user: &str, config: &AppConfig) -> Result<String, String> {
+        self.generate_streaming(system, user, config, |_| {})
+    }
+
+    fn generate_streaming<F>(
+        &mut self,
+        system: &str,
+        user: &str,
+        config: &AppConfig,
+        mut on_piece: F,
+    ) -> Result<String, String>
+    where
+        F: FnMut(&str),
+    {
         let loaded = self
             .loaded
             .as_ref()
@@ -122,6 +135,9 @@ impl LlamaEngine {
                 .token_to_piece(token, &mut decoder, true, None)
                 .map_err(|e| format!("decode output token: {e}"))?;
             output.push_str(&piece);
+            if !piece.is_empty() {
+                on_piece(&piece);
+            }
             batch.clear();
             batch.add(token, position, &[0], true)
                 .map_err(|e| format!("prepare output batch: {e}"))?;
@@ -227,6 +243,23 @@ pub fn ensure_loaded(config: &AppConfig) -> Result<(), String> {
 pub fn generate(system: &str, user: &str, config: &AppConfig) -> Result<String, String> {
     ensure_loaded(config)?;
     ENGINE.lock().as_mut().expect("engine was initialized").generate(system, user, config)
+}
+
+pub fn generate_streaming<F>(
+    system: &str,
+    user: &str,
+    config: &AppConfig,
+    on_piece: F,
+) -> Result<String, String>
+where
+    F: FnMut(&str),
+{
+    ensure_loaded(config)?;
+    ENGINE
+        .lock()
+        .as_mut()
+        .expect("engine was initialized")
+        .generate_streaming(system, user, config, on_piece)
 }
 
 fn detect_devices() -> Vec<BackendDevice> {
