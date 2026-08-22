@@ -265,6 +265,7 @@ listen<string>("selection-captured", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
   currentText = payload;
+  void invoke("remember_selection_target").catch(() => undefined);
   void refreshConfig().then(() => {
     showSelection();
     hideResults();
