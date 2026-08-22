@@ -8,7 +8,7 @@
 #   - Manual workflow_dispatch
 #
 # Before first Store submission:
-#   1. Reserve the app name in Partner Center
+#   1. Reserve the app name "Butchi" in Partner Center
 #   2. Set bundle.publisher in src-tauri/tauri.store.conf.json
 #      to your Partner Center publisher display name
 #   3. (Optional) Add WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
@@ -155,7 +155,7 @@ jobs:
       - name: Upload Windows ${{ matrix.arch }} installer
         uses: actions/upload-artifact@v4
         with:
-          name: rust-rewrite-windows-${{ matrix.arch }}
+          name: butchi-windows-${{ matrix.arch }}
           path: dist-store/${{ matrix.arch }}/*
           if-no-files-found: error
           retention-days: 30
@@ -171,13 +171,13 @@ jobs:
       - name: Download x64 installer
         uses: actions/download-artifact@v4
         with:
-          name: rust-rewrite-windows-x64
+          name: butchi-windows-x64
           path: artifacts
 
       - name: Download arm64 installer
         uses: actions/download-artifact@v4
         with:
-          name: rust-rewrite-windows-arm64
+          name: butchi-windows-arm64
           path: artifacts
 
       - name: Create or update GitHub Release
@@ -188,7 +188,7 @@ jobs:
           draft: ${{ github.ref_type != 'tag' }}
           generate_release_notes: true
           body: |
-            ## Windows Store offline installers
+            ## Butchi — Windows Store offline installers
 
             Architecture | Installer | Partner Center silent args
             --- | --- | ---
