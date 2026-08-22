@@ -1,14 +1,16 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" width="128" height="128" alt="Rust Rewrite logo"/>
+  <img src="docs/assets/logo.svg" width="128" height="128" alt="Butchi logo"/>
 </p>
 
-<h1 align="center">Rust Rewrite</h1>
+<h1 align="center">Butchi</h1>
+
+<p align="center">
+  <em>bút chì</em> — Windows-first Tauri tray utility for Translate & Rewrite with a local LLM
+</p>
 
 <p align="center">
   <a href="https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/rust-rewrite/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
 </p>
-
-<p align="center">Windows-first Tauri tray utility — select text, auto Translate &amp; Rewrite with a local LLM.</p>
 
 ## Screenshot
 
@@ -86,11 +88,12 @@ npm run tauri build
 npm run tauri build -- -- --features cuda
 ```
 
-Models are stored under the OS app data directory (`…/rust-rewrite/models`).
+Models are stored under the OS app data directory (`…/butchi/models`).
 
 ## Microsoft Store (Windows x64 + ARM64)
 
 Partner Center product type: **EXE or MSI app** (Tauri produces NSIS offline installers).
+Reserve the Store product name as **Butchi**.
 
 ### One-time setup
 
@@ -109,8 +112,8 @@ Workflow: [`.github/workflows/publish-windows-store.yml`](.github/workflows/publ
 
 Artifacts:
 
-- `rust-rewrite-windows-x64` — NSIS `*-setup.exe`
-- `rust-rewrite-windows-arm64` — NSIS `*-setup.exe` (runner: `windows-11-arm`)
+- `butchi-windows-x64` — NSIS `*-setup.exe`
+- `butchi-windows-arm64` — NSIS `*-setup.exe` (runner: `windows-11-arm`)
 
 Store config is merged at build time:
 
