@@ -6,6 +6,7 @@ mod keyboard_monitor;
 mod llm;
 mod popover;
 mod replacement;
+mod screenshot;
 mod selection;
 mod selection_monitor;
 mod tray;
@@ -31,6 +32,11 @@ fn remember_selection_target() -> Result<(), String> { replacement::remember_sel
 
 #[tauri::command]
 fn replace_selected_text(text: String) -> Result<(), String> { replacement::replace_selected_text(&text) }
+
+#[tauri::command]
+fn get_screenshot_mode() -> Option<String> {
+    screenshot::parse_screenshot_mode().map(|mode| mode.as_str().to_owned())
+}
 
 #[tauri::command]
 fn get_config() -> config::AppConfig { config::load() }
@@ -134,6 +140,7 @@ pub fn run() {
             process_text_stream,
             remember_selection_target,
             replace_selected_text,
+            get_screenshot_mode,
             get_config,
             save_config,
             set_target_language,
@@ -149,6 +156,11 @@ pub fn run() {
             open_settings,
         ])
         .setup(|app| {
+            if let Some(mode) = screenshot::parse_screenshot_mode() {
+                screenshot::open_capture_window(app.handle(), mode)?;
+                return Ok(());
+            }
+
             tray::create(app)?;
             let _ = history::apply_retention();
             let _ = selection_monitor::start(app.handle().clone());
