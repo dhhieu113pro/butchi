@@ -446,12 +446,9 @@ pub fn capture_selected_text(expected_foreground: Option<usize>) -> Result<Strin
         ));
     }
 
-    if let Err(error) = clipboard
+    clipboard
         .set_text(String::new())
-        .map_err(|error| SelectionError::Clipboard(error.to_string()))
-    {
-        return Err(error);
-    }
+        .map_err(|error| SelectionError::Clipboard(error.to_string()))?;
     let cleared_sequence = clipboard_sequence();
 
     if let Err(error) = send_copy_shortcut() {
