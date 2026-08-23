@@ -15,131 +15,106 @@
   </head>
   <body>
     <main class="settings">
-      <header class="settings__header"><h1>Settings</h1><p class="settings__lead">Configure Translate / Rewrite and the local LLM.</p></header>
+      <header class="settings__header">
+        <div>
+          <h1>Butchi Settings</h1>
+          <p class="settings__lead">Private local Translate &amp; Rewrite for Windows.</p>
+        </div>
+        <p class="save-status" id="saveStatus" aria-live="polite"></p>
+      </header>
 
-      <section class="card" id="gettingStartedCard" hidden>
-        <h2>Get started</h2>
-        <p><strong>Butchi needs one local GGUF model before Translate can work.</strong></p>
-        <p class="hint">1. Choose a model below. 2. Download it once from Hugging Face. 3. Click Load model. After that, text is processed locally on this device.</p>
-        <p class="hint">If you are offline, you can keep using Butchi after the model has already been downloaded.</p>
-      </section>
+      <div class="settings-shell">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button type="button" data-settings-page="general" aria-selected="true" aria-controls="settings-general">General</button>
+          <button type="button" data-settings-page="prompts" aria-selected="false" aria-controls="settings-prompts">Prompts</button>
+          <button type="button" data-settings-page="model" aria-selected="false" aria-controls="settings-model">Model</button>
+          <button type="button" data-settings-page="history" aria-selected="false" aria-controls="settings-history">History</button>
+          <button type="button" data-settings-page="about" aria-selected="false" aria-controls="settings-about">About &amp; Privacy</button>
+        </nav>
 
-      <section class="card">
-        <h2>Appearance</h2>
-        <label class="field"><span>Theme</span><select id="themePreference"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-        <p class="hint">System follows your Windows light/dark preference automatically.</p>
-      </section>
+        <div class="settings-content">
+          <section class="settings-panel" id="settings-general" data-settings-panel="general" aria-labelledby="general-title">
+            <header class="panel-header"><h2 id="general-title">General</h2><p>Everyday preferences for Butchi.</p></header>
+            <div class="section-group">
+              <h3>Appearance</h3>
+              <label class="field"><span>Theme</span><select id="themePreference"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <p class="hint">System follows your Windows light/dark preference automatically.</p>
+            </div>
+            <div class="section-group">
+              <h3>Actions</h3>
+              <label class="row"><span>Enable Translate</span><input id="translateEnabled" type="checkbox" /></label>
+              <label class="row"><span>Enable Rewrite</span><input id="rewriteEnabled" type="checkbox" /></label>
+              <label class="field"><span>Target language</span><select id="targetLanguage"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
+              <label class="field"><span>Favorite target languages</span><select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
+              <p class="hint">Choose up to 5. These appear as one-click targets in Translate results.</p>
+              <label class="field"><span>After an explicit action</span><select id="resultAction"><option value="copy">Copy result only</option><option value="replace">Replace selected text</option><option value="none">Do nothing automatically</option></select></label>
+              <p class="hint">Automatic preview never modifies your text. Copy and Replace remain available on each result.</p>
+            </div>
+          </section>
 
-      <section class="card">
-        <h2>Actions</h2>
-        <label class="row"><span>Enable Translate</span><input id="translateEnabled" type="checkbox" /></label>
-        <label class="row"><span>Enable Rewrite</span><input id="rewriteEnabled" type="checkbox" /></label>
-        <label class="field"><span>Target language (Translate)</span><select id="targetLanguage"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
-        <label class="field"><span>Favorite target languages</span><select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
-        <p class="hint">Choose up to 5. These appear as one-click targets in the Translate result card.</p>
-        <label class="field"><span>After an explicit action</span><select id="resultAction"><option value="copy">Copy result only</option><option value="replace">Replace selected text</option><option value="none">Do nothing automatically</option></select></label>
-        <p class="hint">Automatic preview never modifies your text. Copy and Replace stay available on each result card.</p>
-      </section>
+          <section class="settings-panel" id="settings-prompts" data-settings-panel="prompts" hidden aria-labelledby="prompts-title">
+            <header class="panel-header"><h2 id="prompts-title">Prompts</h2><p>Control how Translate and Rewrite respond.</p></header>
+            <div class="segmented" role="tablist" aria-label="Prompt type">
+              <button type="button" role="tab" data-prompt-mode="translate" aria-selected="true" aria-controls="prompt-translate">Translate</button>
+              <button type="button" role="tab" data-prompt-mode="rewrite" aria-selected="false" aria-controls="prompt-rewrite">Rewrite</button>
+            </div>
+            <div id="prompt-translate" data-prompt-panel="translate">
+              <label class="field"><span>Profile</span><select id="translatePromptProfile"><option value="natural">Natural — default</option><option value="literal">Literal</option><option value="professional">Professional</option><option value="concise">Concise</option><option value="custom">Custom</option></select></label>
+              <label class="field"><span>System prompt</span><textarea id="translateSystemPrompt" rows="8" spellcheck="true"></textarea></label>
+              <p class="hint">Choose a preset as a starting point, then edit it freely. Editing switches the profile to Custom.</p>
+            </div>
+            <div id="prompt-rewrite" data-prompt-panel="rewrite" hidden>
+              <label class="field"><span>Profile</span><select id="rewritePromptProfile"><option value="natural">Clear &amp; natural — default</option><option value="grammar">Grammar only</option><option value="professional">Professional</option><option value="shorter">Shorter</option><option value="polite">More polite</option><option value="simple">Simple language</option><option value="custom">Custom</option></select></label>
+              <label class="field"><span>System prompt</span><textarea id="rewriteSystemPrompt" rows="8" spellcheck="true"></textarea></label>
+              <p class="hint">Profiles only change the prompt text. Your saved prompt remains fully editable.</p>
+            </div>
+          </section>
 
-      <section class="card">
-        <h2>Translation prompt</h2>
-        <label class="field"><span>Profile</span><select id="translatePromptProfile"><option value="natural">Natural — default</option><option value="literal">Literal</option><option value="professional">Professional</option><option value="concise">Concise</option><option value="custom">Custom</option></select></label>
-        <label class="field"><span>System prompt</span><textarea id="translateSystemPrompt" rows="5" spellcheck="true"></textarea></label>
-        <p class="hint">Choose a preset as a starting point, then edit it freely. Editing switches the profile to Custom.</p>
-      </section>
+          <section class="settings-panel" id="settings-model" data-settings-panel="model" hidden aria-labelledby="model-title">
+            <header class="panel-header"><h2 id="model-title">Model</h2><p>Download, load, and tune the local GGUF model.</p></header>
+            <section class="model-setup" id="gettingStartedCard" hidden>
+              <span class="eyebrow">Recommended setup</span>
+              <h3>Get the local model ready</h3>
+              <p>Butchi needs one GGUF model before Translate or Rewrite can run.</p>
+              <p class="hint">Download once from Hugging Face, then inference stays local on this device.</p>
+            </section>
+            <div class="section-group">
+              <label class="field"><span>Model</span><select id="modelSelect"></select></label>
+              <div class="status-line" id="modelStatus">Checking model…</div>
+              <div class="btn-row"><button type="button" class="btn" id="downloadBtn">Download</button><button type="button" class="btn btn--primary" id="loadBtn">Load model</button></div>
+            </div>
+            <div class="section-group">
+              <h3>Device</h3>
+              <label class="field"><span>Preference</span><select id="backendPreference"><option value="auto">Auto — GPU first, CPU fallback</option><option value="gpu">GPU only</option><option value="cpu">CPU only</option></select></label>
+              <p class="hint">Auto uses an available GPU backend first and falls back to CPU when needed.</p>
+            </div>
+            <button type="button" class="disclosure" id="modelAdvancedToggle" aria-expanded="false" aria-controls="modelAdvanced"><span>Advanced inference settings</span><span aria-hidden="true">⌄</span></button>
+            <div class="advanced-panel" id="modelAdvanced" hidden>
+              <div class="backend-row"><span class="backend-label">Active backend</span><div class="backend-pills" id="backendPills" aria-live="polite"><span class="pill" data-backend="cpu">cpu</span><span class="pill" data-backend="cuda">cuda</span><span class="pill" data-backend="vulkan">vulkan</span></div></div>
+              <div class="field"><span>Available backends</span><ul class="device-list" id="deviceList"><li>Checking…</li></ul></div>
+              <p class="hint" id="backendHint"></p>
+              <label class="field"><span>Max tokens</span><input id="maxTokens" type="number" min="32" max="1024" step="16" /></label>
+              <label class="field"><span>Temperature</span><input id="temperature" type="number" min="0" max="1.5" step="0.05" /></label>
+              <label class="field"><span>Maximum GPU layers</span><input id="gpuLayers" type="number" min="0" max="999" step="1" /></label>
+              <p class="hint">999 means offload as much as the model/backend supports. CPU preference ignores this value.</p>
+            </div>
+          </section>
 
-      <section class="card">
-        <h2>Rewrite prompt</h2>
-        <label class="field"><span>Profile</span><select id="rewritePromptProfile"><option value="natural">Clear &amp; natural — default</option><option value="grammar">Grammar only</option><option value="professional">Professional</option><option value="shorter">Shorter</option><option value="polite">More polite</option><option value="simple">Simple language</option><option value="custom">Custom</option></select></label>
-        <label class="field"><span>System prompt</span><textarea id="rewriteSystemPrompt" rows="5" spellcheck="true"></textarea></label>
-        <p class="hint">Profiles only change the prompt text. Your saved prompt remains fully editable.</p>
-      </section>
+          <section class="settings-panel" id="settings-history" data-settings-panel="history" hidden aria-labelledby="history-title">
+            <div class="history-header"><div><h2 id="history-title">History</h2><p class="panel-subtitle">Search past Translate and Rewrite results stored only on this device.</p></div><div class="row-actions"><button type="button" id="refreshHistoryBtn" class="btn btn--ghost">Refresh</button><button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button></div></div>
+            <div class="history-controls"><input id="historySearch" type="search" placeholder="Search source or result…" aria-label="Search history" /><select id="historyAction" aria-label="Filter history action"><option value="">All actions</option><option value="translate">Translate</option><option value="rewrite">Rewrite</option></select></div>
+            <div id="historyList" class="history-list" aria-live="polite"></div>
+            <div class="section-group section-group--quiet"><label class="field"><span>Keep history</span><select id="historyRetentionDays"><option value="0">Off</option><option value="7">7 days</option><option value="30">30 days</option><option value="-1">Forever</option></select></label></div>
+          </section>
 
-      <section class="card">
-        <h2>Inference backend</h2>
-        <label class="field"><span>Device preference</span><select id="backendPreference"><option value="auto">Auto — GPU first, CPU fallback</option><option value="gpu">GPU only</option><option value="cpu">CPU only</option></select></label>
-        <p class="hint">Auto uses the GPU backend when this build includes one and falls back to CPU if GPU model loading fails.</p>
-        <div class="backend-row"><span class="backend-label">Active / planned backend</span><div class="backend-pills" id="backendPills" aria-live="polite"><span class="pill" data-backend="cpu">cpu</span><span class="pill" data-backend="cuda">cuda</span><span class="pill" data-backend="vulkan">vulkan</span></div></div>
-        <div class="field"><span>Available backends</span><ul class="device-list" id="deviceList"><li>Checking…</li></ul></div>
-        <p class="hint" id="backendHint"></p>
-      </section>
-
-      <section class="card" id="historySection">
-        <div class="history-header"><h2>History</h2><div class="row-actions"><button type="button" id="refreshHistoryBtn" class="btn btn--ghost">Refresh</button><button type="button" id="clearHistoryBtn" class="btn btn--ghost">Clear all</button></div></div>
-        <p class="hint">Search past Translate / Rewrite results. History is stored only on this device.</p>
-        <div class="history-controls"><input id="historySearch" type="search" placeholder="Search source or result…" aria-label="Search history" /><select id="historyAction" aria-label="Filter history action"><option value="">All actions</option><option value="translate">Translate</option><option value="rewrite">Rewrite</option></select></div>
-        <label class="field"><span>Keep history</span><select id="historyRetentionDays"><option value="0">Off</option><option value="7">7 days</option><option value="30">30 days</option><option value="-1">Forever</option></select></label>
-        <div id="historyList" class="history-list" aria-live="polite"></div>
-      </section>
-
-      <section class="card">
-        <h2>Local LLM</h2>
-        <p class="hint">Default model is <strong>Qwen3.5 0.8B</strong> (GGUF). Model download contacts Hugging Face; inference is local after download.</p>
-        <label class="field"><span>Model</span><select id="modelSelect"></select></label>
-        <div class="status-line" id="modelStatus">Checking model…</div>
-        <div class="btn-row"><button type="button" class="btn" id="downloadBtn">Download</button><button type="button" class="btn btn--primary" id="loadBtn">Load model</button></div>
-        <label class="field"><span>Max tokens</span><input id="maxTokens" type="number" min="32" max="1024" step="16" /></label>
-        <label class="field"><span>Temperature</span><input id="temperature" type="number" min="0" max="1.5" step="0.05" /></label>
-        <label class="field"><span>Maximum GPU layers</span><input id="gpuLayers" type="number" min="0" max="999" step="1" /></label>
-        <p class="hint">999 means offload as much as the model/backend supports. CPU preference ignores this value.</p>
-      </section>
-
-      <section class="card">
-        <h2>Privacy & local data</h2>
-        <p class="hint">Selected text is processed locally by the configured GGUF model. Butchi does not send selected text or history to a cloud AI service. History and downloaded models stay on this device.</p>
-        <p class="hint">Network access is used to download model files from Hugging Face when you explicitly choose Download.</p>
-        <div class="btn-row"><button type="button" class="btn btn--ghost" id="clearLocalDataBtn">Delete history + downloaded models</button></div>
-      </section>
-
-      <section class="card">
-        <h2>About</h2>
-        <p><strong>Butchi <span id="appVersion">0.1.2</span></strong></p>
-        <p class="hint">Private local Translate & Rewrite for Windows. License: MIT.</p>
-        <p class="hint">Project and support: github.com/dhhieu113pro/butchi</p>
-      </section>
-
-      <footer class="settings__footer"><p class="hint" id="saveStatus" aria-live="polite"></p><button type="button" class="btn btn--primary" id="saveBtn">Save settings</button></footer>
+          <section class="settings-panel" id="settings-about" data-settings-panel="about" hidden aria-labelledby="about-title">
+            <header class="panel-header"><h2 id="about-title">About &amp; Privacy</h2><p>What stays local and where Butchi connects.</p></header>
+            <div class="section-group"><h3>Private by default</h3><p class="body-copy">Selected text is processed locally by the configured GGUF model. Butchi does not send selected text or history to a cloud AI service.</p><p class="hint">Network access is used only when you explicitly download model files from Hugging Face.</p></div>
+            <div class="danger-zone"><div><h3>Local data</h3><p class="hint">Delete history and downloaded GGUF models while keeping your settings.</p></div><button type="button" class="btn btn--ghost" id="clearLocalDataBtn">Delete history + downloaded models</button></div>
+            <div class="section-group"><h3>About Butchi</h3><p><strong>Butchi <span id="appVersion">0.1.5</span></strong></p><p class="hint">Private local Translate &amp; Rewrite for Windows. License: MIT.</p><p class="hint">Project and support: github.com/dhhieu113pro/butchi</p></div>
+          </section>
+        </div>
+      </div>
     </main>
-
-    <script>
-      (() => {
-        const select = document.getElementById("themePreference");
-        if (!(select instanceof HTMLSelectElement)) return;
-        const saved = localStorage.getItem("butchi.theme");
-        select.value = saved === "light" || saved === "dark" ? saved : "system";
-        select.addEventListener("change", () => {
-          const theme = select.value;
-          if (theme === "light" || theme === "dark") { localStorage.setItem("butchi.theme", theme); document.documentElement.dataset.theme = theme; }
-          else { localStorage.removeItem("butchi.theme"); delete document.documentElement.dataset.theme; }
-        });
-      })();
-
-      (() => {
-        const translationProfiles = {
-          natural: "You are a precise translation assistant. Translate the user's text into the target language. Keep meaning and tone. Output only the translation with no quotes or explanation.",
-          literal: "Translate the user's text into the target language as literally and accurately as possible. Preserve names, numbers, terminology, sentence structure, and formatting when practical. Do not add, omit, explain, or rewrite ideas. Output only the translation.",
-          professional: "Translate the user's text into the target language using polished, professional, natural wording suitable for workplace communication. Preserve the original meaning, intent, terminology, and level of formality. Output only the translation.",
-          concise: "Translate the user's text into the target language naturally and concisely. Preserve all important meaning while removing unnecessary verbosity only when it does not change intent. Output only the translation.",
-        };
-        const rewriteProfiles = {
-          natural: "You are a precise writing assistant. Rewrite the user's text so it is clear, natural, and grammatically correct. Keep the original meaning and language. Output only the rewritten text with no quotes or explanation.",
-          grammar: "Correct only grammar, spelling, punctuation, capitalization, and obvious word-choice errors in the user's text. Preserve the original wording, structure, tone, meaning, formatting, and language as much as possible. Output only the corrected text.",
-          professional: "Rewrite the user's text in a clear, polished, professional tone suitable for workplace communication. Preserve the original meaning and language. Avoid unnecessary jargon or extra detail. Output only the rewritten text.",
-          shorter: "Rewrite the user's text to be shorter and more direct while preserving the important meaning, intent, tone, and language. Remove repetition and unnecessary words. Output only the rewritten text.",
-          polite: "Rewrite the user's text to sound more polite, respectful, and natural while preserving its meaning, intent, and language. Do not make it overly formal unless the original context requires it. Output only the rewritten text.",
-          simple: "Rewrite the user's text using simple, clear, easy-to-understand language while preserving the original meaning and language. Prefer short sentences and common words. Output only the rewritten text.",
-        };
-        function wireProfiles(selectId, textareaId, profiles) {
-          const select = document.getElementById(selectId); const textarea = document.getElementById(textareaId);
-          if (!(select instanceof HTMLSelectElement) || !(textarea instanceof HTMLTextAreaElement)) return;
-          const syncSelection = () => { const value = textarea.value.trim(); const match = Object.entries(profiles).find(([, prompt]) => prompt === value); select.value = match ? match[0] : "custom"; };
-          select.addEventListener("change", () => { if (select.value === "custom") return; const prompt = profiles[select.value]; if (prompt) textarea.value = prompt; });
-          textarea.addEventListener("input", syncSelection);
-          window.setTimeout(syncSelection, 0); window.setTimeout(syncSelection, 150); window.setTimeout(syncSelection, 500);
-        }
-        wireProfiles("translatePromptProfile", "translateSystemPrompt", translationProfiles);
-        wireProfiles("rewritePromptProfile", "rewriteSystemPrompt", rewriteProfiles);
-      })();
-    </script>
   </body>
 </html>
