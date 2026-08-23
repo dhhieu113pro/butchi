@@ -9,11 +9,7 @@ pub fn parse_action(value: &str) -> Result<&'static str, String> {
     }
 }
 
-pub fn validate_action_enabled(
-    action: &str,
-    translate_enabled: bool,
-    rewrite_enabled: bool,
-) -> Result<(), String> {
+pub fn validate_action_enabled(action: &str, translate_enabled: bool, rewrite_enabled: bool) -> Result<(), String> {
     match action {
         "translate" if !translate_enabled => Err("Translate is disabled in Settings".into()),
         "rewrite" if !rewrite_enabled => Err("Rewrite is disabled in Settings".into()),
@@ -23,11 +19,7 @@ pub fn validate_action_enabled(
 
 pub fn normalize_target_language(language: &str) -> Result<String, String> {
     let language = language.trim();
-    if language.is_empty() {
-        Err("target language cannot be empty".into())
-    } else {
-        Ok(language.to_owned())
-    }
+    if language.is_empty() { Err("target language cannot be empty".into()) } else { Ok(language.to_owned()) }
 }
 
 pub fn normalize_backend_preference(value: &str) -> &'static str {
@@ -38,17 +30,10 @@ pub fn normalize_backend_preference(value: &str) -> &'static str {
     }
 }
 
-pub fn preferred_gpu_layers(
-    preference: &str,
-    configured_layers: u32,
-    gpu_backend_compiled: bool,
-) -> Result<u32, String> {
+pub fn preferred_gpu_layers(preference: &str, configured_layers: u32, gpu_backend_compiled: bool) -> Result<u32, String> {
     match normalize_backend_preference(preference) {
         "cpu" => Ok(0),
-        "gpu" if !gpu_backend_compiled => Err(
-            "GPU was requested, but this Butchi build has no GPU backend. Use Auto/CPU or install a GPU-enabled build."
-                .into(),
-        ),
+        "gpu" if !gpu_backend_compiled => Err("GPU was requested, but this Butchi build has no GPU backend. Use Auto/CPU or install a GPU-enabled build.".into()),
         "gpu" => Ok(configured_layers.max(1)),
         _ if gpu_backend_compiled => Ok(configured_layers.max(1)),
         _ => Ok(0),
@@ -66,40 +51,32 @@ pub fn validate_replace_target(target: usize, foreground: usize) -> Result<(), S
 }
 
 pub fn truncate_text(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
-        value.to_owned()
-    } else {
-        value.chars().take(max_chars).collect::<String>() + "…"
-    }
+    if value.chars().count() <= max_chars { value.to_owned() } else { value.chars().take(max_chars).collect::<String>() + "…" }
 }
 
 pub fn rewrite_offline(input: &str) -> String {
     let mut text = input.trim().to_owned();
-    if text.is_empty() {
-        return text;
-    }
+    if text.is_empty() { return text; }
 
     let replacements = [
-        ("me and him ", "he and I "),
-        ("me and her ", "she and I "),
-        ("me and them ", "they and I "),
-        ("goes to ", "went to "),
-        ("go to store", "go to the store"),
-        ("to store ", "to the store "),
-        ("to store.", "to the store."),
-        ("dont ", "don't "),
-        ("doesnt ", "doesn't "),
-        ("wont ", "won't "),
-        ("cant ", "can't "),
-        ("im ", "I'm "),
-        ("i ", "I "),
-        (" i ", " I "),
+        ("me and him ", "he and I "), ("me and her ", "she and I "), ("me and them ", "they and I "),
+        ("goes to ", "went to "), ("go to store", "go to the store"), ("to store ", "to the store "),
+        ("to store.", "to the store."), ("dont ", "don't "), ("doesnt ", "doesn't "),
+        ("wont ", "won't "), ("cant ", "can't "), ("im ", "I'm "), ("i ", "I "), (" i ", " I "),
     ];
 
     for (from, to) in replacements {
-        while let Some(index) = text.to_ascii_lowercase().find(from) {
-            text.replace_range(index..index + from.len(), to);
+        let lower = text.to_ascii_lowercase();
+        if !lower.contains(from) { continue; }
+        let mut result = String::with_capacity(text.len());
+        let mut rest = text.as_str();
+        while let Some(index) = rest.to_ascii_lowercase().find(from) {
+            result.push_str(&rest[..index]);
+            result.push_str(to);
+            rest = &rest[index + from.len()..];
         }
+        result.push_str(rest);
+        text = result;
     }
 
     let mut chars = text.chars().collect::<Vec<_>>();
@@ -109,13 +86,9 @@ pub fn rewrite_offline(input: &str) -> String {
     }
 
     let trimmed = text.trim_end();
-    if !trimmed.is_empty()
-        && !trimmed.ends_with(['.', '!', '?', '…'])
-        && trimmed.chars().filter(|c| c.is_alphabetic()).count() > 8
-    {
+    if !trimmed.is_empty() && !trimmed.ends_with(['.', '!', '?', '…']) && trimmed.chars().filter(|c| c.is_alphabetic()).count() > 8 {
         text = format!("{trimmed}.");
     }
-
     text
 }
 
@@ -182,6 +155,7 @@ mod tests {
         assert_eq!(rewrite_offline("123"), "123");
         assert_eq!(rewrite_offline("abcdefghij"), "Abcdefghij.");
         assert_eq!(rewrite_offline("abcdefghij?"), "Abcdefghij?");
+        assert_eq!(rewrite_offline("i i i am ready now"), "I I I am ready now.");
 
         let cases = [
             ("me and him goes to store yesterday", "He and I went to the store yesterday."),
@@ -195,8 +169,6 @@ mod tests {
             ("walk to store please", "Walk to the store please."),
             ("walk to store.", "Walk to the store."),
         ];
-        for (input, expected) in cases {
-            assert_eq!(rewrite_offline(input), expected);
-        }
+        for (input, expected) in cases { assert_eq!(rewrite_offline(input), expected); }
     }
 }
