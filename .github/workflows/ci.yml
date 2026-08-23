@@ -1,21 +1,17 @@
 name: CI
-
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
-
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   CMAKE_GENERATOR: Ninja
-
 jobs:
   test:
     name: Test (${{ matrix.arch }}, llm)
@@ -24,117 +20,74 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - arch: windows-x64
-            runner: windows-latest
-            msvc_arch: x64
-          - arch: windows-arm64
-            runner: windows-11-arm
-            msvc_arch: arm64
-
+          - { arch: windows-x64, runner: windows-latest, msvc_arch: x64 }
+          - { arch: windows-arm64, runner: windows-11-arm, msvc_arch: arm64 }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Windows build dependencies
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ matrix.msvc_arch }}
-
-      - name: Setup CMake (Windows)
-        uses: lukka/get-cmake@latest
-
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with: { arch: "${{ matrix.msvc_arch }}" }
+      - uses: lukka/get-cmake@latest
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'windows-arm64'
         shell: pwsh
         run: |
           $cmd = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
-          if ($cmd) {
-            $clang = $cmd.Source
-          } else {
-            $candidates = @(
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe",
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe"
-            )
+          if ($cmd) { $clang = $cmd.Source } else {
+            $candidates = @("$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe", "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe")
             $clang = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
           if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
-          Write-Host "Using clang-cl: $clang"
-          & $clang --version
-          "CC=$clang" >> $env:GITHUB_ENV
-          "CXX=$clang" >> $env:GITHUB_ENV
-          "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
-          "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
-          "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
-          "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy,llvm-tools-preview
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+          "CC=$clang" >> $env:GITHUB_ENV; "CXX=$clang" >> $env:GITHUB_ENV
+          "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV; "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
+          "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV; "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "clippy,llvm-tools-preview" }
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v9-core-coverage
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Install npm dependencies
-        run: npm ci
-
+          shared-key: ${{ matrix.arch }}-cpu-v10-full-tests
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
       - name: Typecheck frontend
         run: npx tsc --noEmit
-
       - name: Build frontend
         run: npm run build
-
       - name: Cargo check (llm)
         working-directory: src-tauri
         run: cargo check --all-targets
-
       - name: Cargo test (llm, all targets)
         working-directory: src-tauri
         run: cargo test --all-targets -- --nocapture
-
       - name: Cargo clippy (llm)
         working-directory: src-tauri
-        run: cargo clippy --all-targets --no-deps
-
-      # Coverage is measured once on x64 with llama.cpp disabled. The hard 100%
-      # threshold applies only to deterministic production logic in core_logic.rs;
-      # Windows hooks, Tauri UI, SQLite/filesystem and real llama.cpp remain
-      # integration/smoke-test concerns rather than fake unit-coverage targets.
+        run: cargo clippy --all-targets --no-deps -- -D warnings
       - name: Install cargo-llvm-cov
         if: matrix.arch == 'windows-x64'
         uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Measure core logic coverage
+      - name: Measure Rust coverage
         if: matrix.arch == 'windows-x64'
         working-directory: src-tauri
-        run: cargo llvm-cov --all-targets --no-default-features --json --output-path core-coverage.json
-
-      - name: Enforce 100% core line coverage
+        run: cargo llvm-cov --all-targets --no-default-features --json --output-path coverage.json
+      - name: Enforce 100% deterministic core coverage and report overall
         if: matrix.arch == 'windows-x64'
         working-directory: src-tauri
         shell: pwsh
         run: |
-          $report = Get-Content core-coverage.json -Raw | ConvertFrom-Json
-          $file = $report.data[0].files | Where-Object { $_.filename -like '*core_logic.rs' } | Select-Object -First 1
-          if (-not $file) { throw "core_logic.rs was not present in the coverage report" }
-          $percent = [double]$file.summary.lines.percent
-          Write-Host "core_logic.rs line coverage: $percent%"
-          if ($percent -lt 100.0) { throw "Core logic coverage must be 100%, actual: $percent%" }
-
+          $report = Get-Content coverage.json -Raw | ConvertFrom-Json
+          $core = $report.data[0].files | Where-Object { $_.filename -like '*core_logic.rs' } | Select-Object -First 1
+          if (-not $core) { throw "core_logic.rs was not present in the coverage report" }
+          $corePercent = [double]$core.summary.lines.percent
+          $overall = [double]$report.data[0].totals.lines.percent
+          "### Rust coverage" >> $env:GITHUB_STEP_SUMMARY
+          "- Deterministic core: **$corePercent%** (required: 100%)" >> $env:GITHUB_STEP_SUMMARY
+          "- Overall instrumented Rust: **$overall%**" >> $env:GITHUB_STEP_SUMMARY
+          if ($corePercent -lt 100.0) { throw "Core logic coverage must be 100%, actual: $corePercent%" }
       - name: Upload coverage report
         if: matrix.arch == 'windows-x64' && always()
         uses: actions/upload-artifact@v4
         with:
-          name: butchi-core-coverage
-          path: src-tauri/core-coverage.json
+          name: butchi-rust-coverage
+          path: src-tauri/coverage.json
           if-no-files-found: warn
           retention-days: 30
