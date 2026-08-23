@@ -12,20 +12,9 @@ mod windows {
         WindowsAndMessaging::GetForegroundWindow,
     };
 
-    static TARGET_WINDOW: AtomicUsize = AtomicUsize::new(0);
+    use crate::core_logic;
 
-    fn validate_replace_target(target: usize, foreground: usize) -> Result<(), String> {
-        if target == 0 {
-            return Err("the original selected-text window is no longer available".into());
-        }
-        if foreground != target {
-            return Err(
-                "the original app is no longer active; select the text again before replacing"
-                    .into(),
-            );
-        }
-        Ok(())
-    }
+    static TARGET_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
     pub fn remember_selection_target() -> Result<(), String> {
         let foreground = unsafe { GetForegroundWindow() } as usize;
@@ -43,16 +32,11 @@ mod windows {
 
         let target = TARGET_WINDOW.load(Ordering::Acquire);
         let foreground = unsafe { GetForegroundWindow() } as usize;
-        validate_replace_target(target, foreground)?;
+        core_logic::validate_replace_target(target, foreground)?;
 
         let mut clipboard = Clipboard::new().map_err(|e| format!("clipboard unavailable: {e}"))?;
-        clipboard
-            .set_text(text.to_owned())
-            .map_err(|e| format!("failed to prepare replacement text: {e}"))?;
+        clipboard.set_text(text.to_owned()).map_err(|e| format!("failed to prepare replacement text: {e}"))?;
 
-        // The selection popover is non-focusable, so the originating application
-        // remains active while its selection is visible. Give the clipboard a
-        // moment to settle, then paste over that selection.
         thread::sleep(Duration::from_millis(35));
         unsafe {
             keybd_event(VK_CONTROL as u8, 0, 0, 0);
@@ -60,7 +44,6 @@ mod windows {
             keybd_event(b'V', 0, KEYEVENTF_KEYUP, 0);
             keybd_event(VK_CONTROL as u8, 0, KEYEVENTF_KEYUP, 0);
         }
-
         Ok(())
     }
 
@@ -69,20 +52,8 @@ mod windows {
         use super::*;
 
         #[test]
-        fn replace_target_accepts_original_foreground_window() {
-            assert!(validate_replace_target(42, 42).is_ok());
-        }
-
-        #[test]
-        fn replace_target_rejects_missing_original_window() {
-            let error = validate_replace_target(0, 42).unwrap_err();
-            assert!(error.contains("original selected-text window"));
-        }
-
-        #[test]
-        fn replace_target_rejects_different_foreground_window() {
-            let error = validate_replace_target(42, 99).unwrap_err();
-            assert!(error.contains("original app is no longer active"));
+        fn empty_replacement_is_rejected_before_windows_calls() {
+            assert_eq!(replace_selected_text("").unwrap_err(), "cannot replace selection with empty text");
         }
     }
 }
