@@ -5,6 +5,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::core_logic;
+
 const CONFIG_FILE: &str = "config.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,25 +14,17 @@ const CONFIG_FILE: &str = "config.json";
 pub struct AppConfig {
     pub translate_enabled: bool,
     pub rewrite_enabled: bool,
-    /// BCP-47 / common language name used in the translation prompt.
     pub target_language: String,
-    /// Languages shown as quick Translate targets in the popover.
     pub favorite_languages: Vec<String>,
     pub rewrite_system_prompt: String,
     pub translate_system_prompt: String,
-    /// What to do after an explicit Translate/Rewrite action: copy, replace, or none.
     pub result_action: String,
-    /// Preferred inference device: auto, cpu, or gpu.
     pub backend_preference: String,
-    /// Hugging Face repo id, e.g. "unsloth/Qwen3.5-0.8B-GGUF".
     pub model_repo: String,
-    /// GGUF filename inside the repo.
     pub model_file: String,
     pub max_tokens: u32,
     pub temperature: f32,
-    /// Maximum layers to offload when GPU inference is selected.
     pub gpu_layers: u32,
-    /// History retention: 0 = disabled, -1 = forever, positive = days.
     pub history_retention_days: i32,
 }
 
@@ -67,27 +61,9 @@ pub struct ModelOption {
 
 pub fn model_catalog() -> Vec<ModelOption> {
     vec![
-        ModelOption {
-            id: "qwen35-0.8b-q4".into(),
-            label: "Qwen3.5 0.8B (Q4_K_M) — default".into(),
-            repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
-            file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(),
-            size_hint: "~530 MB".into(),
-        },
-        ModelOption {
-            id: "qwen35-0.8b-q5".into(),
-            label: "Qwen3.5 0.8B (Q5_K_M)".into(),
-            repo: "unsloth/Qwen3.5-0.8B-GGUF".into(),
-            file: "Qwen3.5-0.8B-Q5_K_M.gguf".into(),
-            size_hint: "~590 MB".into(),
-        },
-        ModelOption {
-            id: "qwen3-0.6b-q4".into(),
-            label: "Qwen3 0.6B (Q4_K_M)".into(),
-            repo: "unsloth/Qwen3-0.6B-GGUF".into(),
-            file: "Qwen3-0.6B-Q4_K_M.gguf".into(),
-            size_hint: "~400 MB".into(),
-        },
+        ModelOption { id: "qwen35-0.8b-q4".into(), label: "Qwen3.5 0.8B (Q4_K_M) — default".into(), repo: "unsloth/Qwen3.5-0.8B-GGUF".into(), file: "Qwen3.5-0.8B-Q4_K_M.gguf".into(), size_hint: "~530 MB".into() },
+        ModelOption { id: "qwen35-0.8b-q5".into(), label: "Qwen3.5 0.8B (Q5_K_M)".into(), repo: "unsloth/Qwen3.5-0.8B-GGUF".into(), file: "Qwen3.5-0.8B-Q5_K_M.gguf".into(), size_hint: "~590 MB".into() },
+        ModelOption { id: "qwen3-0.6b-q4".into(), label: "Qwen3 0.6B (Q4_K_M)".into(), repo: "unsloth/Qwen3-0.6B-GGUF".into(), file: "Qwen3-0.6B-Q4_K_M.gguf".into(), size_hint: "~400 MB".into() },
     ]
 }
 
@@ -104,14 +80,10 @@ pub fn models_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-fn config_path() -> Result<PathBuf, String> {
-    Ok(app_data_dir()?.join(CONFIG_FILE))
-}
+fn config_path() -> Result<PathBuf, String> { Ok(app_data_dir()?.join(CONFIG_FILE)) }
 
 pub fn load() -> AppConfig {
-    let Ok(path) = config_path() else {
-        return AppConfig::default();
-    };
+    let Ok(path) = config_path() else { return AppConfig::default(); };
     match fs::read_to_string(&path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_default(),
         Err(_) => AppConfig::default(),
@@ -125,20 +97,12 @@ pub fn save(config: &AppConfig) -> Result<(), String> {
 }
 
 pub fn update_target_language(config: &mut AppConfig, language: &str) -> Result<(), String> {
-    let language = language.trim();
-    if language.is_empty() {
-        return Err("target language cannot be empty".into());
-    }
-    config.target_language = language.to_owned();
+    config.target_language = core_logic::normalize_target_language(language)?;
     Ok(())
 }
 
-pub fn normalize_backend_preference(value: &str) -> &str {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "cpu" => "cpu",
-        "gpu" => "gpu",
-        _ => "auto",
-    }
+pub fn normalize_backend_preference(value: &str) -> &'static str {
+    core_logic::normalize_backend_preference(value)
 }
 
 pub fn model_local_path(repo: &str, file: &str) -> Result<PathBuf, String> {
@@ -147,9 +111,7 @@ pub fn model_local_path(repo: &str, file: &str) -> Result<PathBuf, String> {
 }
 
 pub fn model_is_downloaded(repo: &str, file: &str) -> bool {
-    model_local_path(repo, file)
-        .map(|p| p.is_file())
-        .unwrap_or(false)
+    model_local_path(repo, file).map(|p| p.is_file()).unwrap_or(false)
 }
 
 pub fn ensure_parent(path: &Path) -> Result<(), String> {
@@ -164,89 +126,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_result_action_is_copy() {
-        assert_eq!(AppConfig::default().result_action, "copy");
-    }
+    fn defaults_and_old_config_migration_are_stable() {
+        let defaults = AppConfig::default();
+        assert_eq!(defaults.result_action, "copy");
+        assert_eq!(defaults.backend_preference, "auto");
+        assert!(defaults.translate_system_prompt.starts_with("You are a precise translation assistant."));
+        assert!(defaults.rewrite_system_prompt.starts_with("You are a precise writing assistant."));
 
-    #[test]
-    fn default_backend_preference_is_auto() {
-        assert_eq!(AppConfig::default().backend_preference, "auto");
-    }
-
-    #[test]
-    fn old_config_without_new_options_uses_defaults() {
-        let raw = r#"{
-            "translateEnabled": true,
-            "rewriteEnabled": true,
-            "targetLanguage": "English"
-        }"#;
-        let config: AppConfig = serde_json::from_str(raw).expect("old config should deserialize");
-        assert_eq!(config.result_action, "copy");
-        assert_eq!(config.backend_preference, "auto");
+        let raw = r#"{"translateEnabled":true,"rewriteEnabled":true,"targetLanguage":"English"}"#;
+        let config: AppConfig = serde_json::from_str(raw).unwrap();
         assert_eq!(config.target_language, "English");
         assert_eq!(config.favorite_languages, vec!["Vietnamese", "English"]);
+        assert_eq!(config.result_action, "copy");
+        assert_eq!(config.backend_preference, "auto");
     }
 
     #[test]
-    fn backend_preference_normalizes_unknown_values_to_auto() {
-        assert_eq!(normalize_backend_preference("GPU"), "gpu");
-        assert_eq!(normalize_backend_preference(" cpu "), "cpu");
-        assert_eq!(normalize_backend_preference("something-else"), "auto");
-    }
-
-    #[test]
-    fn result_action_round_trips_replace() {
+    fn configurable_values_round_trip() {
         let mut config = AppConfig::default();
         config.result_action = "replace".into();
-        let json = serde_json::to_string(&config).expect("serialize config");
-        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
-        assert_eq!(restored.result_action, "replace");
-    }
-
-    #[test]
-    fn favorite_languages_round_trip() {
-        let mut config = AppConfig::default();
         config.favorite_languages = vec!["English".into(), "Japanese".into(), "German".into()];
         config.target_language = "Japanese".into();
-
-        let json = serde_json::to_string(&config).expect("serialize config");
-        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
-
-        assert_eq!(restored.favorite_languages, config.favorite_languages);
-        assert_eq!(restored.target_language, "Japanese");
-    }
-
-    #[test]
-    fn target_language_update_trims_and_remembers_selection() {
-        let mut config = AppConfig::default();
-        update_target_language(&mut config, "  Japanese  ").expect("valid language");
-        assert_eq!(config.target_language, "Japanese");
-    }
-
-    #[test]
-    fn target_language_update_rejects_empty_values() {
-        let mut config = AppConfig::default();
-        assert!(update_target_language(&mut config, "   ").is_err());
-        assert_eq!(config.target_language, "Vietnamese");
-    }
-
-    #[test]
-    fn default_prompts_match_default_profiles() {
-        let config = AppConfig::default();
-        assert!(config.translate_system_prompt.starts_with("You are a precise translation assistant."));
-        assert!(config.rewrite_system_prompt.starts_with("You are a precise writing assistant."));
-    }
-
-    #[test]
-    fn custom_prompts_round_trip_without_profile_metadata() {
-        let mut config = AppConfig::default();
         config.translate_system_prompt = "Translate like a technical localization expert.".into();
         config.rewrite_system_prompt = "Rewrite as concise release notes.".into();
-
-        let json = serde_json::to_string(&config).expect("serialize config");
-        let restored: AppConfig = serde_json::from_str(&json).expect("deserialize config");
-
+        let json = serde_json::to_string(&config).unwrap();
+        let restored: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.result_action, "replace");
+        assert_eq!(restored.favorite_languages, config.favorite_languages);
+        assert_eq!(restored.target_language, "Japanese");
         assert_eq!(restored.translate_system_prompt, config.translate_system_prompt);
         assert_eq!(restored.rewrite_system_prompt, config.rewrite_system_prompt);
+    }
+
+    #[test]
+    fn target_and_backend_helpers_delegate_to_core_logic() {
+        let mut config = AppConfig::default();
+        update_target_language(&mut config, "  Japanese  ").unwrap();
+        assert_eq!(config.target_language, "Japanese");
+        assert!(update_target_language(&mut config, "   ").is_err());
+        assert_eq!(normalize_backend_preference("GPU"), "gpu");
+        assert_eq!(normalize_backend_preference("other"), "auto");
+    }
+
+    #[test]
+    fn model_catalog_has_expected_defaults() {
+        let models = model_catalog();
+        assert_eq!(models.len(), 3);
+        assert_eq!(models[0].id, "qwen35-0.8b-q4");
+        assert!(models.iter().all(|m| !m.repo.is_empty() && !m.file.is_empty()));
     }
 }
