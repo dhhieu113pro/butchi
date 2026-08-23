@@ -107,7 +107,8 @@ jobs:
         working-directory: src-tauri
         run: cargo test --all-targets -- --nocapture
 
+      # Keep Clippy scoped to Butchi's code. Lints stay visible as warnings,
+      # while genuine Clippy/compiler failures still fail CI.
       - name: Cargo clippy (llm)
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
-        continue-on-error: true
+        run: cargo clippy --all-targets --no-deps
