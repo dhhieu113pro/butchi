@@ -1,0 +1,84 @@
+name: Capture Butchi UI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'settings.html'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'scripts/capture-ui.ps1'
+      - '.github/workflows/screenshots.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: butchi-ui-screenshots
+  cancel-in-progress: true
+
+env:
+  CMAKE_GENERATOR: Ninja
+
+jobs:
+  capture:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with: { arch: x64 }
+      - uses: lukka/get-cmake@latest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - run: npm ci
+      - name: Build real Tauri application
+        run: npm run tauri build -- --no-bundle
+      - name: Resolve executable
+        id: exe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path src-tauri/target/release -Filter butchi.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw 'butchi.exe not found after build' }
+          "path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+      - name: Capture canonical UI screenshots
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force docs/shots | Out-Null
+          function Capture([string]$mode, [string]$title, [string]$output) {
+            $env:BUTCHI_SCREENSHOT_MODE = $mode
+            $process = Start-Process -FilePath '${{ steps.exe.outputs.path }}' -PassThru
+            try {
+              ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 45
+            } finally {
+              if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+              Start-Sleep -Milliseconds 700
+            }
+          }
+          Capture 'popover-light' 'Text actions' 'docs/shots/popover-light.png'
+          Capture 'popover-dark' 'Text actions' 'docs/shots/popover-dark.png'
+          Capture 'settings-light' 'Butchi — Settings' 'docs/shots/settings-light.png'
+          Capture 'settings-dark' 'Butchi — Settings' 'docs/shots/settings-dark.png'
+          $files = @('docs/shots/popover-light.png','docs/shots/popover-dark.png','docs/shots/settings-light.png','docs/shots/settings-dark.png')
+          foreach ($file in $files) {
+            if (!(Test-Path $file)) { throw "Missing screenshot: $file" }
+            if ((Get-Item $file).Length -lt 10000) { throw "Screenshot too small: $file" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: butchi-ui-screenshots
+          path: docs/shots/*.png
+          if-no-files-found: error
+          retention-days: 30
+      - name: Refresh canonical screenshots
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          if git diff --quiet -- docs/shots; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/shots/*.png
+          git commit -m 'docs: refresh Butchi UI screenshots'
+          git push
