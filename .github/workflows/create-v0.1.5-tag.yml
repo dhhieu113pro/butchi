@@ -2,6 +2,11 @@ name: Create v0.1.5 Tag
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/create-v0.1.5-tag.yml"
 
 permissions:
   contents: write
