@@ -30,16 +30,6 @@ pub fn normalize_backend_preference(value: &str) -> &'static str {
     }
 }
 
-pub fn preferred_gpu_layers(preference: &str, configured_layers: u32, gpu_backend_compiled: bool) -> Result<u32, String> {
-    match normalize_backend_preference(preference) {
-        "cpu" => Ok(0),
-        "gpu" if !gpu_backend_compiled => Err("GPU was requested, but this Butchi build has no GPU backend. Use Auto/CPU or install a GPU-enabled build.".into()),
-        "gpu" => Ok(configured_layers.max(1)),
-        _ if gpu_backend_compiled => Ok(configured_layers.max(1)),
-        _ => Ok(0),
-    }
-}
-
 pub fn validate_replace_target(target: usize, foreground: usize) -> Result<(), String> {
     if target == 0 {
         Err("the original selected-text window is no longer available".into())
@@ -122,15 +112,6 @@ mod tests {
         assert_eq!(normalize_backend_preference(" CPU "), "cpu");
         assert_eq!(normalize_backend_preference("GPU"), "gpu");
         assert_eq!(normalize_backend_preference("anything"), "auto");
-    }
-
-    #[test]
-    fn gpu_layer_selection_covers_cpu_gpu_auto_and_zero_layers() {
-        assert_eq!(preferred_gpu_layers("cpu", 999, true).unwrap(), 0);
-        assert!(preferred_gpu_layers("gpu", 999, false).is_err());
-        assert_eq!(preferred_gpu_layers("gpu", 0, true).unwrap(), 1);
-        assert_eq!(preferred_gpu_layers("auto", 7, true).unwrap(), 7);
-        assert_eq!(preferred_gpu_layers("auto", 7, false).unwrap(), 0);
     }
 
     #[test]
