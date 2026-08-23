@@ -26,7 +26,18 @@ fn initialize_db(conn: &Connection) -> Result<(), String> {
 fn open_db() -> Result<Connection, String> { let conn = Connection::open(db_path()?).map_err(|e| format!("open history database: {e}"))?; initialize_db(&conn)?; migrate_legacy_json(&conn)?; Ok(conn) }
 fn migrate_entries(conn: &Connection, entries: Vec<HistoryEntry>) -> Result<(), String> { for e in entries { conn.execute("INSERT OR IGNORE INTO history (id, ts, action, source, result, message, target_language) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)", params![e.id, e.ts as i64, e.action, e.source, e.result, e.message, e.target_language]).map_err(|err| format!("migrate history row: {err}"))?; } Ok(()) }
 fn migrate_legacy_json(conn: &Connection) -> Result<(), String> { let path = legacy_path()?; if !path.is_file() { return Ok(()); } let raw = fs::read_to_string(&path).map_err(|e| format!("read legacy history: {e}"))?; let entries: Vec<HistoryEntry> = serde_json::from_str(&raw).unwrap_or_default(); migrate_entries(conn, entries)?; let _ = fs::rename(&path, path.with_extension("migrated.json")); Ok(()) }
-fn cleanup_retention_at(conn: &Connection, retention_days: i32, now: u64) -> Result<(), String> { if retention_days < 0 { return Ok(()); } if retention_days == 0 { conn.execute("DELETE FROM history", []).map_err(|e| format!("clear disabled history: {e}"))?; return Ok(()); } let cutoff = now.saturating_sub(retention_days as u64 * 86_400_000); conn.execute("DELETE FROM history WHERE ts < ?1", params![cutoff as i64]).map_err(|e| format!("prune history: {e}"))?; Ok(()) }
+fn cleanup_retention_at(conn: &Connection, retention_days: i32, now: u64) -> Result<(), String> {
+    if retention_days < 0 {
+        return Ok(());
+    }
+    if retention_days == 0 {
+        conn.execute("DELETE FROM history", []).map_err(|e| format!("clear disabled history: {e}"))?;
+        return Ok(());
+    }
+    let cutoff = now.saturating_sub(retention_days as u64 * 86_400_000);
+    conn.execute("DELETE FROM history WHERE ts < ?1", params![cutoff as i64]).map_err(|e| format!("prune history: {e}"))?;
+    Ok(())
+}
 fn cleanup_retention(conn: &Connection, retention_days: i32) -> Result<(), String> { cleanup_retention_at(conn, retention_days, now_ms()) }
 fn search_conn(conn: &Connection, query: Option<&str>, action: Option<&str>, limit: Option<usize>) -> Result<Vec<HistoryEntry>, String> { let q = query.unwrap_or("").trim().to_lowercase(); let action = action.unwrap_or("").trim().to_lowercase(); let pattern = format!("%{q}%"); let lim = limit.unwrap_or(200).clamp(1, MAX_RESULTS) as i64; let mut stmt = conn.prepare("SELECT id, ts, action, source, result, message, target_language FROM history WHERE (?1 = '' OR lower(source) LIKE ?2 OR lower(result) LIKE ?2) AND (?3 = '' OR action = ?3) ORDER BY ts DESC LIMIT ?4").map_err(|e| format!("prepare history search: {e}"))?; let rows = stmt.query_map(params![q, pattern, action, lim], |row| Ok(HistoryEntry { id: row.get(0)?, ts: row.get::<_, i64>(1)? as u64, action: row.get(2)?, source: row.get(3)?, result: row.get(4)?, message: row.get(5)?, target_language: row.get(6)? })).map_err(|e| format!("search history: {e}"))?; rows.collect::<Result<Vec<_>, _>>().map_err(|e| format!("read history: {e}")) }
 
