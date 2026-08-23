@@ -45,16 +45,21 @@ pub fn open_capture_window(
     mode: ScreenshotMode,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if mode.is_settings() {
-        WebviewWindowBuilder::new(
+        let window = WebviewWindowBuilder::new(
             app,
             "settings",
-            WebviewUrl::App(format!("settings.html?screenshot={}", mode.as_str()).into()),
+            WebviewUrl::App("settings.html".into()),
         )
         .title("Butchi — Settings")
         .inner_size(920.0, 720.0)
         .resizable(false)
         .center()
         .build()?;
+        window.eval(&format!(
+            "window.location.replace('/settings.html?screenshot={}');",
+            mode.as_str()
+        ))?;
+        window.set_focus()?;
         return Ok(());
     }
 
