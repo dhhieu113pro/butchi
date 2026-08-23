@@ -43,10 +43,6 @@ jobs:
       - name: Setup CMake (Windows)
         uses: lukka/get-cmake@latest
 
-      # llama.cpp intentionally rejects the MSVC compiler for Windows ARM.
-      # Keep the MSVC SDK/linker environment, but compile its native C/C++
-      # sources with clang-cl on ARM64. llama-cpp-sys wrapper_common.cpp uses
-      # try/catch, so explicitly enable C++ exceptions for cc-rs/clang-cl.
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'windows-arm64'
         shell: pwsh
@@ -64,7 +60,6 @@ jobs:
           if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
           Write-Host "Using clang-cl: $clang"
           & $clang --version
-
           "CC=$clang" >> $env:GITHUB_ENV
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
@@ -75,13 +70,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy,llvm-tools-preview
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v8-tests
+          shared-key: ${{ matrix.arch }}-cpu-v9-core-coverage
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -98,7 +93,6 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      # `llm` is a default feature and is core to Butchi's translate/rewrite path.
       - name: Cargo check (llm)
         working-directory: src-tauri
         run: cargo check --all-targets
@@ -107,8 +101,40 @@ jobs:
         working-directory: src-tauri
         run: cargo test --all-targets -- --nocapture
 
-      # Keep Clippy scoped to Butchi's code. Lints stay visible as warnings,
-      # while genuine Clippy/compiler failures still fail CI.
       - name: Cargo clippy (llm)
         working-directory: src-tauri
         run: cargo clippy --all-targets --no-deps
+
+      # Coverage is measured once on x64 with llama.cpp disabled. The hard 100%
+      # threshold applies only to deterministic production logic in core_logic.rs;
+      # Windows hooks, Tauri UI, SQLite/filesystem and real llama.cpp remain
+      # integration/smoke-test concerns rather than fake unit-coverage targets.
+      - name: Install cargo-llvm-cov
+        if: matrix.arch == 'windows-x64'
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Measure core logic coverage
+        if: matrix.arch == 'windows-x64'
+        working-directory: src-tauri
+        run: cargo llvm-cov --all-targets --no-default-features --json --output-path core-coverage.json
+
+      - name: Enforce 100% core line coverage
+        if: matrix.arch == 'windows-x64'
+        working-directory: src-tauri
+        shell: pwsh
+        run: |
+          $report = Get-Content core-coverage.json -Raw | ConvertFrom-Json
+          $file = $report.data[0].files | Where-Object { $_.filename -like '*core_logic.rs' } | Select-Object -First 1
+          if (-not $file) { throw "core_logic.rs was not present in the coverage report" }
+          $percent = [double]$file.summary.lines.percent
+          Write-Host "core_logic.rs line coverage: $percent%"
+          if ($percent -lt 100.0) { throw "Core logic coverage must be 100%, actual: $percent%" }
+
+      - name: Upload coverage report
+        if: matrix.arch == 'windows-x64' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: butchi-core-coverage
+          path: src-tauri/core-coverage.json
+          if-no-files-found: warn
+          retention-days: 30
