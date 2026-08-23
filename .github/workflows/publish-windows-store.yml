@@ -1,19 +1,10 @@
-name: Publish Windows Store
+name: Publish Windows Store MSIX
 
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: "Create/update a GitHub Release and attach installers"
-        type: boolean
-        default: true
-      ref_name:
-        description: "Optional release name override"
-        type: string
-        required: false
 
 permissions:
   contents: write
@@ -28,8 +19,8 @@ env:
   CMAKE_GENERATOR: Ninja
 
 jobs:
-  build-windows:
-    name: Windows ${{ matrix.arch }} Store RC
+  build-msix:
+    name: Build MSIX (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -45,40 +36,38 @@ jobs:
             msvc_arch: arm64
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Validate Store secrets and release version
+      - name: Validate version and Store identity
         shell: pwsh
         env:
-          STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          STORE_PACKAGE_IDENTITY_NAME: ${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}
+          STORE_PACKAGE_PUBLISHER: ${{ secrets.STORE_PACKAGE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:STORE_PUBLISHER)) { throw "Missing STORE_PUBLISHER secret (Partner Center publisher display name)." }
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) { throw "Missing WINDOWS_CERTIFICATE secret. Microsoft Store EXE/MSI submissions require a CA-trusted Authenticode signature." }
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) { throw "Missing WINDOWS_CERTIFICATE_PASSWORD secret." }
-
+          foreach ($name in 'STORE_PACKAGE_IDENTITY_NAME','STORE_PACKAGE_PUBLISHER','STORE_PUBLISHER_DISPLAY_NAME') {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Missing $name secret" }
+          }
           $tauri = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $package = Get-Content package.json -Raw | ConvertFrom-Json
-          $cargoVersion = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          $cargoVersion = (Select-String src-tauri/Cargo.toml '^version\s*=\s*"([^"]+)"').Matches.Groups[1].Value
           $version = $tauri.version
-          if ($package.version -ne $version -or $cargoVersion -ne $version) {
-            throw "Version mismatch: tauri=$version npm=$($package.version) cargo=$cargoVersion"
-          }
+          if ($package.version -ne $version -or $cargoVersion -ne $version) { throw "Version mismatch: tauri=$version npm=$($package.version) cargo=$cargoVersion" }
           if ('${{ github.ref_type }}' -eq 'tag') {
             $tagVersion = '${{ github.ref_name }}' -replace '^v',''
             if ($tagVersion -ne $version) { throw "Tag version $tagVersion does not match app version $version" }
           }
+          $parts = $version.Split('.')
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $msixVersion = ($parts[0..3] -join '.')
           "BUTCHI_VERSION=$version" >> $env:GITHUB_ENV
+          "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
 
-      - name: MSVC developer command prompt
-        uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.msvc_arch }}
 
-      - name: Setup CMake
-        uses: lukka/get-cmake@latest
+      - uses: lukka/get-cmake@latest
 
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'arm64'
@@ -86,13 +75,9 @@ jobs:
         run: |
           $cmd = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
           if ($cmd) { $clang = $cmd.Source } else {
-            $candidates = @(
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe",
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe"
-            )
-            $clang = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+            $clang = Get-ChildItem "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\*\bin\clang-cl.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
           }
-          if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
+          if (-not $clang) { throw "clang-cl.exe not found" }
           "CC=$clang" >> $env:GITHUB_ENV
           "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
@@ -100,244 +85,174 @@ jobs:
           "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV
           "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v9-msi-nsis
+          shared-key: store-msix-${{ matrix.arch }}
 
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Run frontend and Rust tests
+      - name: Install dependencies and test
         shell: pwsh
         run: |
+          npm ci
           npm run build
           Push-Location src-tauri
           cargo test --all-targets -- --nocapture
           Pop-Location
 
-      - name: Import Authenticode certificate and inject Store identity
+      - name: Build Tauri executable
+        shell: pwsh
+        run: npm run tauri -- build --target ${{ matrix.target }} --no-bundle
+
+      - name: Setup winapp CLI
+        uses: microsoft/setup-WinAppCli@v1
+
+      - name: Stage package and render manifest
+        shell: pwsh
         env:
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          STORE_PUBLISHER: ${{ secrets.STORE_PUBLISHER }}
+          STORE_PACKAGE_IDENTITY_NAME: ${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}
+          STORE_PACKAGE_PUBLISHER: ${{ secrets.STORE_PACKAGE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          $stage = "store-stage/${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force "$stage/Assets" | Out-Null
+          $exe = "src-tauri/target/${{ matrix.target }}/release/butchi.exe"
+          if (-not (Test-Path $exe)) { throw "Built executable not found: $exe" }
+          Copy-Item $exe "$stage/butchi.exe"
+          Copy-Item src-tauri/icons/StoreLogo.png "$stage/Assets/StoreLogo.png"
+          Copy-Item src-tauri/icons/Square44x44Logo.png "$stage/Assets/Square44x44Logo.png"
+          Copy-Item src-tauri/icons/Square150x150Logo.png "$stage/Assets/Square150x150Logo.png"
+          $manifest = Get-Content store/Package.appxmanifest.template -Raw
+          $manifest = $manifest.Replace('__PACKAGE_NAME__', $env:STORE_PACKAGE_IDENTITY_NAME)
+          $manifest = $manifest.Replace('__PUBLISHER__', $env:STORE_PACKAGE_PUBLISHER)
+          $manifest = $manifest.Replace('__PUBLISHER_DISPLAY_NAME__', $env:STORE_PUBLISHER_DISPLAY_NAME)
+          $manifest = $manifest.Replace('__VERSION__', $env:MSIX_VERSION)
+          Set-Content "$stage/Package.appxmanifest" $manifest -Encoding utf8
+
+      - name: Pack unsigned Store MSIX
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path certificate | Out-Null
-          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
-          certutil -decode certificate/tempCert.txt certificate/certificate.pfx | Out-Null
-          Remove-Item certificate/tempCert.txt -Force
-          $cert = Import-PfxCertificate `
-            -FilePath certificate/certificate.pfx `
-            -CertStoreLocation Cert:\CurrentUser\My `
-            -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
-          if (-not $cert.Thumbprint) { throw "Certificate import did not return a thumbprint" }
+          New-Item -ItemType Directory -Force dist-store | Out-Null
+          winapp pack "store-stage/${{ matrix.arch }}" --manifest "store-stage/${{ matrix.arch }}/Package.appxmanifest" --output dist-store
+          $msix = Get-ChildItem dist-store -Filter '*.msix' | Select-Object -First 1
+          if (-not $msix) { throw "MSIX was not generated" }
+          Move-Item $msix.FullName "dist-store/Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}.msix" -Force
 
-          $path = "src-tauri/tauri.store.conf.json"
-          $cfg = Get-Content $path -Raw | ConvertFrom-Json
-          $cfg.bundle.publisher = $env:STORE_PUBLISHER
-          $cfg.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $cert.Thumbprint -Force
-          $cfg | ConvertTo-Json -Depth 20 | Set-Content $path -Encoding utf8
-          Write-Host "Store publisher: $env:STORE_PUBLISHER"
-          Write-Host "Signing certificate: $($cert.Subject) [$($cert.Thumbprint)]"
-
-      - name: Build signed Windows installers (MSI + NSIS)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
         with:
-          uploadUpdaterJson: false
-          args: >-
-            --target ${{ matrix.target }}
-            --bundles msi,nsis
-            --config src-tauri/tauri.store.conf.json
-
-      - name: Collect and verify signed installers
-        shell: pwsh
-        run: |
-          $out = "dist-store/${{ matrix.arch }}"
-          New-Item -ItemType Directory -Force -Path $out | Out-Null
-
-          $targetRoot = "src-tauri/target/${{ matrix.target }}/release/bundle"
-          $fallbackRoot = "src-tauri/target/release/bundle"
-          $roots = @($targetRoot, $fallbackRoot)
-
-          $nsis = $null
-          $msi = $null
-          foreach ($root in $roots) {
-            if (-not (Test-Path $root)) { continue }
-            if (-not $nsis) {
-              $nsis = Get-ChildItem -Path (Join-Path $root "nsis") -Filter "*-setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            }
-            if (-not $msi) {
-              $msi = Get-ChildItem -Path (Join-Path $root "msi") -Filter "*.msi" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            }
-          }
-
-          if (-not $nsis) { throw "NSIS setup.exe not found for ${{ matrix.arch }}" }
-          if (-not $msi) { throw "MSI installer not found for ${{ matrix.arch }}" }
-
-          $setupDest = Join-Path $out "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}-setup.exe"
-          $msiDest = Join-Path $out "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}.msi"
-          Copy-Item $nsis.FullName $setupDest -Force
-          Copy-Item $msi.FullName $msiDest -Force
-
-          foreach ($installer in @($setupDest, $msiDest)) {
-            $sig = Get-AuthenticodeSignature $installer
-            if ($sig.Status -ne 'Valid') {
-              throw "Installer Authenticode signature is not valid: $installer [$($sig.Status)] $($sig.StatusMessage)"
-            }
-            Write-Host "Verified signed installer: $installer"
-          }
-
-      - name: Silent NSIS install and uninstall smoke test
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem "dist-store/${{ matrix.arch }}" -Filter "*-setup.exe" | Select-Object -First 1
-          if (-not $installer) { throw "Installer missing" }
-          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Silent install failed with exit code $($p.ExitCode)" }
-          Start-Sleep -Seconds 2
-
-          $uninstallRoots = @(
-            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
-            'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
-            'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-          )
-          $entry = Get-ItemProperty $uninstallRoots -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Butchi*' } | Select-Object -First 1
-          if (-not $entry) { throw "Butchi was not registered in Add/Remove Programs after silent install" }
-          if ([string]::IsNullOrWhiteSpace($entry.UninstallString)) { throw "Butchi uninstall command is missing" }
-
-          $exePath = $entry.InstallLocation
-          if ($exePath -and (Test-Path $exePath)) {
-            Get-ChildItem $exePath -Filter '*.exe' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-              $sig = Get-AuthenticodeSignature $_.FullName
-              if ($sig.Status -ne 'Valid') { throw "Installed PE is not validly signed: $($_.FullName) [$($sig.Status)]" }
-            }
-          }
-
-          $uninstall = $entry.UninstallString.Trim()
-          if ($uninstall.StartsWith('"')) {
-            $end = $uninstall.IndexOf('"', 1)
-            $uninstallExe = $uninstall.Substring(1, $end - 1)
-          } else {
-            $uninstallExe = $uninstall.Split(' ')[0]
-          }
-          $u = Start-Process -FilePath $uninstallExe -ArgumentList '/S' -Wait -PassThru
-          if ($u.ExitCode -ne 0) { throw "Silent uninstall failed with exit code $($u.ExitCode)" }
-
-      - name: Upload Windows ${{ matrix.arch }} installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: butchi-windows-${{ matrix.arch }}
-          path: dist-store/${{ matrix.arch }}/*
+          name: butchi-msix-${{ matrix.arch }}
+          path: dist-store/*.msix
           if-no-files-found: error
           retention-days: 30
 
-  release:
-    name: GitHub Release
-    needs: build-windows
-    runs-on: ubuntu-latest
-    if: >
-      github.ref_type == 'tag' ||
-      (github.event_name == 'workflow_dispatch' && inputs.create_release)
+  publish:
+    name: Release and Microsoft Store submission
+    needs: build-msix
+    runs-on: windows-latest
     steps:
-      - name: Download x64 installers
-        uses: actions/download-artifact@v4
-        with:
-          name: butchi-windows-x64
-          path: artifacts
+      - uses: actions/checkout@v4
 
-      - name: Download arm64 installers
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: butchi-windows-arm64
+          pattern: butchi-msix-*
           path: artifacts
+          merge-multiple: true
 
-      - name: Create or update GitHub Release
+      - name: Create MSIX upload container
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $files = Get-ChildItem artifacts -Filter '*.msix'
+          if ($files.Count -ne 2) { throw "Expected 2 MSIX packages, found $($files.Count)" }
+          Compress-Archive -Path $files.FullName -DestinationPath "artifacts/Butchi_$version.zip" -Force
+          Rename-Item "artifacts/Butchi_$version.zip" "Butchi_$version.msixupload"
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('store-{0}', github.run_id) }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Windows Store RC {0}', github.run_id) }}
-          draft: ${{ github.ref_type != 'tag' }}
           generate_release_notes: true
+          files: |
+            artifacts/*.msix
+            artifacts/*.msixupload
           body: |
-            ## Butchi — signed Windows installers
-
-            - x64 and ARM64 MSI installers
-            - x64 and ARM64 NSIS setup.exe installers
-            - embedded/offline WebView2 runtime
-            - Authenticode signature verified in CI
-            - silent NSIS install/uninstall smoke-tested
-            - local GGUF model downloads separately after installation
-          files: artifacts/*
+            ## Butchi Microsoft Store package
+            - x64 MSIX
+            - ARM64 MSIX
+            - combined MSIX upload package
+            - Store submission packages are unsigned; Microsoft Store signs them after certification
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish installers to but-chi-installer repository
+      - name: Publish MSIX artifacts to but-chi-installer
         if: github.ref_type == 'tag'
+        shell: bash
         env:
           INSTALLER_REPO_TOKEN: ${{ secrets.INSTALLER_REPO_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
           INSTALLER_REPO: dhhieu113pro/but-chi-installer
         run: |
           set -euo pipefail
-
-          if [ -z "${INSTALLER_REPO_TOKEN:-}" ]; then
-            echo "Missing INSTALLER_REPO_TOKEN secret. Create a fine-grained PAT with Contents: Read and write for ${INSTALLER_REPO}."
-            exit 1
-          fi
-
+          test -n "${INSTALLER_REPO_TOKEN:-}" || { echo "Missing INSTALLER_REPO_TOKEN"; exit 1; }
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git clone "https://x-access-token:${INSTALLER_REPO_TOKEN}@github.com/${INSTALLER_REPO}.git" installer-repo
           cd installer-repo
-
-          # This also initializes main cleanly when the installer repository is still empty.
           git checkout -B main
-
           mkdir -p "${RELEASE_TAG}" latest
-          rm -f latest/*.msi latest/*-setup.exe
-          cp ../artifacts/*.msi "${RELEASE_TAG}/"
-          cp ../artifacts/*-setup.exe "${RELEASE_TAG}/"
-          cp ../artifacts/*.msi latest/
-          cp ../artifacts/*-setup.exe latest/
-
+          rm -f latest/*.msix latest/*.msixupload
+          cp ../artifacts/*.msix ../artifacts/*.msixupload "${RELEASE_TAG}/"
+          cp ../artifacts/*.msix ../artifacts/*.msixupload latest/
           cat > README.md <<EOF
           # Butchi Installers
 
-          Signed Windows installers published automatically from [dhhieu113pro/butchi](https://github.com/dhhieu113pro/butchi).
-
-          ## Latest release
+          Microsoft Store MSIX packages published automatically from [dhhieu113pro/butchi](https://github.com/dhhieu113pro/butchi).
 
           Current version: **${RELEASE_TAG}**
 
-          Files are available in:
-
-          - \`latest/\` — stable raw URLs that always point to the newest release
-          - \`${RELEASE_TAG}/\` — immutable versioned installers
-
-          Each release contains x64 and ARM64 builds in both MSI and NSIS setup.exe formats.
+          - \`latest/\` — newest MSIX artifacts
+          - \`${RELEASE_TAG}/\` — immutable release artifacts
           EOF
-
           git add README.md "${RELEASE_TAG}" latest
-          if git diff --cached --quiet; then
-            echo "Installer repository is already up to date."
-            exit 0
-          fi
+          git diff --cached --quiet || { git commit -m "release: publish Butchi ${RELEASE_TAG} MSIX"; git push origin main; }
 
-          git commit -m "release: publish Butchi ${RELEASE_TAG} installers"
-          git push origin main
+      - name: Configure Microsoft Store CLI
+        if: github.ref_type == 'tag'
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Authenticate Microsoft Store CLI
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          foreach ($name in 'AZURE_AD_TENANT_ID','SELLER_ID','AZURE_AD_APPLICATION_CLIENT_ID','AZURE_AD_APPLICATION_SECRET') {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Missing $name secret" }
+          }
+          msstore reconfigure `
+            --tenantId $env:AZURE_AD_TENANT_ID `
+            --sellerId $env:SELLER_ID `
+            --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID `
+            --clientSecret $env:AZURE_AD_APPLICATION_SECRET
+
+      - name: Submit package to Microsoft Store
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          STORE_PRODUCT_ID: ${{ secrets.STORE_PRODUCT_ID }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:STORE_PRODUCT_ID)) { throw "Missing STORE_PRODUCT_ID secret" }
+          $upload = Get-ChildItem artifacts -Filter '*.msixupload' | Select-Object -First 1
+          if (-not $upload) { throw "MSIX upload file not found" }
+          msstore publish . --inputFile $upload.FullName --appId $env:STORE_PRODUCT_ID
