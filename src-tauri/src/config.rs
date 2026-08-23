@@ -143,12 +143,14 @@ mod tests {
 
     #[test]
     fn configurable_values_round_trip() {
-        let mut config = AppConfig::default();
-        config.result_action = "replace".into();
-        config.favorite_languages = vec!["English".into(), "Japanese".into(), "German".into()];
-        config.target_language = "Japanese".into();
-        config.translate_system_prompt = "Translate like a technical localization expert.".into();
-        config.rewrite_system_prompt = "Rewrite as concise release notes.".into();
+        let config = AppConfig {
+            result_action: "replace".into(),
+            favorite_languages: vec!["English".into(), "Japanese".into(), "German".into()],
+            target_language: "Japanese".into(),
+            translate_system_prompt: "Translate like a technical localization expert.".into(),
+            rewrite_system_prompt: "Rewrite as concise release notes.".into(),
+            ..AppConfig::default()
+        };
         let json = serde_json::to_string(&config).unwrap();
         let restored: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.result_action, "replace");

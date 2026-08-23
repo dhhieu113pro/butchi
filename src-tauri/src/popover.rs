@@ -128,37 +128,7 @@ fn show_event_at(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn positions_below_and_right_when_space_is_available() {
-        assert_eq!(
-            place_near_cursor(
-                PhysicalPosition::new(100, 100),
-                (360, 124),
-                PhysicalPosition::new(0, 0),
-                (1920, 1080),
-            ),
-            PhysicalPosition::new(112, 112)
-        );
-    }
-
-    #[test]
-    fn flips_away_from_bottom_right_edge() {
-        assert_eq!(
-            place_near_cursor(
-                PhysicalPosition::new(1900, 1060),
-                (360, 124),
-                PhysicalPosition::new(0, 0),
-                (1920, 1080),
-            ),
-            PhysicalPosition::new(1528, 924)
-        );
-    }
-}
-
+#[allow(dead_code)]
 pub fn capture_and_show(app: AppHandle) {
     let source_window = foreground_window();
     let expected_foreground = (source_window != 0).then_some(source_window);
@@ -274,4 +244,35 @@ fn start_capture(
 
         CAPTURE_ACTIVE.store(false, Ordering::Release);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn positions_below_and_right_when_space_is_available() {
+        assert_eq!(
+            place_near_cursor(
+                PhysicalPosition::new(100, 100),
+                (360, 124),
+                PhysicalPosition::new(0, 0),
+                (1920, 1080),
+            ),
+            PhysicalPosition::new(112, 112)
+        );
+    }
+
+    #[test]
+    fn flips_away_from_bottom_right_edge() {
+        assert_eq!(
+            place_near_cursor(
+                PhysicalPosition::new(1900, 1060),
+                (360, 124),
+                PhysicalPosition::new(0, 0),
+                (1920, 1080),
+            ),
+            PhysicalPosition::new(1528, 924)
+        );
+    }
 }

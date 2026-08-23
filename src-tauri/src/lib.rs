@@ -151,8 +151,8 @@ pub fn run() {
         .setup(|app| {
             tray::create(app)?;
             let _ = history::apply_retention();
-            selection_monitor::start(app.handle().clone());
-            keyboard_monitor::start(app.handle().clone());
+            let _ = selection_monitor::start(app.handle().clone());
+            let _ = keyboard_monitor::start(app.handle().clone());
 
             let cfg = config::load();
             if !config::model_is_downloaded(&cfg.model_repo, &cfg.model_file) {
