@@ -1,5 +1,6 @@
 mod actions;
 mod config;
+mod core_logic;
 mod history;
 mod keyboard_monitor;
 mod llm;
@@ -153,8 +154,6 @@ pub fn run() {
             selection_monitor::start(app.handle().clone());
             keyboard_monitor::start(app.handle().clone());
 
-            // First-run experience: if the configured model is not present,
-            // show Settings immediately with the download/setup guidance.
             let cfg = config::load();
             if !config::model_is_downloaded(&cfg.model_repo, &cfg.model_file) {
                 let _ = tray::open_settings_window(app.handle());
