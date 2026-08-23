@@ -1,6 +1,6 @@
 [package]
 name = "butchi"
-version = "0.1.2"
+version = "0.1.4"
 description = "Butchi (bút chì) — cursor-adjacent translate and rewrite with a local LLM"
 edition = "2021"
 
