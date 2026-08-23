@@ -212,6 +212,8 @@ function wireProfile(selectId: string, textareaId: string, profiles: Record<stri
   select.addEventListener("change", () => { if (select.value !== "custom" && profiles[select.value]) { textarea.value = profiles[select.value]; scheduleSettingsSave(); } });
   textarea.addEventListener("input", () => { sync(); scheduleSettingsSave(); });
   window.setTimeout(sync, 0);
+  window.setTimeout(sync, 150);
+  window.setTimeout(sync, 500);
 }
 
 function wireUi(): void {
