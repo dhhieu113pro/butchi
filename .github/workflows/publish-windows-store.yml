@@ -115,7 +115,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: store-${{ matrix.arch }}-v8-signed-offline
+          shared-key: store-${{ matrix.arch }}-v9-msi-nsis
 
       - name: Install npm dependencies
         run: npm ci
@@ -153,7 +153,7 @@ jobs:
           Write-Host "Store publisher: $env:STORE_PUBLISHER"
           Write-Host "Signing certificate: $($cert.Subject) [$($cert.Thumbprint)]"
 
-      - name: Build Store standalone installer (NSIS)
+      - name: Build signed Windows installers (MSI + NSIS)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -161,35 +161,48 @@ jobs:
           uploadUpdaterJson: false
           args: >-
             --target ${{ matrix.target }}
-            --bundles nsis
+            --bundles msi,nsis
             --config src-tauri/tauri.store.conf.json
 
-      - name: Collect and verify signed installer
+      - name: Collect and verify signed installers
         shell: pwsh
         run: |
           $out = "dist-store/${{ matrix.arch }}"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
-          $roots = @(
-            "src-tauri/target/${{ matrix.target }}/release/bundle/nsis",
-            "src-tauri/target/release/bundle/nsis"
-          )
-          $found = @()
+
+          $targetRoot = "src-tauri/target/${{ matrix.target }}/release/bundle"
+          $fallbackRoot = "src-tauri/target/release/bundle"
+          $roots = @($targetRoot, $fallbackRoot)
+
+          $nsis = $null
+          $msi = $null
           foreach ($root in $roots) {
-            if (Test-Path $root) {
-              Get-ChildItem -Path $root -Filter "*-setup.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-                $destName = "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}-setup.exe"
-                $dest = Join-Path $out $destName
-                Copy-Item $_.FullName $dest -Force
-                $sig = Get-AuthenticodeSignature $dest
-                if ($sig.Status -ne 'Valid') { throw "Installer Authenticode signature is not valid: $($sig.Status) $($sig.StatusMessage)" }
-                $found += $dest
-                Write-Host "Verified signed installer: $dest"
-              }
+            if (-not (Test-Path $root)) { continue }
+            if (-not $nsis) {
+              $nsis = Get-ChildItem -Path (Join-Path $root "nsis") -Filter "*-setup.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            }
+            if (-not $msi) {
+              $msi = Get-ChildItem -Path (Join-Path $root "msi") -Filter "*.msi" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
             }
           }
-          if ($found.Count -eq 0) { throw "NSIS setup.exe not found for ${{ matrix.arch }}" }
 
-      - name: Silent install and uninstall smoke test
+          if (-not $nsis) { throw "NSIS setup.exe not found for ${{ matrix.arch }}" }
+          if (-not $msi) { throw "MSI installer not found for ${{ matrix.arch }}" }
+
+          $setupDest = Join-Path $out "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}-setup.exe"
+          $msiDest = Join-Path $out "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}.msi"
+          Copy-Item $nsis.FullName $setupDest -Force
+          Copy-Item $msi.FullName $msiDest -Force
+
+          foreach ($installer in @($setupDest, $msiDest)) {
+            $sig = Get-AuthenticodeSignature $installer
+            if ($sig.Status -ne 'Valid') {
+              throw "Installer Authenticode signature is not valid: $installer [$($sig.Status)] $($sig.StatusMessage)"
+            }
+            Write-Host "Verified signed installer: $installer"
+          }
+
+      - name: Silent NSIS install and uninstall smoke test
         shell: pwsh
         run: |
           $installer = Get-ChildItem "dist-store/${{ matrix.arch }}" -Filter "*-setup.exe" | Select-Object -First 1
@@ -225,7 +238,7 @@ jobs:
           $u = Start-Process -FilePath $uninstallExe -ArgumentList '/S' -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "Silent uninstall failed with exit code $($u.ExitCode)" }
 
-      - name: Upload Windows ${{ matrix.arch }} installer
+      - name: Upload Windows ${{ matrix.arch }} installers
         uses: actions/upload-artifact@v4
         with:
           name: butchi-windows-${{ matrix.arch }}
@@ -241,13 +254,13 @@ jobs:
       github.ref_type == 'tag' ||
       (github.event_name == 'workflow_dispatch' && inputs.create_release)
     steps:
-      - name: Download x64 installer
+      - name: Download x64 installers
         uses: actions/download-artifact@v4
         with:
           name: butchi-windows-x64
           path: artifacts
 
-      - name: Download arm64 installer
+      - name: Download arm64 installers
         uses: actions/download-artifact@v4
         with:
           name: butchi-windows-arm64
@@ -261,15 +274,70 @@ jobs:
           draft: ${{ github.ref_type != 'tag' }}
           generate_release_notes: true
           body: |
-            ## Butchi — signed Windows Store RC installers
+            ## Butchi — signed Windows installers
 
-            - x64 and ARM64 standalone NSIS installers
+            - x64 and ARM64 MSI installers
+            - x64 and ARM64 NSIS setup.exe installers
             - embedded/offline WebView2 runtime
             - Authenticode signature verified in CI
-            - silent `/S` install/uninstall smoke-tested
+            - silent NSIS install/uninstall smoke-tested
             - local GGUF model downloads separately after installation
-
-            Use these immutable versioned release assets as the HTTPS package URLs in Partner Center.
           files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish installers to but-chi-installer repository
+        if: github.ref_type == 'tag'
+        env:
+          INSTALLER_REPO_TOKEN: ${{ secrets.INSTALLER_REPO_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          INSTALLER_REPO: dhhieu113pro/but-chi-installer
+        run: |
+          set -euo pipefail
+
+          if [ -z "${INSTALLER_REPO_TOKEN:-}" ]; then
+            echo "Missing INSTALLER_REPO_TOKEN secret. Create a fine-grained PAT with Contents: Read and write for ${INSTALLER_REPO}."
+            exit 1
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git clone "https://x-access-token:${INSTALLER_REPO_TOKEN}@github.com/${INSTALLER_REPO}.git" installer-repo
+          cd installer-repo
+
+          # This also initializes main cleanly when the installer repository is still empty.
+          git checkout -B main
+
+          mkdir -p "${RELEASE_TAG}" latest
+          rm -f latest/*.msi latest/*-setup.exe
+          cp ../artifacts/*.msi "${RELEASE_TAG}/"
+          cp ../artifacts/*-setup.exe "${RELEASE_TAG}/"
+          cp ../artifacts/*.msi latest/
+          cp ../artifacts/*-setup.exe latest/
+
+          cat > README.md <<EOF
+          # Butchi Installers
+
+          Signed Windows installers published automatically from [dhhieu113pro/butchi](https://github.com/dhhieu113pro/butchi).
+
+          ## Latest release
+
+          Current version: **${RELEASE_TAG}**
+
+          Files are available in:
+
+          - \`latest/\` — stable raw URLs that always point to the newest release
+          - \`${RELEASE_TAG}/\` — immutable versioned installers
+
+          Each release contains x64 and ARM64 builds in both MSI and NSIS setup.exe formats.
+          EOF
+
+          git add README.md "${RELEASE_TAG}" latest
+          if git diff --cached --quiet; then
+            echo "Installer repository is already up to date."
+            exit 0
+          fi
+
+          git commit -m "release: publish Butchi ${RELEASE_TAG} installers"
+          git push origin main
