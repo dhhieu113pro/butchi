@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Butchi — Privacy</title>
+  <style>
+    :root{--bg:#f4f5f7;--paper:#fff;--ink:#111722;--muted:#626d7c;--line:#d5dbe4;--accent:#2f66d2;--max:760px}
+    @media(prefers-color-scheme:dark){:root{--bg:#0d1118;--paper:#121923;--ink:#f5f7fb;--muted:#9ca8b8;--line:#273241;--accent:#75a3ff}}
+    *{box-sizing:border-box}html,body{overflow-x:clip}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "Segoe UI",system-ui,sans-serif}.wrap{width:min(var(--max),calc(100% - 32px));margin:auto}nav{padding:24px 0;border-bottom:1px solid var(--line)}nav a{color:inherit;text-decoration:none;font-weight:700}main{padding:64px 0 92px}h1,h2{line-height:1.08;letter-spacing:-.04em}h1{font-size:clamp(44px,8vw,72px);margin:0 0 30px}h2{font-size:26px;margin:42px 0 10px}p,li{color:var(--muted)}a{color:var(--accent)}.note{padding:20px;border:1px solid var(--line);background:var(--paper);border-radius:12px;margin:28px 0}footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <nav><div class="wrap"><a href="./">← Butchi</a></div></nav>
+  <main class="wrap">
+    <h1>Privacy</h1>
+    <div class="note">Butchi is designed for local Translate and Rewrite on Windows. Selected text is not sent to a cloud AI service by Butchi.</div>
+    <h2>Local processing</h2>
+    <p>Selected text and generated results are processed by the GGUF model configured in Butchi through local llama.cpp inference.</p>
+    <h2>Local history</h2>
+    <p>Translate and Rewrite history is stored locally on your device. Retention can be configured in Settings, and local history can be deleted from the app.</p>
+    <h2>Network access</h2>
+    <p>Network access is used when you explicitly download a model from Hugging Face. Butchi does not require a cloud AI API for normal local generation.</p>
+    <h2>Source and policy</h2>
+    <p>The source code and full project privacy policy are available on GitHub: <a href="https://github.com/dhhieu113pro/butchi">github.com/dhhieu113pro/butchi</a>.</p>
+  </main>
+  <footer><div class="wrap">Butchi · MIT licensed</div></footer>
+</body>
+</html>
