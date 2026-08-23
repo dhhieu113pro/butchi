@@ -113,7 +113,7 @@ jobs:
         run: npm run tauri -- build --target ${{ matrix.target }} --no-bundle
 
       - name: Setup winapp CLI
-        uses: microsoft/setup-WinAppCli@v1
+        uses: microsoft/setup-WinAppCli@v0.2
 
       - name: Stage package and render manifest
         shell: pwsh
