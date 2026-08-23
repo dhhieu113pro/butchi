@@ -6,6 +6,7 @@ mod keyboard_monitor;
 mod llm;
 mod popover;
 mod replacement;
+mod screenshot;
 mod selection;
 mod selection_monitor;
 mod tray;
@@ -149,6 +150,11 @@ pub fn run() {
             open_settings,
         ])
         .setup(|app| {
+            if let Some(mode) = screenshot::from_env() {
+                screenshot::open_capture_window(app.handle(), mode)?;
+                return Ok(());
+            }
+
             tray::create(app)?;
             let _ = history::apply_retention();
             let _ = selection_monitor::start(app.handle().clone());
