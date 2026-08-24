@@ -26,6 +26,8 @@ pub struct AppConfig {
     pub temperature: f32,
     pub gpu_layers: u32,
     pub history_retention_days: i32,
+    /// Seconds the popover stays open when left alone (2–30).
+    pub popover_hide_seconds: u32,
 }
 
 impl Default for AppConfig {
@@ -45,7 +47,16 @@ impl Default for AppConfig {
             temperature: 0.3,
             gpu_layers: 999,
             history_retention_days: 30,
+            popover_hide_seconds: 6,
         }
+    }
+}
+
+impl AppConfig {
+    /// Clamp hide interval to a sensible range for the UI timer.
+    pub fn popover_hide_ms(&self) -> u64 {
+        let seconds = self.popover_hide_seconds.clamp(2, 30);
+        u64::from(seconds) * 1_000
     }
 }
 
@@ -130,6 +141,8 @@ mod tests {
         let defaults = AppConfig::default();
         assert_eq!(defaults.result_action, "copy");
         assert_eq!(defaults.backend_preference, "auto");
+        assert_eq!(defaults.popover_hide_seconds, 6);
+        assert_eq!(defaults.popover_hide_ms(), 6_000);
         assert!(defaults.translate_system_prompt.starts_with("You are a precise translation assistant."));
         assert!(defaults.rewrite_system_prompt.starts_with("You are a precise writing assistant."));
 
@@ -139,6 +152,7 @@ mod tests {
         assert_eq!(config.favorite_languages, vec!["Vietnamese", "English"]);
         assert_eq!(config.result_action, "copy");
         assert_eq!(config.backend_preference, "auto");
+        assert_eq!(config.popover_hide_seconds, 6);
     }
 
     #[test]
@@ -149,6 +163,7 @@ mod tests {
             target_language: "Japanese".into(),
             translate_system_prompt: "Translate like a technical localization expert.".into(),
             rewrite_system_prompt: "Rewrite as concise release notes.".into(),
+            popover_hide_seconds: 12,
             ..AppConfig::default()
         };
         let json = serde_json::to_string(&config).unwrap();
@@ -158,6 +173,17 @@ mod tests {
         assert_eq!(restored.target_language, "Japanese");
         assert_eq!(restored.translate_system_prompt, config.translate_system_prompt);
         assert_eq!(restored.rewrite_system_prompt, config.rewrite_system_prompt);
+        assert_eq!(restored.popover_hide_seconds, 12);
+        assert_eq!(restored.popover_hide_ms(), 12_000);
+    }
+
+    #[test]
+    fn hide_interval_is_clamped() {
+        let mut cfg = AppConfig::default();
+        cfg.popover_hide_seconds = 1;
+        assert_eq!(cfg.popover_hide_ms(), 2_000);
+        cfg.popover_hide_seconds = 99;
+        assert_eq!(cfg.popover_hide_ms(), 30_000);
     }
 
     #[test]
