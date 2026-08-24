@@ -28,5 +28,7 @@ jobs:
             echo "v0.1.6 already exists"
             exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a v0.1.6 -m "Butchi v0.1.6"
           git push origin v0.1.6
