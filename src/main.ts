@@ -19,6 +19,7 @@ const resultCards = {
 const currentWindow = getCurrentWindow();
 const untouchedHideDelay = 4_000;
 const interactedLeaveDelay = 3_000;
+const ISLAND_MORPH_MS = 420;
 let hideTimer: number | undefined;
 let hasInteraction = false;
 let isManualInput = false;
@@ -46,6 +47,37 @@ type AppConfig = {
   favoriteLanguages: string[];
 };
 
+/* ==========================================================
+   Dynamic Island state helpers
+   ========================================================== */
+
+function setIsland(state: "compact" | "expanded") {
+  if (!popover) return;
+  popover.dataset.island = state;
+}
+
+/** Show as compact pill, then expand on the next frame (smooth morph). */
+function expandIsland() {
+  setIsland("compact");
+  // Force a reflow so the compact state is painted before we expand
+  void popover?.offsetWidth;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => setIsland("expanded"));
+  });
+}
+
+/** Collapse to compact, then hide the window after the morph finishes. */
+function collapseAndHide() {
+  if (isScreenshotMode) {
+    void currentWindow.hide();
+    return;
+  }
+  setIsland("compact");
+  window.setTimeout(() => {
+    void currentWindow.hide();
+  }, ISLAND_MORPH_MS);
+}
+
 function cancelScheduledHide() {
   if (hideTimer !== undefined) {
     window.clearTimeout(hideTimer);
@@ -60,7 +92,7 @@ function scheduleHide(delay: number) {
   hideTimer = window.setTimeout(() => {
     hideTimer = undefined;
     if (pointerInside || popover?.matches(":hover")) return;
-    void currentWindow.hide();
+    collapseAndHide();
   }, delay);
 }
 
@@ -323,6 +355,10 @@ async function refreshConfig() {
 
 void refreshConfig();
 
+/* ==========================================================
+   Event listeners — every show path now expands the Island
+   ========================================================== */
+
 listen<string>("selection-captured", ({ payload }) => {
   cancelScheduledHide();
   hasInteraction = false;
@@ -341,6 +377,7 @@ listen<string>("selection-captured", ({ payload }) => {
       status.removeAttribute("title");
     }
     setActionAvailability(true);
+    expandIsland();
     scheduleHide(untouchedHideDelay + 4_000);
     void autoRunEnabled(payload.trim());
   });
@@ -363,6 +400,7 @@ listen<string>("selection-capture-failed", ({ payload }) => {
     status.title = payload;
   }
   setActionAvailability(false);
+  expandIsland();
   scheduleHide(untouchedHideDelay);
 });
 
@@ -385,6 +423,7 @@ listen<string>("manual-input-requested", () => {
     status.removeAttribute("title");
   }
   setActionAvailability(false);
+  expandIsland();
   window.requestAnimationFrame(() => manualInput?.focus());
 });
 
