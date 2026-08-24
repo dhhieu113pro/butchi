@@ -10,6 +10,7 @@ const actions = document.querySelectorAll<HTMLButtonElement>(".action");
 const selection = document.querySelector<HTMLElement>(".selection");
 const manualInput = document.querySelector<HTMLTextAreaElement>(".manual-input");
 const popover = document.querySelector<HTMLElement>(".popover");
+const closeBtn = document.querySelector<HTMLButtonElement>("#closeBtn");
 const favoriteLanguageButtons = document.querySelector<HTMLElement>("#favoriteLanguageButtons");
 const resultCards = {
   translate: document.querySelector<HTMLElement>('.result-card[data-kind="translate"]'),
@@ -17,7 +18,8 @@ const resultCards = {
 };
 
 const currentWindow = getCurrentWindow();
-const untouchedHideDelay = 4_000;
+/** Default auto-hide delay from Settings (ms). */
+let hideSecondsMs = 6_000;
 const interactedLeaveDelay = 3_000;
 let hideTimer: number | undefined;
 let hasInteraction = false;
@@ -44,6 +46,7 @@ type AppConfig = {
   resultAction: string;
   targetLanguage: string;
   favoriteLanguages: string[];
+  popoverHideSeconds?: number;
 };
 
 function cancelScheduledHide() {
@@ -53,8 +56,7 @@ function cancelScheduledHide() {
   }
 }
 
-function scheduleHide(delay: number) {
-  // Keep the capture window open for the full CI screenshot session.
+function scheduleHide(delay: number = hideSecondsMs) {
   if (isScreenshotMode) return;
   cancelScheduledHide();
   hideTimer = window.setTimeout(() => {
@@ -69,17 +71,36 @@ function keepOpen() {
   cancelScheduledHide();
 }
 
+function closePopover() {
+  cancelScheduledHide();
+  autoRunId += 1;
+  void currentWindow.hide();
+}
+
+closeBtn?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closePopover();
+});
+
 popover?.addEventListener("pointerenter", () => {
   pointerInside = true;
   keepOpen();
 });
 popover?.addEventListener("pointerdown", keepOpen);
 popover?.addEventListener("focusin", keepOpen);
-document.addEventListener("keydown", keepOpen);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePopover();
+    return;
+  }
+  keepOpen();
+});
 popover?.addEventListener("pointerleave", () => {
   pointerInside = false;
   if (document.activeElement === manualInput) return;
-  scheduleHide(hasInteraction ? interactedLeaveDelay : untouchedHideDelay);
+  scheduleHide(hasInteraction ? Math.max(interactedLeaveDelay, hideSecondsMs / 2) : hideSecondsMs);
 });
 
 function applyActionVisibility() {
@@ -211,14 +232,12 @@ async function replaceSelection(text: string): Promise<void> {
   await invoke("replace_selected_text", { text });
 }
 
-/** Apply Settings → result action (copy / replace / none) to a finished result. */
 async function applyResultAction(result: ProcessResult): Promise<string> {
   if (resultAction === "replace" && !isManualInput) {
     await replaceSelection(result.text);
     return "Selected text replaced.";
   }
   if (resultAction === "copy") {
-    // Backend already copied when `copy: true` was passed; otherwise copy here.
     if (!result.copied) {
       try {
         await navigator.clipboard.writeText(result.text);
@@ -258,7 +277,7 @@ async function rerunTranslation(language: string) {
     showResultOk("translate", result.text, result.message);
     const applied = await applyResultAction(result);
     if (status) status.textContent = `Translated to ${targetLanguage}. ${applied}`;
-    scheduleHide(interactedLeaveDelay + 2_000);
+    scheduleHide(hideSecondsMs);
   } catch (error) {
     if (runId !== autoRunId) return;
     const message = error instanceof Error ? error.message : String(error);
@@ -271,7 +290,6 @@ async function autoRunEnabled(text: string) {
   const runId = ++autoRunId;
   const jobs: Array<Promise<ProcessResult | null>> = [];
   const enabledCount = Number(translateEnabled) + Number(rewriteEnabled);
-  // Only auto-apply copy/replace when a single action is enabled (avoid fighting over clipboard/selection).
   const applyAutomation = enabledCount === 1;
   const shouldCopy = applyAutomation && resultAction === "copy";
 
@@ -343,7 +361,7 @@ async function autoRunEnabled(text: string) {
   } else if (status) {
     status.textContent = "Results ready.";
   }
-  scheduleHide(untouchedHideDelay + 2_000);
+  scheduleHide(hideSecondsMs);
 }
 
 async function refreshConfig() {
@@ -354,6 +372,8 @@ async function refreshConfig() {
     resultAction = cfg.resultAction || "copy";
     targetLanguage = cfg.targetLanguage || "Vietnamese";
     favoriteLanguages = cfg.favoriteLanguages ?? ["Vietnamese", "English"];
+    const seconds = Number(cfg.popoverHideSeconds ?? 6);
+    hideSecondsMs = Math.min(30, Math.max(2, Number.isFinite(seconds) ? seconds : 6)) * 1_000;
     applyActionVisibility();
     renderFavoriteLanguages();
   } catch {
@@ -381,7 +401,7 @@ listen<string>("selection-captured", ({ payload }) => {
       status.removeAttribute("title");
     }
     setActionAvailability(true);
-    scheduleHide(untouchedHideDelay + 4_000);
+    scheduleHide(hideSecondsMs + 2_000);
     void autoRunEnabled(payload.trim());
   });
 });
@@ -403,7 +423,7 @@ listen<string>("selection-capture-failed", ({ payload }) => {
     status.title = payload;
   }
   setActionAvailability(false);
-  scheduleHide(untouchedHideDelay);
+  scheduleHide(hideSecondsMs);
 });
 
 listen<string>("manual-input-requested", () => {
@@ -443,7 +463,7 @@ favoriteLanguageButtons?.addEventListener("click", (event) => {
 });
 
 window.addEventListener("blur", () => {
-  if (isManualInput) scheduleHide(untouchedHideDelay);
+  if (isManualInput) scheduleHide(hideSecondsMs);
 });
 
 function resetActions(active: HTMLButtonElement) {
@@ -496,7 +516,7 @@ actions.forEach((button) => {
       button.dataset.state = "success";
       button.disabled = false;
       setActionAvailability(true);
-      scheduleHide(interactedLeaveDelay + 1_500);
+      scheduleHide(hideSecondsMs);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showResultError(action, message);
