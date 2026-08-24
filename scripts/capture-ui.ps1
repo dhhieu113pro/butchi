@@ -62,6 +62,37 @@ function Get-VisibleWindowTitles {
   return $titles
 }
 
+function Find-WindowByTitleOrProcess {
+  param([string]$Title, [int]$Pid)
+
+  $hwnd = [ButchiWindowCapture]::FindWindow($null, $Title)
+  if ($hwnd -ne [IntPtr]::Zero) { return $hwnd }
+
+  # Fallback: enumerate visible windows that belong to the target process and
+  # match the expected title (or any non-empty title owned by the process).
+  if ($Pid -gt 0) {
+    $found = [IntPtr]::Zero
+    $callback = [ButchiWindowCapture+EnumWindowsProc]{
+      param([IntPtr]$hWnd, [IntPtr]$lParam)
+      if (-not [ButchiWindowCapture]::IsWindowVisible($hWnd)) { return $true }
+      $owner = 0
+      [void][ButchiWindowCapture]::GetWindowThreadProcessId($hWnd, [ref]$owner)
+      if ($owner -ne $Pid) { return $true }
+      $sb = New-Object System.Text.StringBuilder 512
+      [void][ButchiWindowCapture]::GetWindowText($hWnd, $sb, $sb.Capacity)
+      $t = $sb.ToString()
+      if ($t -eq $Title -or ($Title -and $t.StartsWith("Butchi"))) {
+        $script:found = $hWnd
+        return $false
+      }
+      return $true
+    }
+    [void][ButchiWindowCapture]::EnumWindows($callback, [IntPtr]::Zero)
+    if ($found -ne [IntPtr]::Zero) { return $found }
+  }
+  return [IntPtr]::Zero
+}
+
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 $hwnd = [IntPtr]::Zero
 while ((Get-Date) -lt $deadline -and $hwnd -eq [IntPtr]::Zero) {
@@ -76,8 +107,8 @@ while ((Get-Date) -lt $deadline -and $hwnd -eq [IntPtr]::Zero) {
     }
   }
 
-  $hwnd = [ButchiWindowCapture]::FindWindow($null, $WindowTitle)
-  if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 }
+  $hwnd = Find-WindowByTitleOrProcess -Title $WindowTitle -Pid $ProcessId
+  if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 300 }
 }
 
 if ($hwnd -eq [IntPtr]::Zero) {
@@ -98,8 +129,12 @@ if ($width -lt 200 -or $height -lt 200) {
   throw "Implausible window bounds for '$WindowTitle': ${width}x${height}"
 }
 
-[void][ButchiWindowCapture]::SetForegroundWindow($hwnd)
-Start-Sleep -Milliseconds 800
+# Retry focus a few times — CI runners sometimes need a second push.
+for ($i = 0; $i -lt 3; $i++) {
+  [void][ButchiWindowCapture]::SetForegroundWindow($hwnd)
+  Start-Sleep -Milliseconds 250
+}
+Start-Sleep -Milliseconds 500
 
 $dir = Split-Path -Parent $OutputPath
 if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
