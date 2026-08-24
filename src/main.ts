@@ -3,6 +3,7 @@ import "@fontsource-variable/ibm-plex-sans";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isScreenshotMode } from "./screenshot-mode";
 
 const status = document.querySelector<HTMLElement>(".status");
 const actions = document.querySelectorAll<HTMLButtonElement>(".action");
@@ -16,7 +17,6 @@ const resultCards = {
 };
 
 const currentWindow = getCurrentWindow();
-const isScreenshotMode = new URLSearchParams(window.location.search).has("screenshot");
 const untouchedHideDelay = 4_000;
 const interactedLeaveDelay = 3_000;
 let hideTimer: number | undefined;
