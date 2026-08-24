@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "tauri dev",
     "dev:web": "vite",
+    "dev:gpu": "tauri dev -- --features vulkan",
     "build": "tsc && vite build",
+    "build:app": "tauri build",
+    "build:app:gpu": "tauri build -- --features vulkan",
     "icons": "tauri icon assets/butchi-logo.svg",
     "preview": "vite preview",
     "tauri": "tauri"
