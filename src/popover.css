@@ -1,5 +1,6 @@
 /* Hallmark · component: popover · genre: modern-minimal · theme: Cobalt
  * states: default · hover · focus · active · disabled · loading · error · success
+ * + Dynamic Island morph: compact ↔ expanded
  * contrast: pass
  * pre-emit critique: P5 H4 E4 S5 R5 V4
  */
@@ -17,7 +18,7 @@ body {
   min-width: 0;
   min-height: 100%;
   margin: 0;
-  overflow-x: clip;
+  overflow: hidden;
   font-family: var(--font-body);
   color: var(--color-ink);
   background: transparent;
@@ -34,16 +35,134 @@ button {
   display: none !important;
 }
 
+/* ==========================================================
+   Dynamic Island morph
+   ========================================================== */
+
 .popover {
+  --island-radius-compact: 999px;
+  --island-radius-expanded: var(--radius-md);
+  --island-scale-compact: 0.38;
+  --island-duration: 380ms;
+  --island-ease: cubic-bezier(0.32, 1.45, 0.58, 1); /* spring with light overshoot */
+
+  position: relative;
   width: 100%;
   min-width: 0;
   padding: var(--space-3);
   border: var(--rule-thin) solid var(--color-rule);
-  border-radius: var(--radius-md);
+  border-radius: var(--island-radius-expanded);
   background: var(--color-paper-raised);
   color: var(--color-ink);
-  box-shadow: 0 var(--space-2) var(--space-5) var(--color-shadow);
+  box-shadow:
+    0 4px 12px var(--color-shadow),
+    0 12px 32px oklch(20% 0.03 255 / 12%);
+
+  transform-origin: center top;
+  transform: scale(1);
+  opacity: 1;
+  transition:
+    transform var(--island-duration) var(--island-ease),
+    border-radius var(--island-duration) var(--island-ease),
+    box-shadow var(--island-duration) var(--island-ease),
+    opacity 200ms var(--ease-out);
+  will-change: transform, border-radius;
 }
+
+/* Compact pill state */
+.popover[data-island="compact"] {
+  border-radius: var(--island-radius-compact);
+  transform: scale(var(--island-scale-compact));
+  opacity: 0.96;
+  box-shadow:
+    0 2px 8px var(--color-shadow),
+    0 6px 18px oklch(20% 0.03 255 / 14%);
+}
+
+/* Expanded */
+.popover[data-island="expanded"] {
+  border-radius: var(--island-radius-expanded);
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Tiny centered mark — only visible while compact */
+.popover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.popover[data-island="compact"]::before {
+  opacity: 0.55;
+  transform: scale(1);
+}
+
+.popover[data-island="expanded"]::before {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+/* Content completely hidden + non-interactive in compact */
+.popover[data-island="compact"] .source-block,
+.popover[data-island="compact"] .results,
+.popover[data-island="compact"] .actions,
+.popover[data-island="compact"] .status {
+  opacity: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  transition:
+    opacity 140ms var(--ease-out),
+    transform 140ms var(--ease-out);
+}
+
+.popover[data-island="expanded"] .source-block,
+.popover[data-island="expanded"] .results,
+.popover[data-island="expanded"] .actions,
+.popover[data-island="expanded"] .status {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition:
+    opacity 260ms 60ms var(--ease-out),
+    transform 260ms 60ms var(--ease-out);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    --island-duration: 0ms;
+    --island-ease: linear;
+    transition-duration: 0ms;
+  }
+
+  .popover::before,
+  .popover[data-island="compact"] .source-block,
+  .popover[data-island="compact"] .results,
+  .popover[data-island="compact"] .actions,
+  .popover[data-island="compact"] .status,
+  .popover[data-island="expanded"] .source-block,
+  .popover[data-island="expanded"] .results,
+  .popover[data-island="expanded"] .actions,
+  .popover[data-island="expanded"] .status {
+    transition-duration: 0ms;
+  }
+}
+
+/* ==========================================================
+   Existing component styles (preserved)
+   ========================================================== */
 
 .selection {
   margin: 0;
@@ -309,9 +428,9 @@ button {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
+  cursor: pointer;
   font-size: 0.65rem;
   font-weight: 700;
-  cursor: pointer;
 }
 
 .icon-btn:hover {
