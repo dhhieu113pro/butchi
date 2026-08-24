@@ -61,23 +61,51 @@ fn get_model_status() -> llm::ModelStatus {
     llm::model_status(&cfg)
 }
 
+/// Download on a worker thread so the UI stays responsive, then auto-load the model.
 #[tauri::command]
-fn download_model(repo: String, file: String) -> Result<llm::ModelStatus, String> {
-    llm::download_model(&repo, &file).map_err(|error| {
-        format!("Model download failed. Check your internet connection and try again. {error}")
-    })?;
+async fn download_model(repo: String, file: String) -> Result<llm::ModelStatus, String> {
+    let repo_for_download = repo.clone();
+    let file_for_download = file.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        llm::download_model(&repo_for_download, &file_for_download).map_err(|error| {
+            format!("Model download failed. Check your internet connection and try again. {error}")
+        })
+    })
+    .await
+    .map_err(|error| format!("download task failed: {error}"))??;
+
     let mut cfg = config::load();
     cfg.model_repo = repo;
     cfg.model_file = file;
     config::save(&cfg)?;
-    llm::unload();
+
+    // Auto-load so Translate / Rewrite works immediately after download.
+    // Loading can take a few seconds; keep it on a worker thread too.
+    let cfg_for_load = cfg.clone();
+    let load_result = tauri::async_runtime::spawn_blocking(move || llm::ensure_loaded(&cfg_for_load))
+        .await
+        .map_err(|error| format!("load task failed: {error}"))?;
+
+    if let Err(error) = load_result {
+        // Download succeeded; surface load failure but still return status so UI can recover.
+        let status = llm::model_status(&cfg);
+        return Err(format!(
+            "Model downloaded, but auto-load failed: {error}. Status: downloaded={}, loaded={}.",
+            status.downloaded, status.loaded
+        ));
+    }
+
     Ok(llm::model_status(&cfg))
 }
 
 #[tauri::command]
-fn load_model() -> Result<llm::ModelStatus, String> {
+async fn load_model() -> Result<llm::ModelStatus, String> {
     let cfg = config::load();
-    llm::ensure_loaded(&cfg)?;
+    let cfg_for_load = cfg.clone();
+    tauri::async_runtime::spawn_blocking(move || llm::ensure_loaded(&cfg_for_load))
+        .await
+        .map_err(|error| format!("load task failed: {error}"))?
+        .map_err(|error| error)?;
     Ok(llm::model_status(&cfg))
 }
 
