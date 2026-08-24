@@ -71,7 +71,7 @@ function Find-WindowByTitleOrProcess {
   # Fallback: enumerate visible windows that belong to the target process and
   # match the expected title (or any non-empty title owned by the process).
   if ($TargetPid -gt 0) {
-    $found = [IntPtr]::Zero
+    $script:found = [IntPtr]::Zero
     $callback = [ButchiWindowCapture+EnumWindowsProc]{
       param([IntPtr]$hWnd, [IntPtr]$lParam)
       if (-not [ButchiWindowCapture]::IsWindowVisible($hWnd)) { return $true }
@@ -88,7 +88,7 @@ function Find-WindowByTitleOrProcess {
       return $true
     }
     [void][ButchiWindowCapture]::EnumWindows($callback, [IntPtr]::Zero)
-    if ($found -ne [IntPtr]::Zero) { return $found }
+    if ($script:found -ne [IntPtr]::Zero) { return $script:found }
   }
   return [IntPtr]::Zero
 }
