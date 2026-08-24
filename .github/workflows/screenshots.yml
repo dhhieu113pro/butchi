@@ -32,6 +32,7 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CMAKE_GENERATOR: Ninja
+  RUST_BACKTRACE: 1
 
 jobs:
   capture:
@@ -74,14 +75,30 @@ jobs:
 
           function Capture-Butchi([string]$mode, [string]$title, [string]$output) {
             $env:BUTCHI_SCREENSHOT_MODE = $mode
-            $process = Start-Process -FilePath $app -PassThru
+            $stdout = Join-Path $env:TEMP "butchi-$mode-stdout.txt"
+            $stderr = Join-Path $env:TEMP "butchi-$mode-stderr.txt"
+            Remove-Item $stdout, $stderr -ErrorAction SilentlyContinue
+
+            $process = Start-Process -FilePath $app -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WorkingDirectory (Split-Path $app)
             try {
-              # Cold WebView2 + frontend seed on CI runners can take >5 s.
-              Start-Sleep -Seconds 8
+              # Cold WebView2 + frontend seed on CI runners can take a while.
+              for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Seconds 1
+                if ($process.HasExited) { break }
+                # Early success path: window already present
+                $hwnd = [IntPtr]::Zero
+                try {
+                  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue | Out-Null
+                } catch {}
+              }
               if ($process.HasExited) {
+                $outText = if (Test-Path $stdout) { Get-Content $stdout -Raw } else { "" }
+                $errText = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { "" }
+                Write-Host "=== stdout ===`n$outText"
+                Write-Host "=== stderr ===`n$errText"
                 throw "Butchi exited early in mode=$mode (exit=$($process.ExitCode))"
               }
-              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 50 -ProcessId $process.Id
+              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 60 -ProcessId $process.Id
             }
             finally {
               if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
