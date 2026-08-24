@@ -211,6 +211,26 @@ async function replaceSelection(text: string): Promise<void> {
   await invoke("replace_selected_text", { text });
 }
 
+/** Apply Settings → result action (copy / replace / none) to a finished result. */
+async function applyResultAction(result: ProcessResult): Promise<string> {
+  if (resultAction === "replace" && !isManualInput) {
+    await replaceSelection(result.text);
+    return "Selected text replaced.";
+  }
+  if (resultAction === "copy") {
+    // Backend already copied when `copy: true` was passed; otherwise copy here.
+    if (!result.copied) {
+      try {
+        await navigator.clipboard.writeText(result.text);
+      } catch {
+        return "Result ready (clipboard copy failed).";
+      }
+    }
+    return "Result copied.";
+  }
+  return "Result ready.";
+}
+
 async function rerunTranslation(language: string) {
   const text = sourceText.trim() || activeText();
   if (!text || !language) return;
@@ -229,13 +249,15 @@ async function rerunTranslation(language: string) {
     favoriteLanguages = saved.favoriteLanguages ?? favoriteLanguages;
     renderFavoriteLanguages();
 
-    const result = await runProcessStreaming("translate", text, false, (chunk) => {
+    const shouldCopy = resultAction === "copy";
+    const result = await runProcessStreaming("translate", text, shouldCopy, (chunk) => {
       if (runId !== autoRunId) return;
       showResultChunk("translate", chunk);
     });
     if (runId !== autoRunId) return;
     showResultOk("translate", result.text, result.message);
-    if (status) status.textContent = `Translated to ${targetLanguage}.`;
+    const applied = await applyResultAction(result);
+    if (status) status.textContent = `Translated to ${targetLanguage}. ${applied}`;
     scheduleHide(interactedLeaveDelay + 2_000);
   } catch (error) {
     if (runId !== autoRunId) return;
@@ -247,22 +269,28 @@ async function rerunTranslation(language: string) {
 
 async function autoRunEnabled(text: string) {
   const runId = ++autoRunId;
-  const jobs: Array<Promise<void>> = [];
+  const jobs: Array<Promise<ProcessResult | null>> = [];
+  const enabledCount = Number(translateEnabled) + Number(rewriteEnabled);
+  // Only auto-apply copy/replace when a single action is enabled (avoid fighting over clipboard/selection).
+  const applyAutomation = enabledCount === 1;
+  const shouldCopy = applyAutomation && resultAction === "copy";
 
   if (translateEnabled) {
     showResultLoading("translate");
     jobs.push(
-      runProcessStreaming("translate", text, false, (chunk) => {
+      runProcessStreaming("translate", text, shouldCopy, (chunk) => {
         if (runId !== autoRunId) return;
         showResultChunk("translate", chunk);
       })
         .then((result) => {
-          if (runId !== autoRunId) return;
+          if (runId !== autoRunId) return null;
           showResultOk("translate", result.text, result.message);
+          return result;
         })
         .catch((error) => {
-          if (runId !== autoRunId) return;
+          if (runId !== autoRunId) return null;
           showResultError("translate", error instanceof Error ? error.message : String(error));
+          return null;
         }),
     );
   }
@@ -270,17 +298,19 @@ async function autoRunEnabled(text: string) {
   if (rewriteEnabled) {
     showResultLoading("rewrite");
     jobs.push(
-      runProcessStreaming("rewrite", text, false, (chunk) => {
+      runProcessStreaming("rewrite", text, shouldCopy, (chunk) => {
         if (runId !== autoRunId) return;
         showResultChunk("rewrite", chunk);
       })
         .then((result) => {
-          if (runId !== autoRunId) return;
+          if (runId !== autoRunId) return null;
           showResultOk("rewrite", result.text, result.message);
+          return result;
         })
         .catch((error) => {
-          if (runId !== autoRunId) return;
+          if (runId !== autoRunId) return null;
           showResultError("rewrite", error instanceof Error ? error.message : String(error));
+          return null;
         }),
     );
   }
@@ -299,10 +329,20 @@ async function autoRunEnabled(text: string) {
           : "Auto-rewriting…";
   }
 
-  await Promise.all(jobs);
+  const results = await Promise.all(jobs);
   if (runId !== autoRunId) return;
 
-  if (status) status.textContent = "Results ready — use Copy or Replace.";
+  const firstOk = results.find((r): r is ProcessResult => r !== null);
+  if (applyAutomation && firstOk) {
+    try {
+      const applied = await applyResultAction(firstOk);
+      if (status) status.textContent = applied;
+    } catch (error) {
+      if (status) status.textContent = error instanceof Error ? error.message : String(error);
+    }
+  } else if (status) {
+    status.textContent = "Results ready.";
+  }
   scheduleHide(untouchedHideDelay + 2_000);
 }
 
@@ -439,10 +479,6 @@ actions.forEach((button) => {
         showResultChunk(action, chunk);
       });
 
-      if (resultAction === "replace" && !isManualInput) {
-        await replaceSelection(result.text);
-      }
-
       currentText = result.text;
       if (selection && !isManualInput) {
         selection.textContent = result.text;
@@ -452,13 +488,9 @@ actions.forEach((button) => {
         manualInput.value = result.text;
       }
       showResultOk(action, result.text, result.message);
+      const applied = await applyResultAction(result);
       if (status) {
-        status.textContent =
-          resultAction === "replace" && !isManualInput
-            ? "Selected text replaced."
-            : resultAction === "copy"
-              ? "Result copied."
-              : "Result ready.";
+        status.textContent = applied;
         status.title = result.message;
       }
       button.dataset.state = "success";
@@ -475,41 +507,6 @@ actions.forEach((button) => {
       button.dataset.state = "error";
       button.disabled = false;
       setActionAvailability(true);
-    }
-  });
-});
-
-document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const kind = button.dataset.copy as "translate" | "rewrite" | undefined;
-    if (!kind) return;
-    const parts = cardParts(kind);
-    const text = parts?.text?.textContent?.trim() ?? "";
-    if (!text) return;
-    keepOpen();
-    try {
-      await navigator.clipboard.writeText(text);
-      if (status) status.textContent = `Copied ${kind} result.`;
-    } catch {
-      if (status) status.textContent = "Clipboard copy failed.";
-    }
-  });
-});
-
-document.querySelectorAll<HTMLButtonElement>("[data-replace]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const kind = button.dataset.replace as "translate" | "rewrite" | undefined;
-    if (!kind) return;
-    const parts = cardParts(kind);
-    const text = parts?.text?.textContent?.trim() ?? "";
-    if (!text) return;
-    keepOpen();
-    try {
-      await replaceSelection(text);
-      if (status) status.textContent = `Replaced selected text with ${kind} result.`;
-      scheduleHide(interactedLeaveDelay);
-    } catch (error) {
-      if (status) status.textContent = error instanceof Error ? error.message : String(error);
     }
   });
 });
