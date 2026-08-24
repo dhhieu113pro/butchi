@@ -65,10 +65,12 @@ pub fn open_capture_window(
         let _ = existing.close();
     }
 
+    // Distinctive titles that include "Butchi" so FindWindow is reliable on
+    // noisy CI runners and never collides with unrelated windows.
     let (label, title, width, height) = if mode.is_settings() {
         ("settings", "Butchi — Settings", 920.0, 720.0)
     } else {
-        ("popover", "Text actions", 420.0, 520.0)
+        ("popover", "Butchi — Text actions", 420.0, 520.0)
     };
 
     let window = WebviewWindowBuilder::new(app, label, capture_url(mode))
@@ -84,8 +86,10 @@ pub fn open_capture_window(
         .build()?;
 
     let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.set_title(title);
     let _ = window.show();
     let _ = window.set_focus();
+    let _ = window.set_always_on_top(true);
     Ok(())
 }
 
