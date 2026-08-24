@@ -57,15 +57,13 @@ jobs:
           "CC=$clang" >> $env:GITHUB_ENV; "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV; "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV; "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
-          # ggml OpenMP produces unresolved __kmpc_* symbols under clang-cl on ARM64;
-          # disable it for CI (CPU path still works without OpenMP).
           "CMAKE_ARGS=-DGGML_OPENMP=OFF" >> $env:GITHUB_ENV
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "clippy,llvm-tools-preview" }
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-vulkan-v1-rs-llama-msvc-bindgen
+          shared-key: ${{ matrix.arch }}-vulkan-v2-rs-llama-msvc-bindgen
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm }
       - run: npm ci
@@ -75,13 +73,13 @@ jobs:
         run: npm run build
       - name: Cargo check (llm+vulkan)
         working-directory: src-tauri
-        run: cargo check --all-targets
+        run: cargo check --all-targets --features vulkan
       - name: Cargo test (llm+vulkan, all targets)
         working-directory: src-tauri
-        run: cargo test --all-targets -- --nocapture
+        run: cargo test --all-targets --features vulkan -- --nocapture
       - name: Cargo clippy (llm+vulkan)
         working-directory: src-tauri
-        run: cargo clippy --all-targets --no-deps -- -D warnings
+        run: cargo clippy --all-targets --features vulkan --no-deps -- -D warnings
       - name: Install cargo-llvm-cov
         if: matrix.arch == 'windows-x64'
         uses: taiki-e/install-action@cargo-llvm-cov
