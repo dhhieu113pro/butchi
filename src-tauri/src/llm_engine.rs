@@ -16,6 +16,9 @@ use crate::{
 
 static ENGINE: Lazy<Mutex<Option<LoadedModel>>> = Lazy::new(|| Mutex::new(None));
 
+/// Minimum llama.cpp context size (prompt + generation headroom).
+const MIN_CONTEXT_SIZE: u32 = 10_000;
+
 struct LoadedModel {
     path: PathBuf,
     engine: LlamaEngine,
@@ -30,7 +33,8 @@ fn build_prompt(system: &str, user: &str) -> String {
 }
 
 fn context_size(cfg: &AppConfig) -> u32 {
-    cfg.max_tokens.saturating_add(2048).max(4096)
+    // Always at least 10K; grow further if max_tokens needs more headroom.
+    cfg.max_tokens.saturating_add(2048).max(MIN_CONTEXT_SIZE)
 }
 
 fn load_engine(path: &Path, gpu_layers: u32, ctx_size: u32) -> Result<LlamaEngine, String> {
@@ -303,18 +307,18 @@ mod tests {
     }
 
     #[test]
-    fn context_size_leaves_room_for_prompt_and_output() {
+    fn context_size_is_at_least_10k() {
         let cfg = AppConfig {
             max_tokens: 256,
             ..AppConfig::default()
         };
-        assert_eq!(context_size(&cfg), 4096);
+        assert_eq!(context_size(&cfg), 10_000);
 
         let cfg = AppConfig {
-            max_tokens: 4096,
+            max_tokens: 9000,
             ..AppConfig::default()
         };
-        assert_eq!(context_size(&cfg), 6144);
+        assert_eq!(context_size(&cfg), 11_048);
     }
 
     #[test]
