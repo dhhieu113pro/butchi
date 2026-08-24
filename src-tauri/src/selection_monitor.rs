@@ -26,6 +26,7 @@ mod windows {
     const CAPTURE_DELAY: Duration = Duration::from_millis(120);
     const EVENT_QUEUE_SIZE: usize = 64;
     const KEY_DOWN: u16 = 0x8000;
+    const OWN_WINDOW_LABELS: &[&str] = &["popover", "settings"];
 
     static EVENT_SENDER: OnceLock<mpsc::SyncSender<MouseEvent>> = OnceLock::new();
 
@@ -200,12 +201,18 @@ mod windows {
                 continue;
             };
 
-            if point_is_inside_popover(&app, candidate.point) {
+            // Never act on text selected inside Butchi's own UI (Settings, popover).
+            if is_own_window_hwnd(&app, candidate.source_window)
+                || point_is_inside_own_window(&app, candidate.point)
+            {
                 continue;
             }
 
             let foreground = unsafe { GetForegroundWindow() } as usize;
             if foreground == 0 || foreground != candidate.source_window {
+                continue;
+            }
+            if is_own_window_hwnd(&app, foreground) {
                 continue;
             }
 
@@ -218,25 +225,49 @@ mod windows {
         }
     }
 
-    fn point_is_inside_popover(app: &AppHandle, point: Point) -> bool {
-        let Some(window) = app.get_webview_window("popover") else {
-            return false;
-        };
-        if !window.is_visible().unwrap_or(false) {
+    fn own_window_hwnds(app: &AppHandle) -> Vec<usize> {
+        let mut handles = Vec::new();
+        for label in OWN_WINDOW_LABELS {
+            let Some(window) = app.get_webview_window(label) else {
+                continue;
+            };
+            if let Ok(hwnd) = window.hwnd() {
+                handles.push(hwnd.0 as usize);
+            }
+        }
+        handles
+    }
+
+    fn is_own_window_hwnd(app: &AppHandle, hwnd: usize) -> bool {
+        if hwnd == 0 {
             return false;
         }
+        own_window_hwnds(app).into_iter().any(|own| own == hwnd)
+    }
 
-        let Ok(position) = window.outer_position() else {
-            return false;
-        };
-        let Ok(size) = window.outer_size() else {
-            return false;
-        };
-
-        point.x >= position.x
-            && point.y >= position.y
-            && point.x < position.x + size.width as i32
-            && point.y < position.y + size.height as i32
+    fn point_is_inside_own_window(app: &AppHandle, point: Point) -> bool {
+        for label in OWN_WINDOW_LABELS {
+            let Some(window) = app.get_webview_window(label) else {
+                continue;
+            };
+            if !window.is_visible().unwrap_or(false) {
+                continue;
+            }
+            let Ok(position) = window.outer_position() else {
+                continue;
+            };
+            let Ok(size) = window.outer_size() else {
+                continue;
+            };
+            if point.x >= position.x
+                && point.y >= position.y
+                && point.x < position.x + size.width as i32
+                && point.y < position.y + size.height as i32
+            {
+                return true;
+            }
+        }
+        false
     }
 
     fn run_hook(ready: mpsc::SyncSender<io::Result<()>>) {
