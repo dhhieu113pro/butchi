@@ -12,7 +12,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [features]
-default = ["llm"]
+# Vulkan is default so Settings → Auto can offload layers to GPU when available.
+# Builds fall back to CPU at runtime if no Vulkan device works.
+# Use --no-default-features --features llm for a pure CPU binary (no Vulkan SDK needed).
+default = ["llm", "vulkan"]
 llm = ["dep:rs-llama", "dep:hf-hub"]
 cuda = ["llm", "rs-llama/cuda"]
 vulkan = ["llm", "rs-llama/vulkan"]
