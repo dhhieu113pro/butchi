@@ -48,7 +48,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v12-rs-llama-openmp-fix
+          shared-key: ${{ matrix.arch }}-cpu-v13-rs-llama-msvc-bindgen
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm }
       - run: npm ci
