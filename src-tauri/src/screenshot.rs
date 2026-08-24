@@ -40,39 +40,52 @@ pub fn from_env() -> Option<ScreenshotMode> {
         .and_then(ScreenshotMode::parse)
 }
 
+fn capture_url(mode: ScreenshotMode) -> WebviewUrl {
+    let path = if mode.is_settings() {
+        format!("settings.html?screenshot={}", mode.as_str())
+    } else {
+        format!("index.html?screenshot={}", mode.as_str())
+    };
+    WebviewUrl::App(path.into())
+}
+
+/// Open a dedicated, visible, decorated window for CI screenshot capture.
+/// Query-string mode is embedded in the initial URL so the frontend can seed
+/// deterministic demo content without racing `window.eval`.
 pub fn open_capture_window(
     app: &tauri::AppHandle,
     mode: ScreenshotMode,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if mode.is_settings() {
-        let window = WebviewWindowBuilder::new(
-            app,
-            "settings",
-            WebviewUrl::App("settings.html".into()),
-        )
-        .title("Butchi — Settings")
-        .inner_size(920.0, 720.0)
-        .resizable(false)
-        .center()
-        .build()?;
-        window.eval(&format!(
-            "window.location.replace('/settings.html?screenshot={}');",
-            mode.as_str()
-        ))?;
-        window.set_focus()?;
-        return Ok(());
+    // Drop the default invisible popover from tauri.conf so it cannot steal
+    // the title or interfere with FindWindow-based capture.
+    if let Some(existing) = app.get_webview_window("popover") {
+        let _ = existing.close();
+    }
+    if let Some(existing) = app.get_webview_window("settings") {
+        let _ = existing.close();
     }
 
-    let window = app
-        .get_webview_window("popover")
-        .ok_or("popover window is unavailable")?;
-    window.set_size(LogicalSize::new(420.0, 520.0))?;
-    window.eval(&format!(
-        "window.location.replace('/?screenshot={}');",
-        mode.as_str()
-    ))?;
-    window.show()?;
-    window.set_focus()?;
+    let (label, title, width, height) = if mode.is_settings() {
+        ("settings", "Butchi — Settings", 920.0, 720.0)
+    } else {
+        ("popover", "Text actions", 420.0, 520.0)
+    };
+
+    let window = WebviewWindowBuilder::new(app, label, capture_url(mode))
+        .title(title)
+        .inner_size(width, height)
+        .resizable(false)
+        // Decorated + visible + taskbar so FindWindow/GetWindowRect are reliable on CI.
+        .decorations(true)
+        .visible(true)
+        .skip_taskbar(false)
+        .always_on_top(true)
+        .center()
+        .build()?;
+
+    let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 
@@ -82,10 +95,22 @@ mod tests {
 
     #[test]
     fn parses_all_supported_modes() {
-        assert_eq!(ScreenshotMode::parse("popover-light"), Some(ScreenshotMode::PopoverLight));
-        assert_eq!(ScreenshotMode::parse("popover-dark"), Some(ScreenshotMode::PopoverDark));
-        assert_eq!(ScreenshotMode::parse("settings-light"), Some(ScreenshotMode::SettingsLight));
-        assert_eq!(ScreenshotMode::parse("settings-dark"), Some(ScreenshotMode::SettingsDark));
+        assert_eq!(
+            ScreenshotMode::parse("popover-light"),
+            Some(ScreenshotMode::PopoverLight)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("popover-dark"),
+            Some(ScreenshotMode::PopoverDark)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("settings-light"),
+            Some(ScreenshotMode::SettingsLight)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("settings-dark"),
+            Some(ScreenshotMode::SettingsDark)
+        );
     }
 
     #[test]
