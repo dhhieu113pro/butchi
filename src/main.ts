@@ -19,7 +19,7 @@ const resultCards = {
 const currentWindow = getCurrentWindow();
 const untouchedHideDelay = 4_000;
 const interactedLeaveDelay = 3_000;
-const ISLAND_MORPH_MS = 420;
+const ISLAND_MORPH_MS = 380;
 let hideTimer: number | undefined;
 let hasInteraction = false;
 let isManualInput = false;
