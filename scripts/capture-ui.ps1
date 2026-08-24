@@ -63,21 +63,21 @@ function Get-VisibleWindowTitles {
 }
 
 function Find-WindowByTitleOrProcess {
-  param([string]$Title, [int]$Pid)
+  param([string]$Title, [int]$TargetPid)
 
   $hwnd = [ButchiWindowCapture]::FindWindow($null, $Title)
   if ($hwnd -ne [IntPtr]::Zero) { return $hwnd }
 
   # Fallback: enumerate visible windows that belong to the target process and
   # match the expected title (or any non-empty title owned by the process).
-  if ($Pid -gt 0) {
+  if ($TargetPid -gt 0) {
     $found = [IntPtr]::Zero
     $callback = [ButchiWindowCapture+EnumWindowsProc]{
       param([IntPtr]$hWnd, [IntPtr]$lParam)
       if (-not [ButchiWindowCapture]::IsWindowVisible($hWnd)) { return $true }
       $owner = 0
       [void][ButchiWindowCapture]::GetWindowThreadProcessId($hWnd, [ref]$owner)
-      if ($owner -ne $Pid) { return $true }
+      if ($owner -ne $TargetPid) { return $true }
       $sb = New-Object System.Text.StringBuilder 512
       [void][ButchiWindowCapture]::GetWindowText($hWnd, $sb, $sb.Capacity)
       $t = $sb.ToString()
@@ -107,7 +107,7 @@ while ((Get-Date) -lt $deadline -and $hwnd -eq [IntPtr]::Zero) {
     }
   }
 
-  $hwnd = Find-WindowByTitleOrProcess -Title $WindowTitle -Pid $ProcessId
+  $hwnd = Find-WindowByTitleOrProcess -Title $WindowTitle -TargetPid $ProcessId
   if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 300 }
 }
 
