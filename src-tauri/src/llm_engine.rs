@@ -1,18 +1,338 @@
-//! Butchi adapter for llama.cpp through llama-cpp-2.
-use std::{fs, num::NonZeroU32, path::{Path, PathBuf}};
-use llama_cpp_2::{context::params::LlamaContextParams,llama_backend::LlamaBackend,llama_batch::LlamaBatch,model::{params::LlamaModelParams,AddBos,LlamaChatMessage,LlamaModel},sampling::LlamaSampler};
-use once_cell::sync::Lazy; use parking_lot::Mutex; use crate::{config::{self,AppConfig},core_logic};
-static ENGINE:Lazy<Mutex<Option<LlamaEngine>>>=Lazy::new(||Mutex::new(None)); struct LlamaEngine{backend:LlamaBackend,loaded:Option<LoadedModel>} struct LoadedModel{path:PathBuf,model:LlamaModel,gpu_layers:u32}
-impl LlamaEngine{fn new()->Result<Self,String>{let backend=LlamaBackend::init().map_err(|e|format!("llama backend init: {e}"))?;Ok(Self{backend,loaded:None})} fn load(&mut self,path:&Path,gpu_layers:u32)->Result<(),String>{if self.loaded.as_ref().is_some_and(|l|l.path==path&&l.gpu_layers==gpu_layers){return Ok(());}self.loaded=None;let model=LlamaModel::load_from_file(&self.backend,path,&make_model_params(gpu_layers)).map_err(|e|format!("load GGUF model {}: {e}",path.display()))?;self.loaded=Some(LoadedModel{path:path.to_owned(),model,gpu_layers});Ok(())} #[allow(dead_code)] fn generate(&mut self,system:&str,user:&str,cfg:&AppConfig)->Result<String,String>{self.generate_streaming(system,user,cfg,|_|{})} fn generate_streaming<F>(&mut self,system:&str,user:&str,cfg:&AppConfig,mut on_piece:F)->Result<String,String>where F:FnMut(&str){let loaded=self.loaded.as_ref().ok_or_else(||"model is not loaded".to_string())?;let prompt=chat_prompt(&loaded.model,system,user)?;let tokens=loaded.model.str_to_token(&prompt,AddBos::Always).map_err(|e|format!("tokenize prompt: {e}"))?;if tokens.is_empty(){return Err("prompt produced no tokens".into());}let max=cfg.max_tokens as usize;let required=tokens.len().checked_add(max).ok_or_else(||"requested context is too large".to_string())?;let train=loaded.model.n_ctx_train() as usize;if required>train{return Err(format!("prompt and output need {required} tokens, but the model supports {train}"));}let n=NonZeroU32::new(required.max(512) as u32).ok_or_else(||"context size must be greater than zero".to_string())?;let mut ctx=loaded.model.new_context(&self.backend,LlamaContextParams::default().with_n_ctx(Some(n))).map_err(|e|format!("create llama context: {e}"))?;let mut batch=LlamaBatch::new(tokens.len().max(1),1);let last=tokens.len()-1;for(i,t)in tokens.iter().copied().enumerate(){batch.add(t,i as i32,&[0],i==last).map_err(|e|format!("prepare prompt batch: {e}"))?;}ctx.decode(&mut batch).map_err(|e|format!("decode prompt: {e}"))?;let temp=cfg.temperature.max(0.0);let mut sampler=if temp==0.0{LlamaSampler::greedy()}else{LlamaSampler::chain_simple([LlamaSampler::temp(temp),LlamaSampler::dist(42)])};let mut decoder=encoding_rs::UTF_8.new_decoder();let mut output=String::new();for pos in (tokens.len() as i32..).take(max){let token=sampler.sample(&ctx,batch.n_tokens()-1);sampler.accept(token);if loaded.model.is_eog_token(token){break;}let piece=loaded.model.token_to_piece(token,&mut decoder,true,None).map_err(|e|format!("decode output token: {e}"))?;output.push_str(&piece);if !piece.is_empty(){on_piece(&piece);}batch.clear();batch.add(token,pos,&[0],true).map_err(|e|format!("prepare output batch: {e}"))?;ctx.decode(&mut batch).map_err(|e|format!("decode output token: {e}"))?;}Ok(output.trim().to_owned())}}
-fn chat_prompt(model:&LlamaModel,system:&str,user:&str)->Result<String,String>{let messages=[LlamaChatMessage::new("system".into(),system.into()).map_err(|e|format!("invalid system prompt: {e}"))?,LlamaChatMessage::new("user".into(),user.into()).map_err(|e|format!("invalid user prompt: {e}"))?];match model.chat_template(None){Ok(t)=>model.apply_chat_template(&t,&messages,true).map_err(|e|format!("apply model chat template: {e}")),Err(_)=>Ok(format!("System: {system}\n\nUser: {user}\n\nAssistant:"))}}
-fn compiled_gpu_backend()->Option<&'static str>{#[cfg(feature="cuda")]{return Some("cuda");}#[cfg(all(feature="vulkan",not(feature="cuda")))]{return Some("vulkan");}#[cfg(not(any(feature="cuda",feature="vulkan")))]{None}}
-fn preferred_gpu_layers(cfg:&AppConfig)->Result<u32,String>{core_logic::preferred_gpu_layers(&cfg.backend_preference,cfg.gpu_layers,compiled_gpu_backend().is_some())}
-fn make_model_params(gpu_layers:u32)->LlamaModelParams{let params=LlamaModelParams::default();#[cfg(any(feature="cuda",feature="vulkan"))]if gpu_layers>0{return params.with_n_gpu_layers(gpu_layers);}#[cfg(not(any(feature="cuda",feature="vulkan")))]let _=gpu_layers;params}
-pub fn model_status(cfg:&AppConfig)->ModelStatus{let path=config::model_local_path(&cfg.model_repo,&cfg.model_file).ok();let downloaded=path.as_ref().is_some_and(|p|p.is_file());let guard=ENGINE.lock();let loaded_model=guard.as_ref().and_then(|e|e.loaded.as_ref()).filter(|m|path.as_ref()==Some(&m.path));let compiled=compiled_gpu_backend().unwrap_or("cpu");let backend=loaded_model.map(|m|if m.gpu_layers>0{compiled}else{"cpu"}).unwrap_or_else(||match config::normalize_backend_preference(&cfg.backend_preference){"cpu"=>"cpu","gpu"|"auto" if compiled_gpu_backend().is_some()=>compiled,_=>"cpu"});ModelStatus{downloaded,loaded:loaded_model.is_some(),local_path:path.and_then(|p|p.to_str().map(str::to_owned)),repo:cfg.model_repo.clone(),file:cfg.model_file.clone(),gpu_feature:compiled.into(),backend:backend.into(),devices:detect_devices(),gpu_offload_available:compiled_gpu_backend().is_some(),max_devices:llama_cpp_2::max_devices() as u32}}
-pub fn unload(){if let Some(e)=ENGINE.lock().as_mut(){e.loaded=None;}}
-pub fn download_model(repo:&str,file:&str)->Result<PathBuf,String>{let dest=config::model_local_path(repo,file)?;if dest.is_file(){return Ok(dest);}config::ensure_parent(&dest)?;let api=hf_hub::api::sync::Api::new().map_err(|e|format!("create Hugging Face client: {e}"))?;let cached=api.model(repo.to_owned()).get(file).map_err(|e|format!("download {repo}/{file}: {e}"))?;let temp=dest.with_extension("gguf.download");fs::copy(&cached,&temp).map_err(|e|format!("copy downloaded model: {e}"))?;fs::rename(&temp,&dest).map_err(|e|format!("finish model download: {e}"))?;Ok(dest)}
-pub fn ensure_loaded(cfg:&AppConfig)->Result<(),String>{let path=config::model_local_path(&cfg.model_repo,&cfg.model_file)?;if !path.is_file(){return Err(format!("model is not downloaded: {}/{}",cfg.model_repo,cfg.model_file));}let desired=preferred_gpu_layers(cfg)?;let mut guard=ENGINE.lock();if guard.is_none(){*guard=Some(LlamaEngine::new()?);}let engine=guard.as_mut().expect("engine was initialized");match engine.load(&path,desired){Ok(())=>Ok(()),Err(gpu_error)if desired>0&&config::normalize_backend_preference(&cfg.backend_preference)=="auto"=>engine.load(&path,0).map_err(|cpu_error|format!("GPU load failed ({gpu_error}); CPU fallback also failed ({cpu_error})")),Err(e)=>Err(e)}}
-#[allow(dead_code)] pub fn generate(system:&str,user:&str,cfg:&AppConfig)->Result<String,String>{ensure_loaded(cfg)?;ENGINE.lock().as_mut().expect("engine was initialized").generate(system,user,cfg)} pub fn generate_streaming<F>(system:&str,user:&str,cfg:&AppConfig,on_piece:F)->Result<String,String>where F:FnMut(&str){ensure_loaded(cfg)?;ENGINE.lock().as_mut().expect("engine was initialized").generate_streaming(system,user,cfg,on_piece)}
-fn detect_devices()->Vec<BackendDevice>{let mut devices=vec![BackendDevice{id:"cpu".into(),name:"CPU".into(),backend:"cpu".into(),description:"CPU inference through llama.cpp".into()}];if let Some(b)=compiled_gpu_backend(){devices.insert(0,BackendDevice{id:b.into(),name:if b=="cuda"{"NVIDIA CUDA"}else{"Vulkan GPU"}.into(),backend:b.into(),description:format!("{b} backend compiled in; Auto falls back to CPU if GPU model loading fails")});}devices}
-#[derive(serde::Serialize,Clone)]#[serde(rename_all="camelCase")]pub struct BackendDevice{pub id:String,pub name:String,pub backend:String,pub description:String} #[derive(serde::Serialize,Clone)]#[serde(rename_all="camelCase")]pub struct ModelStatus{pub downloaded:bool,pub loaded:bool,pub local_path:Option<String>,pub repo:String,pub file:String,pub gpu_feature:String,pub backend:String,pub devices:Vec<BackendDevice>,pub gpu_offload_available:bool,pub max_devices:u32}
-#[cfg(test)]mod tests{use super::*;#[test]fn backend_policy_matches_compiled_features(){let cfg=AppConfig{backend_preference:"cpu".into(),..AppConfig::default()};assert_eq!(preferred_gpu_layers(&cfg).unwrap(),0);let cfg=AppConfig{backend_preference:"auto".into(),..AppConfig::default()};assert_eq!(preferred_gpu_layers(&cfg).unwrap()>0,compiled_gpu_backend().is_some());let cfg=AppConfig{backend_preference:"gpu".into(),..AppConfig::default()};assert_eq!(preferred_gpu_layers(&cfg).is_ok(),compiled_gpu_backend().is_some());}#[test]fn missing_model_is_rejected_without_inference(){let cfg=AppConfig{model_repo:"butchi-test/nonexistent".into(),model_file:"definitely-missing.gguf".into(),..AppConfig::default()};assert!(ensure_loaded(&cfg).unwrap_err().contains("model is not downloaded"));}#[test]fn device_list_always_contains_cpu(){assert!(detect_devices().iter().any(|d|d.backend=="cpu"));}}
+//! Butchi adapter for llama.cpp through rs-llama.
+
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use rs_llama::{EngineConfig as RsEngineConfig, GenerateRequest, LlamaEngine};
+
+use crate::{
+    config::{self, AppConfig},
+    core_logic,
+};
+
+static ENGINE: Lazy<Mutex<Option<LoadedModel>>> = Lazy::new(|| Mutex::new(None));
+
+struct LoadedModel {
+    path: PathBuf,
+    engine: LlamaEngine,
+    gpu_layers: u32,
+    ctx_size: u32,
+}
+
+fn build_prompt(system: &str, user: &str) -> String {
+    format!(
+        "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n"
+    )
+}
+
+fn context_size(cfg: &AppConfig) -> u32 {
+    cfg.max_tokens.saturating_add(2048).max(4096)
+}
+
+fn load_engine(path: &Path, gpu_layers: u32, ctx_size: u32) -> Result<LlamaEngine, String> {
+    LlamaEngine::load(
+        RsEngineConfig::new(path)
+            .with_ctx_size(ctx_size)
+            .with_gpu_layers(gpu_layers),
+    )
+    .map_err(|error| format!("load GGUF model {}: {error}", path.display()))
+}
+
+fn load_model(path: &Path, gpu_layers: u32, ctx_size: u32) -> Result<(), String> {
+    let mut guard = ENGINE.lock();
+    if guard.as_ref().is_some_and(|loaded| {
+        loaded.path == path && loaded.gpu_layers == gpu_layers && loaded.ctx_size == ctx_size
+    }) {
+        return Ok(());
+    }
+
+    *guard = None;
+    let engine = load_engine(path, gpu_layers, ctx_size)?;
+    *guard = Some(LoadedModel {
+        path: path.to_owned(),
+        engine,
+        gpu_layers,
+        ctx_size,
+    });
+    Ok(())
+}
+
+fn generate_loaded<F>(
+    system: &str,
+    user: &str,
+    cfg: &AppConfig,
+    mut on_piece: F,
+) -> Result<String, String>
+where
+    F: FnMut(&str),
+{
+    let guard = ENGINE.lock();
+    let loaded = guard
+        .as_ref()
+        .ok_or_else(|| "model is not loaded".to_string())?;
+
+    let max_tokens = i32::try_from(cfg.max_tokens)
+        .map_err(|_| "max tokens is too large for the inference backend".to_string())?;
+    let mut request = GenerateRequest::new(build_prompt(system, user)).with_max_tokens(max_tokens);
+    request.temperature = cfg.temperature.max(0.0);
+    request.seed = 42;
+
+    loaded
+        .engine
+        .generate_with_callback(&request, |piece| on_piece(piece))
+        .map(|output| output.trim().to_owned())
+        .map_err(|error| format!("generate response: {error}"))
+}
+
+fn compiled_gpu_backend() -> Option<&'static str> {
+    #[cfg(feature = "cuda")]
+    {
+        return Some("cuda");
+    }
+    #[cfg(all(feature = "vulkan", not(feature = "cuda")))]
+    {
+        return Some("vulkan");
+    }
+    #[cfg(not(any(feature = "cuda", feature = "vulkan")))]
+    {
+        None
+    }
+}
+
+fn preferred_gpu_layers(cfg: &AppConfig) -> Result<u32, String> {
+    core_logic::preferred_gpu_layers(
+        &cfg.backend_preference,
+        cfg.gpu_layers,
+        compiled_gpu_backend().is_some(),
+    )
+}
+
+pub fn model_status(cfg: &AppConfig) -> ModelStatus {
+    let path = config::model_local_path(&cfg.model_repo, &cfg.model_file).ok();
+    let downloaded = path.as_ref().is_some_and(|candidate| candidate.is_file());
+    let guard = ENGINE.lock();
+    let loaded_model = guard
+        .as_ref()
+        .filter(|loaded| path.as_ref() == Some(&loaded.path));
+    let compiled = compiled_gpu_backend().unwrap_or("cpu");
+    let backend = loaded_model
+        .map(|loaded| if loaded.gpu_layers > 0 { compiled } else { "cpu" })
+        .unwrap_or_else(|| match config::normalize_backend_preference(&cfg.backend_preference) {
+            "cpu" => "cpu",
+            "gpu" | "auto" if compiled_gpu_backend().is_some() => compiled,
+            _ => "cpu",
+        });
+
+    ModelStatus {
+        downloaded,
+        loaded: loaded_model.is_some(),
+        local_path: path.and_then(|candidate| candidate.to_str().map(str::to_owned)),
+        repo: cfg.model_repo.clone(),
+        file: cfg.model_file.clone(),
+        gpu_feature: compiled.into(),
+        backend: backend.into(),
+        devices: detect_devices(),
+        gpu_offload_available: compiled_gpu_backend().is_some(),
+        max_devices: 1,
+    }
+}
+
+pub fn unload() {
+    *ENGINE.lock() = None;
+}
+
+pub fn download_model(repo: &str, file: &str) -> Result<PathBuf, String> {
+    let dest = config::model_local_path(repo, file)?;
+    if dest.is_file() {
+        return Ok(dest);
+    }
+
+    config::ensure_parent(&dest)?;
+    let api = hf_hub::api::sync::Api::new()
+        .map_err(|error| format!("create Hugging Face client: {error}"))?;
+    let cached = api
+        .model(repo.to_owned())
+        .get(file)
+        .map_err(|error| format!("download {repo}/{file}: {error}"))?;
+    let temp = dest.with_extension("gguf.download");
+    fs::copy(&cached, &temp).map_err(|error| format!("copy downloaded model: {error}"))?;
+    fs::rename(&temp, &dest).map_err(|error| format!("finish model download: {error}"))?;
+    Ok(dest)
+}
+
+pub fn ensure_loaded(cfg: &AppConfig) -> Result<(), String> {
+    let path = config::model_local_path(&cfg.model_repo, &cfg.model_file)?;
+    if !path.is_file() {
+        return Err(format!(
+            "model is not downloaded: {}/{}",
+            cfg.model_repo, cfg.model_file
+        ));
+    }
+
+    let desired_gpu_layers = preferred_gpu_layers(cfg)?;
+    let ctx_size = context_size(cfg);
+    match load_model(&path, desired_gpu_layers, ctx_size) {
+        Ok(()) => Ok(()),
+        Err(gpu_error)
+            if desired_gpu_layers > 0
+                && config::normalize_backend_preference(&cfg.backend_preference) == "auto" =>
+        {
+            load_model(&path, 0, ctx_size).map_err(|cpu_error| {
+                format!(
+                    "GPU load failed ({gpu_error}); CPU fallback also failed ({cpu_error})"
+                )
+            })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[allow(dead_code)]
+pub fn generate(system: &str, user: &str, cfg: &AppConfig) -> Result<String, String> {
+    ensure_loaded(cfg)?;
+    generate_loaded(system, user, cfg, |_| {})
+}
+
+pub fn generate_streaming<F>(
+    system: &str,
+    user: &str,
+    cfg: &AppConfig,
+    on_piece: F,
+) -> Result<String, String>
+where
+    F: FnMut(&str),
+{
+    ensure_loaded(cfg)?;
+    generate_loaded(system, user, cfg, on_piece)
+}
+
+fn detect_devices() -> Vec<BackendDevice> {
+    let mut devices = vec![BackendDevice {
+        id: "cpu".into(),
+        name: "CPU".into(),
+        backend: "cpu".into(),
+        description: "CPU inference through rs-llama / llama.cpp".into(),
+    }];
+
+    if let Some(backend) = compiled_gpu_backend() {
+        devices.insert(
+            0,
+            BackendDevice {
+                id: backend.into(),
+                name: if backend == "cuda" {
+                    "NVIDIA CUDA"
+                } else {
+                    "Vulkan GPU"
+                }
+                .into(),
+                backend: backend.into(),
+                description: format!(
+                    "{backend} backend compiled in; Auto falls back to CPU if GPU model loading fails"
+                ),
+            },
+        );
+    }
+    devices
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BackendDevice {
+    pub id: String,
+    pub name: String,
+    pub backend: String,
+    pub description: String,
+}
+
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelStatus {
+    pub downloaded: bool,
+    pub loaded: bool,
+    pub local_path: Option<String>,
+    pub repo: String,
+    pub file: String,
+    pub gpu_feature: String,
+    pub backend: String,
+    pub devices: Vec<BackendDevice>,
+    pub gpu_offload_available: bool,
+    pub max_devices: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backend_policy_matches_compiled_features() {
+        let cfg = AppConfig {
+            backend_preference: "cpu".into(),
+            ..AppConfig::default()
+        };
+        assert_eq!(preferred_gpu_layers(&cfg).unwrap(), 0);
+
+        let cfg = AppConfig {
+            backend_preference: "auto".into(),
+            ..AppConfig::default()
+        };
+        assert_eq!(
+            preferred_gpu_layers(&cfg).unwrap() > 0,
+            compiled_gpu_backend().is_some()
+        );
+
+        let cfg = AppConfig {
+            backend_preference: "gpu".into(),
+            ..AppConfig::default()
+        };
+        assert_eq!(
+            preferred_gpu_layers(&cfg).is_ok(),
+            compiled_gpu_backend().is_some()
+        );
+    }
+
+    #[test]
+    fn custom_system_and_user_prompts_are_preserved() {
+        let prompt = build_prompt("translate exactly", "Hello");
+        assert!(prompt.contains("<|im_start|>system\ntranslate exactly<|im_end|>"));
+        assert!(prompt.contains("<|im_start|>user\nHello<|im_end|>"));
+        assert!(prompt.ends_with("<|im_start|>assistant\n"));
+    }
+
+    #[test]
+    fn context_size_leaves_room_for_prompt_and_output() {
+        let cfg = AppConfig {
+            max_tokens: 256,
+            ..AppConfig::default()
+        };
+        assert_eq!(context_size(&cfg), 4096);
+
+        let cfg = AppConfig {
+            max_tokens: 4096,
+            ..AppConfig::default()
+        };
+        assert_eq!(context_size(&cfg), 6144);
+    }
+
+    #[test]
+    fn missing_model_is_rejected_without_inference() {
+        let cfg = AppConfig {
+            model_repo: "butchi-test/nonexistent".into(),
+            model_file: "definitely-missing.gguf".into(),
+            ..AppConfig::default()
+        };
+        assert!(
+            ensure_loaded(&cfg)
+                .unwrap_err()
+                .contains("model is not downloaded")
+        );
+    }
+
+    #[test]
+    fn device_list_always_contains_cpu() {
+        assert!(detect_devices().iter().any(|device| device.backend == "cpu"));
+    }
+}
