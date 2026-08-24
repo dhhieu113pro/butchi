@@ -88,11 +88,10 @@ pub fn open_capture_window(
         )
     };
 
-    // Idempotent: if a previous capture window exists (shouldn't in CI), reuse it.
+    // Idempotent reuse (unlikely in CI one-shot processes).
     if let Some(window) = app.get_webview_window(label) {
         let _ = window.set_title(title);
         let _ = window.set_size(LogicalSize::new(width, height));
-        let _ = window.navigate(capture_url(mode));
         let _ = window.show();
         let _ = window.set_focus();
         let _ = window.set_always_on_top(true);
