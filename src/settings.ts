@@ -182,7 +182,7 @@ function renderStatus(status: ModelStatus): void {
   renderBackend(status);
   if (gettingStartedCard) gettingStartedCard.hidden = status.downloaded;
   if (!modelStatus) return;
-  const state = status.loaded ? "loaded in memory" : status.downloaded ? "downloaded (not loaded)" : "not downloaded — internet is only needed for this one-time model download";
+  const state = status.loaded ? "loaded in memory" : status.downloaded ? "downloaded (loads automatically on first Translate/Rewrite)" : "not downloaded — internet is only needed for this one-time model download";
   modelStatus.textContent = `${status.file} — ${state}. Backend: ${status.backend}.${status.localPath ? ` Path: ${status.localPath}` : ""}`;
 }
 async function refreshStatus(): Promise<void> { renderStatus(await invoke<ModelStatus>("get_model_status")); }
@@ -263,10 +263,24 @@ async function init(): Promise<void> {
 downloadBtn?.addEventListener("click", async () => {
   const model = selectedModel();
   if (!model || !downloadBtn) return;
-  downloadBtn.disabled = true; downloadBtn.textContent = "Downloading…"; showSaveStatus("Downloading the model from Hugging Face. Selected text is not uploaded.");
-  try { renderStatus(await invoke<ModelStatus>("download_model", { repo: model.repo, file: model.file })); showSaveStatus("Model downloaded. Click Load model to make Butchi ready."); }
-  catch (error) { showSaveStatus(String(error)); }
-  finally { downloadBtn.disabled = false; downloadBtn.textContent = "Download"; }
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = "Downloading…";
+  showSaveStatus("Downloading from Hugging Face (UI stays responsive). Model will auto-load when finished.");
+  try {
+    const status = await invoke<ModelStatus>("download_model", { repo: model.repo, file: model.file });
+    renderStatus(status);
+    if (status.loaded) {
+      showSaveStatus(`Ready. Model downloaded and loaded with ${status.backend}.`, true);
+    } else {
+      showSaveStatus("Model downloaded. It will load automatically on first Translate/Rewrite (or click Load model).", true);
+    }
+  } catch (error) {
+    showSaveStatus(String(error));
+    try { await refreshStatus(); } catch { /* ignore */ }
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = "Download";
+  }
 });
 
 loadBtn?.addEventListener("click", async () => {
