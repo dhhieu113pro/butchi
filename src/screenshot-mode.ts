@@ -70,6 +70,13 @@ if (mode) {
   forceTheme(mode.endsWith("dark"));
   document.documentElement.dataset.screenshot = mode;
 
+  // Keep the document title aligned with the native window title used by CI FindWindow.
+  if (mode.startsWith("popover-")) {
+    document.title = "Butchi — Text actions";
+  } else if (mode.startsWith("settings-")) {
+    document.title = "Butchi — Settings";
+  }
+
   const run = (): void => {
     if (mode.startsWith("popover-")) seedPopover();
     if (mode.startsWith("settings-")) {
