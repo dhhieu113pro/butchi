@@ -14,7 +14,7 @@ env:
   CMAKE_GENERATOR: Ninja
 jobs:
   test:
-    name: Test (${{ matrix.arch }}, llm)
+    name: Test (${{ matrix.arch }}, llm+vulkan)
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -27,6 +27,23 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with: { arch: "${{ matrix.msvc_arch }}" }
       - uses: lukka/get-cmake@latest
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          $version = "1.3.296.0"
+          $installer = "$env:RUNNER_TEMP\VulkanSDK-Installer.exe"
+          $url = "https://sdk.lunarg.com/sdk/download/$version/windows/VulkanSDK-$version-Installer.exe"
+          Write-Host "Downloading Vulkan SDK $version…"
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
+          $sdkRoot = "C:\VulkanSDK\$version"
+          if (-not (Test-Path $sdkRoot)) {
+            $sdkRoot = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $sdkRoot) { throw "Vulkan SDK install path not found" }
+          "VULKAN_SDK=$sdkRoot" >> $env:GITHUB_ENV
+          "PATH=$sdkRoot\Bin;$env:PATH" >> $env:GITHUB_ENV
+          Write-Host "VULKAN_SDK=$sdkRoot"
       - name: Configure clang-cl for ARM64 llama.cpp
         if: matrix.arch == 'windows-arm64'
         shell: pwsh
@@ -48,7 +65,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v13-rs-llama-msvc-bindgen
+          shared-key: ${{ matrix.arch }}-vulkan-v1-rs-llama-msvc-bindgen
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm }
       - run: npm ci
@@ -56,13 +73,13 @@ jobs:
         run: npx tsc --noEmit
       - name: Build frontend
         run: npm run build
-      - name: Cargo check (llm)
+      - name: Cargo check (llm+vulkan)
         working-directory: src-tauri
         run: cargo check --all-targets
-      - name: Cargo test (llm, all targets)
+      - name: Cargo test (llm+vulkan, all targets)
         working-directory: src-tauri
         run: cargo test --all-targets -- --nocapture
-      - name: Cargo clippy (llm)
+      - name: Cargo clippy (llm+vulkan)
         working-directory: src-tauri
         run: cargo clippy --all-targets --no-deps -- -D warnings
       - name: Install cargo-llvm-cov
@@ -71,7 +88,7 @@ jobs:
       - name: Measure Rust coverage
         if: matrix.arch == 'windows-x64'
         working-directory: src-tauri
-        run: cargo llvm-cov --all-targets --no-default-features --json --output-path coverage.json
+        run: cargo llvm-cov --all-targets --no-default-features --features llm --json --output-path coverage.json
       - name: Enforce 100% deterministic core coverage and report overall
         if: matrix.arch == 'windows-x64'
         working-directory: src-tauri
