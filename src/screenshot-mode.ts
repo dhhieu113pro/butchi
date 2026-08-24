@@ -1,5 +1,8 @@
 const mode = new URLSearchParams(window.location.search).get("screenshot");
 
+/** True when the real app is running under BUTCHI_SCREENSHOT_MODE / ?screenshot=. */
+export const isScreenshotMode = Boolean(mode);
+
 function forceTheme(dark: boolean): void {
   const theme = dark ? "dark" : "light";
   document.documentElement.dataset.theme = theme;
@@ -34,7 +37,9 @@ function seedPopover(): void {
 
   if (favorites) {
     favorites.hidden = false;
-    favorites.innerHTML = '<button type="button" class="language-target" aria-pressed="true">Vietnamese</button><button type="button" class="language-target" aria-pressed="false">English</button>';
+    favorites.innerHTML =
+      '<button type="button" class="language-target" aria-pressed="true">Vietnamese</button>' +
+      '<button type="button" class="language-target" aria-pressed="false">English</button>';
   }
 
   if (status) status.textContent = "Results ready — use Copy or Replace.";
@@ -63,11 +68,21 @@ function seedSettings(): void {
 
 if (mode) {
   forceTheme(mode.endsWith("dark"));
-  window.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.dataset.screenshot = mode;
+
+  const run = (): void => {
     if (mode.startsWith("popover-")) seedPopover();
     if (mode.startsWith("settings-")) {
       seedSettings();
+      // Settings binds async config; re-seed shortly after load.
       window.setTimeout(seedSettings, 500);
+      window.setTimeout(seedSettings, 1200);
     }
-  });
+  };
+
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", run);
+  } else {
+    run();
+  }
 }
