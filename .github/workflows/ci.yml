@@ -40,12 +40,15 @@ jobs:
           "CC=$clang" >> $env:GITHUB_ENV; "CXX=$clang" >> $env:GITHUB_ENV
           "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV; "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
           "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV; "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
+          # ggml OpenMP produces unresolved __kmpc_* symbols under clang-cl on ARM64;
+          # disable it for CI (CPU path still works without OpenMP).
+          "CMAKE_ARGS=-DGGML_OPENMP=OFF" >> $env:GITHUB_ENV
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "clippy,llvm-tools-preview" }
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-cpu-v10-full-tests
+          shared-key: ${{ matrix.arch }}-cpu-v11-no-openmp
       - uses: actions/setup-node@v4
         with: { node-version: "22", cache: npm }
       - run: npm ci
