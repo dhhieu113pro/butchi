@@ -1,4 +1,4 @@
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScreenshotMode {
@@ -28,33 +28,68 @@ impl ScreenshotMode {
         }
     }
 
-    fn is_settings(self) -> bool {
+    pub fn is_settings(self) -> bool {
         matches!(self, Self::SettingsLight | Self::SettingsDark)
     }
 }
 
-pub fn parse_screenshot_mode() -> Option<ScreenshotMode> {
+pub fn from_env() -> Option<ScreenshotMode> {
     std::env::var("BUTCHI_SCREENSHOT_MODE")
         .ok()
         .as_deref()
         .and_then(ScreenshotMode::parse)
 }
 
-pub fn open_capture_window(app: &tauri::AppHandle, mode: ScreenshotMode) -> Result<(), String> {
-    if mode.is_settings() {
-        WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-            .title("Butchi — Settings")
-            .inner_size(920.0, 760.0)
-            .resizable(false)
-            .center()
-            .build()
-            .map_err(|e| format!("open screenshot settings window: {e}"))?;
-    } else if let Some(window) = app.get_webview_window("popover") {
-        let _ = window.set_size(tauri::LogicalSize::new(380.0, 420.0));
-        let _ = window.center();
-        let _ = window.show();
-        let _ = window.set_focus();
+fn capture_url(mode: ScreenshotMode) -> WebviewUrl {
+    let path = if mode.is_settings() {
+        format!("settings.html?screenshot={}", mode.as_str())
+    } else {
+        format!("index.html?screenshot={}", mode.as_str())
+    };
+    WebviewUrl::App(path.into())
+}
+
+/// Open a dedicated, visible, decorated window for CI screenshot capture.
+/// Query-string mode is embedded in the initial URL so the frontend can seed
+/// deterministic demo content without racing `window.eval`.
+pub fn open_capture_window(
+    app: &tauri::AppHandle,
+    mode: ScreenshotMode,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Drop the default invisible popover from tauri.conf so it cannot steal
+    // the title or interfere with FindWindow-based capture.
+    if let Some(existing) = app.get_webview_window("popover") {
+        let _ = existing.close();
     }
+    if let Some(existing) = app.get_webview_window("settings") {
+        let _ = existing.close();
+    }
+
+    // Distinctive titles that include "Butchi" so FindWindow is reliable on
+    // noisy CI runners and never collides with unrelated windows.
+    let (label, title, width, height) = if mode.is_settings() {
+        ("settings", "Butchi — Settings", 920.0, 720.0)
+    } else {
+        ("popover", "Butchi — Text actions", 420.0, 520.0)
+    };
+
+    let window = WebviewWindowBuilder::new(app, label, capture_url(mode))
+        .title(title)
+        .inner_size(width, height)
+        .resizable(false)
+        // Decorated + visible + taskbar so FindWindow/GetWindowRect are reliable on CI.
+        .decorations(true)
+        .visible(true)
+        .skip_taskbar(false)
+        .always_on_top(true)
+        .center()
+        .build()?;
+
+    let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.set_title(title);
+    let _ = window.show();
+    let _ = window.set_focus();
+    let _ = window.set_always_on_top(true);
     Ok(())
 }
 
@@ -63,16 +98,36 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parses_supported_modes() {
-        assert_eq!(ScreenshotMode::parse("popover-light"), Some(ScreenshotMode::PopoverLight));
-        assert_eq!(ScreenshotMode::parse("popover-dark"), Some(ScreenshotMode::PopoverDark));
-        assert_eq!(ScreenshotMode::parse("settings-light"), Some(ScreenshotMode::SettingsLight));
-        assert_eq!(ScreenshotMode::parse("settings-dark"), Some(ScreenshotMode::SettingsDark));
+    fn parses_all_supported_modes() {
+        assert_eq!(
+            ScreenshotMode::parse("popover-light"),
+            Some(ScreenshotMode::PopoverLight)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("popover-dark"),
+            Some(ScreenshotMode::PopoverDark)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("settings-light"),
+            Some(ScreenshotMode::SettingsLight)
+        );
+        assert_eq!(
+            ScreenshotMode::parse("settings-dark"),
+            Some(ScreenshotMode::SettingsDark)
+        );
     }
 
     #[test]
     fn rejects_unknown_modes() {
         assert_eq!(ScreenshotMode::parse(""), None);
-        assert_eq!(ScreenshotMode::parse("other"), None);
+        assert_eq!(ScreenshotMode::parse("foo"), None);
+    }
+
+    #[test]
+    fn reports_settings_modes() {
+        assert!(ScreenshotMode::SettingsLight.is_settings());
+        assert!(ScreenshotMode::SettingsDark.is_settings());
+        assert!(!ScreenshotMode::PopoverLight.is_settings());
+        assert!(!ScreenshotMode::PopoverDark.is_settings());
     }
 }

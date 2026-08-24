@@ -1,0 +1,47 @@
+name: Docs Check
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs-check.yml"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate landing page structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/index.html
+          test -f docs/privacy.html
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('docs/index.html').read_text(encoding='utf-8')
+          required = [
+              'Download for Windows',
+              'Microsoft Store — Coming soon',
+              './shots/popover-light.png',
+              './shots/popover-dark.png',
+              './shots/settings-light.png',
+              './shots/settings-dark.png',
+              'overflow-x: clip',
+              'prefers-reduced-motion',
+          ]
+          missing = [item for item in required if item not in html]
+          if missing:
+              raise SystemExit(f'Missing required landing-page markers: {missing}')
+          if 'href="https://github.com/dhhieu113pro/butchi/releases/latest"' not in html:
+              raise SystemExit('Latest GitHub release CTA is missing')
+          if 'href="Microsoft Store' in html:
+              raise SystemExit('Coming-soon Store control must not be a dead link')
+          print('Butchi landing page structure is valid.')
+          PY
