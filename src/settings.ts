@@ -9,6 +9,7 @@ type AppConfig = {
   translateEnabled: boolean; rewriteEnabled: boolean; targetLanguage: string; favoriteLanguages: string[];
   rewriteSystemPrompt: string; translateSystemPrompt: string; resultAction: string; backendPreference: string;
   modelRepo: string; modelFile: string; maxTokens: number; temperature: number; gpuLayers: number; historyRetentionDays: number;
+  popoverHideSeconds: number;
 };
 type ModelOption = { id: string; label: string; repo: string; file: string; sizeHint: string };
 type BackendDevice = { id: string; name: string; backend: string; description: string };
@@ -21,6 +22,7 @@ const rewriteEnabled = $("#rewriteEnabled") as HTMLInputElement | null;
 const targetLanguage = $("#targetLanguage") as HTMLSelectElement | null;
 const favoriteLanguages = $("#favoriteLanguages") as HTMLSelectElement | null;
 const resultAction = $("#resultAction") as HTMLSelectElement | null;
+const popoverHideSeconds = $("#popoverHideSeconds") as HTMLInputElement | null;
 const backendPreference = $("#backendPreference") as HTMLSelectElement | null;
 const translateSystemPrompt = $("#translateSystemPrompt") as HTMLTextAreaElement | null;
 const rewriteSystemPrompt = $("#rewriteSystemPrompt") as HTMLTextAreaElement | null;
@@ -101,6 +103,7 @@ function applyConfig(cfg: AppConfig): void {
     favoriteLanguages.querySelectorAll<HTMLOptionElement>("option").forEach((option) => { option.selected = favorites.has(option.value); });
   }
   if (resultAction) resultAction.value = cfg.resultAction || "copy";
+  if (popoverHideSeconds) popoverHideSeconds.value = String(cfg.popoverHideSeconds ?? 6);
   if (backendPreference) backendPreference.value = cfg.backendPreference || "auto";
   if (translateSystemPrompt) translateSystemPrompt.value = cfg.translateSystemPrompt;
   if (rewriteSystemPrompt) rewriteSystemPrompt.value = cfg.rewriteSystemPrompt;
@@ -114,6 +117,7 @@ function applyConfig(cfg: AppConfig): void {
 
 function readForm(): AppConfig {
   const model = selectedModel();
+  const hide = Number(popoverHideSeconds?.value || config?.popoverHideSeconds || 6);
   return {
     translateEnabled: translateEnabled?.checked ?? true,
     rewriteEnabled: rewriteEnabled?.checked ?? true,
@@ -129,6 +133,7 @@ function readForm(): AppConfig {
     temperature: Number(temperature?.value || 0.3),
     gpuLayers: Number(gpuLayers?.value || 999),
     historyRetentionDays: Number(historyRetentionDays?.value ?? config?.historyRetentionDays ?? 30),
+    popoverHideSeconds: Math.min(30, Math.max(2, Number.isFinite(hide) ? hide : 6)),
   };
 }
 
@@ -227,7 +232,8 @@ function wireUi(): void {
     else { localStorage.removeItem("butchi.theme"); delete document.documentElement.dataset.theme; }
   });
 
-  [translateEnabled, rewriteEnabled, targetLanguage, resultAction, backendPreference, modelSelect, maxTokens, temperature, gpuLayers, historyRetentionDays].forEach((control) => control?.addEventListener("change", scheduleSettingsSave));
+  [translateEnabled, rewriteEnabled, targetLanguage, resultAction, popoverHideSeconds, backendPreference, modelSelect, maxTokens, temperature, gpuLayers, historyRetentionDays].forEach((control) => control?.addEventListener("change", scheduleSettingsSave));
+  popoverHideSeconds?.addEventListener("input", scheduleSettingsSave);
   favoriteLanguages?.addEventListener("change", () => {
     const selected = [...favoriteLanguages.selectedOptions];
     if (selected.length > 5) { selected[selected.length - 1].selected = false; showSaveStatus("Choose up to 5 favorite languages."); }
