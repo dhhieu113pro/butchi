@@ -76,12 +76,12 @@ jobs:
             $env:BUTCHI_SCREENSHOT_MODE = $mode
             $process = Start-Process -FilePath $app -PassThru
             try {
-              # Give WebView2 + frontend seed time before FindWindow polling.
-              Start-Sleep -Seconds 5
+              # Cold WebView2 + frontend seed on CI runners can take >5 s.
+              Start-Sleep -Seconds 8
               if ($process.HasExited) {
                 throw "Butchi exited early in mode=$mode (exit=$($process.ExitCode))"
               }
-              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 45 -ProcessId $process.Id
+              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 50 -ProcessId $process.Id
             }
             finally {
               if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
@@ -89,8 +89,8 @@ jobs:
             }
           }
 
-          Capture-Butchi 'popover-light' 'Text actions' 'docs/shots/popover-light.png'
-          Capture-Butchi 'popover-dark' 'Text actions' 'docs/shots/popover-dark.png'
+          Capture-Butchi 'popover-light' 'Butchi — Text actions' 'docs/shots/popover-light.png'
+          Capture-Butchi 'popover-dark' 'Butchi — Text actions' 'docs/shots/popover-dark.png'
           Capture-Butchi 'settings-light' 'Butchi — Settings' 'docs/shots/settings-light.png'
           Capture-Butchi 'settings-dark' 'Butchi — Settings' 'docs/shots/settings-dark.png'
 
@@ -119,17 +119,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit canonical screenshots
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Refresh canonical screenshots on main
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- docs/shots; then exit 0; fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add docs/shots/*.png
-          if git diff --cached --quiet; then
-            echo "Canonical screenshots unchanged."
-          else
-            git commit -m "docs: refresh Butchi UI screenshots"
-            git push
-          fi
+          git commit -m 'docs: refresh Butchi UI screenshots'
+          git push
