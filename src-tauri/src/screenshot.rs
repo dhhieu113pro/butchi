@@ -56,22 +56,48 @@ pub fn open_capture_window(
     app: &tauri::AppHandle,
     mode: ScreenshotMode,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Drop the default invisible popover from tauri.conf so it cannot steal
-    // the title or interfere with FindWindow-based capture.
+    // Hide the default invisible popover from tauri.conf so it cannot steal
+    // focus or the native title used by FindWindow-based capture.
+    // Do NOT close+recreate with label "popover": close is async and the label
+    // stays reserved briefly, causing "webview with label `popover` already exists".
     if let Some(existing) = app.get_webview_window("popover") {
-        let _ = existing.close();
+        let _ = existing.hide();
+        let _ = existing.set_skip_taskbar(true);
     }
     if let Some(existing) = app.get_webview_window("settings") {
-        let _ = existing.close();
+        let _ = existing.hide();
+        let _ = existing.set_skip_taskbar(true);
     }
 
     // Distinctive titles that include "Butchi" so FindWindow is reliable on
-    // noisy CI runners and never collides with unrelated windows.
+    // noisy CI runners. Use *unique* labels so we never collide with the
+    // config-defined windows still alive in the same process.
     let (label, title, width, height) = if mode.is_settings() {
-        ("settings", "Butchi — Settings", 920.0, 720.0)
+        (
+            "screenshot-settings",
+            "Butchi — Settings",
+            920.0,
+            720.0,
+        )
     } else {
-        ("popover", "Butchi — Text actions", 420.0, 520.0)
+        (
+            "screenshot-popover",
+            "Butchi — Text actions",
+            420.0,
+            520.0,
+        )
     };
+
+    // Idempotent: if a previous capture window exists (shouldn't in CI), reuse it.
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.set_title(title);
+        let _ = window.set_size(LogicalSize::new(width, height));
+        let _ = window.navigate(capture_url(mode));
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.set_always_on_top(true);
+        return Ok(());
+    }
 
     let window = WebviewWindowBuilder::new(app, label, capture_url(mode))
         .title(title)
