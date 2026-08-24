@@ -1,4 +1,7 @@
 [[permission]]
 identifier = "allow-process-text"
 description = "Allow the popover to run Translate / Rewrite on selected text."
-commands.allow = ["process_text"]
+commands.allow = [
+  "process_text",
+  "process_text_stream"
+]
