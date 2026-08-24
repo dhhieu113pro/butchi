@@ -16,6 +16,7 @@ const resultCards = {
 };
 
 const currentWindow = getCurrentWindow();
+const isScreenshotMode = new URLSearchParams(window.location.search).has("screenshot");
 const untouchedHideDelay = 4_000;
 const interactedLeaveDelay = 3_000;
 let hideTimer: number | undefined;
@@ -53,6 +54,8 @@ function cancelScheduledHide() {
 }
 
 function scheduleHide(delay: number) {
+  // Keep the capture window open for the full CI screenshot session.
+  if (isScreenshotMode) return;
   cancelScheduledHide();
   hideTimer = window.setTimeout(() => {
     hideTimer = undefined;
