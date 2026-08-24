@@ -16,6 +16,11 @@
   <a href="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml"><img src="https://github.com/dhhieu113pro/butchi/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
 </p>
 
+<p align="center">
+  <a href="https://dhhieu113pro.github.io/butchi/">Product page</a> ·
+  <a href="https://github.com/dhhieu113pro/butchi/releases/latest">Latest release</a>
+</p>
+
 ## What Butchi does
 
 Butchi is a Windows tray utility that captures selected text and opens a small cursor-adjacent popover for **Translate** and **Rewrite**. Generation runs through a local GGUF model via llama.cpp.
@@ -74,6 +79,8 @@ GitHub Actions runs on every push/PR to `main` for:
 
 CI runs frontend type/build checks and Rust `cargo check`, `cargo test --all-targets`, and Clippy with the local LLM enabled.
 
+A separate Windows screenshot workflow launches the real Tauri UI in an isolated deterministic capture mode and produces the canonical light/dark popover and Settings screenshots used by the product page.
+
 ## Model setup
 
 On first launch, Settings opens automatically if no GGUF model is installed.
@@ -87,46 +94,22 @@ Models are stored in Butchi's OS application-data directory.
 
 ## Windows releases
 
-The GitHub release workflow builds x64 and ARM64 NSIS installers from `v*` tags.
-
-For a normal direct-download build, WebView2 may use a smaller bootstrapper configuration. The dedicated Microsoft Store configuration is different: it embeds the offline WebView2 installer so the submitted EXE is a standalone installer.
+The GitHub release workflow builds x64 and ARM64 Windows packages from `v*` tags.
 
 ## Microsoft Store
 
-Butchi uses the Partner Center **MSI/EXE app** submission path.
-
-The Store workflow (`.github/workflows/publish-windows-store.yml`) enforces the important submission constraints:
-
-- app/tag version consistency;
-- x64 + ARM64 builds;
-- standalone/offline WebView2 installation;
-- required CA-trusted Authenticode certificate;
-- Partner Center publisher injected from a GitHub secret;
-- Authenticode verification;
-- silent `/S` install and uninstall smoke test;
-- immutable versioned GitHub Release assets.
-
-Required GitHub secrets:
-
-- `STORE_PUBLISHER`
-- `WINDOWS_CERTIFICATE`
-- `WINDOWS_CERTIFICATE_PASSWORD`
-
-The certificate must be a CA-trusted Authenticode code-signing certificate. Microsoft Store does **not** re-sign EXE/MSI submissions.
-
-Full listing copy, certification notes, screenshot plan, system requirements, and release checklist are in [docs/STORE_SUBMISSION.md](docs/STORE_SUBMISSION.md).
+Store packaging and submission automation lives in `.github/workflows/publish-windows-store.yml`. See the workflow and Store documentation in this repository for the current package format, credentials, and release requirements.
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/assets/screenshot-popover.svg" width="640" alt="Butchi popover"/>
-</p>
+The public product page uses real PNG captures generated from the actual Windows Tauri UI by `.github/workflows/screenshots.yml`:
 
-<p align="center">
-  <img src="docs/assets/screenshot-settings.svg" width="640" alt="Butchi settings"/>
-</p>
+- `docs/shots/popover-light.png`
+- `docs/shots/popover-dark.png`
+- `docs/shots/settings-light.png`
+- `docs/shots/settings-dark.png`
 
-These SVGs are repository illustrations. For Microsoft Store submission, capture real PNG/JPEG screenshots from the signed release candidate.
+The older SVGs under `docs/assets/` are design illustrations and remain only as repository/reference artwork.
 
 ## License
 

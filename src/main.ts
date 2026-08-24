@@ -3,6 +3,7 @@ import "@fontsource-variable/ibm-plex-sans";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isScreenshotMode } from "./screenshot-mode";
 
 const status = document.querySelector<HTMLElement>(".status");
 const actions = document.querySelectorAll<HTMLButtonElement>(".action");
@@ -53,6 +54,8 @@ function cancelScheduledHide() {
 }
 
 function scheduleHide(delay: number) {
+  // Keep the capture window open for the full CI screenshot session.
+  if (isScreenshotMode) return;
   cancelScheduledHide();
   hideTimer = window.setTimeout(() => {
     hideTimer = undefined;

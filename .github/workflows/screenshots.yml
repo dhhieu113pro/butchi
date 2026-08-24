@@ -1,78 +1,142 @@
-name: Capture Butchi UI
+name: UI Screenshots
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "index.html"
+      - "settings.html"
+      - "src/**"
+      - "src-tauri/**"
+      - "scripts/capture-ui.ps1"
+      - ".github/workflows/screenshots.yml"
+      - "docs/**"
   push:
     branches: [main]
     paths:
-      - 'index.html'
-      - 'settings.html'
-      - 'src/**'
-      - 'src-tauri/**'
-      - 'scripts/capture-ui.ps1'
-      - '.github/workflows/screenshots.yml'
+      - "index.html"
+      - "settings.html"
+      - "src/**"
+      - "src-tauri/**"
+      - "scripts/capture-ui.ps1"
+      - ".github/workflows/screenshots.yml"
+      - "docs/**"
 
 permissions:
   contents: write
 
 concurrency:
-  group: butchi-ui-screenshots
+  group: ui-screenshots-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  CARGO_TERM_COLOR: always
   CMAKE_GENERATOR: Ninja
+  RUST_BACKTRACE: 1
 
 jobs:
   capture:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: ilammy/msvc-dev-cmd@v1
-        with: { arch: x64 }
+        with:
+          arch: x64
+
       - uses: lukka/get-cmake@latest
+
       - uses: dtolnay/rust-toolchain@stable
+
       - uses: actions/setup-node@v4
-        with: { node-version: '22', cache: npm }
+        with:
+          node-version: "22"
+          cache: npm
+
       - run: npm ci
-      - name: Build real Tauri application
+
+      - name: Build Butchi executable
         run: npm run tauri build -- --no-bundle
-      - name: Resolve executable
-        id: exe
+
+      - name: Locate executable
+        id: app
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path src-tauri/target/release -Filter butchi.exe -Recurse | Select-Object -First 1
-          if (-not $exe) { throw 'butchi.exe not found after build' }
-          "path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
+          $candidate = Join-Path $PWD "src-tauri/target/release/butchi.exe"
+          if (-not (Test-Path $candidate)) { throw "Butchi executable not found at $candidate" }
+          "path=$candidate" >> $env:GITHUB_OUTPUT
+
       - name: Capture canonical UI screenshots
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force docs/shots | Out-Null
-          function Capture([string]$mode, [string]$title, [string]$output) {
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path docs/shots -Force | Out-Null
+          $app = '${{ steps.app.outputs.path }}'
+
+          function Capture-Butchi([string]$mode, [string]$title, [string]$output) {
             $env:BUTCHI_SCREENSHOT_MODE = $mode
-            $process = Start-Process -FilePath '${{ steps.exe.outputs.path }}' -PassThru
+            $stdout = Join-Path $env:TEMP "butchi-$mode-stdout.txt"
+            $stderr = Join-Path $env:TEMP "butchi-$mode-stderr.txt"
+            Remove-Item $stdout, $stderr -ErrorAction SilentlyContinue
+
+            $process = Start-Process -FilePath $app -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WorkingDirectory (Split-Path $app)
             try {
-              ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 45
-            } finally {
-              if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-              Start-Sleep -Milliseconds 700
+              # Cold WebView2 + frontend seed on CI runners can take a while.
+              for ($i = 0; $i -lt 20; $i++) {
+                Start-Sleep -Seconds 1
+                if ($process.HasExited) { break }
+                # Early success path: window already present
+                $hwnd = [IntPtr]::Zero
+                try {
+                  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue | Out-Null
+                } catch {}
+              }
+              if ($process.HasExited) {
+                $outText = if (Test-Path $stdout) { Get-Content $stdout -Raw } else { "" }
+                $errText = if (Test-Path $stderr) { Get-Content $stderr -Raw } else { "" }
+                Write-Host "=== stdout ===`n$outText"
+                Write-Host "=== stderr ===`n$errText"
+                throw "Butchi exited early in mode=$mode (exit=$($process.ExitCode))"
+              }
+              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 60 -ProcessId $process.Id
+            }
+            finally {
+              if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+              Start-Sleep -Milliseconds 900
             }
           }
-          Capture 'popover-light' 'Text actions' 'docs/shots/popover-light.png'
-          Capture 'popover-dark' 'Text actions' 'docs/shots/popover-dark.png'
-          Capture 'settings-light' 'Butchi — Settings' 'docs/shots/settings-light.png'
-          Capture 'settings-dark' 'Butchi — Settings' 'docs/shots/settings-dark.png'
-          $files = @('docs/shots/popover-light.png','docs/shots/popover-dark.png','docs/shots/settings-light.png','docs/shots/settings-dark.png')
+
+          Capture-Butchi 'popover-light' 'Butchi — Text actions' 'docs/shots/popover-light.png'
+          Capture-Butchi 'popover-dark' 'Butchi — Text actions' 'docs/shots/popover-dark.png'
+          Capture-Butchi 'settings-light' 'Butchi — Settings' 'docs/shots/settings-light.png'
+          Capture-Butchi 'settings-dark' 'Butchi — Settings' 'docs/shots/settings-dark.png'
+
+          Remove-Item Env:BUTCHI_SCREENSHOT_MODE -ErrorAction SilentlyContinue
+
+      - name: Validate canonical screenshots
+        shell: pwsh
+        run: |
+          $files = @(
+            'docs/shots/popover-light.png',
+            'docs/shots/popover-dark.png',
+            'docs/shots/settings-light.png',
+            'docs/shots/settings-dark.png'
+          )
           foreach ($file in $files) {
             if (!(Test-Path $file)) { throw "Missing screenshot: $file" }
-            if ((Get-Item $file).Length -lt 10000) { throw "Screenshot too small: $file" }
+            $item = Get-Item $file
+            if ($item.Length -lt 10000) { throw "Screenshot too small: $file ($($item.Length) bytes)" }
           }
-      - uses: actions/upload-artifact@v4
+
+      - name: Upload screenshot artifact
+        uses: actions/upload-artifact@v4
         with:
           name: butchi-ui-screenshots
           path: docs/shots/*.png
           if-no-files-found: error
           retention-days: 30
-      - name: Refresh canonical screenshots
+
+      - name: Refresh canonical screenshots on main
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: bash
         run: |

@@ -13,9 +13,9 @@ tauri-build = { version = "2", features = [] }
 
 [features]
 default = ["llm"]
-llm = ["dep:llama-cpp-2", "dep:hf-hub", "dep:encoding_rs"]
-cuda = ["llm", "llama-cpp-2/cuda"]
-vulkan = ["llm", "llama-cpp-2/vulkan"]
+llm = ["dep:rs-llama", "dep:hf-hub"]
+cuda = ["llm", "rs-llama/cuda"]
+vulkan = ["llm", "rs-llama/vulkan"]
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -25,8 +25,7 @@ tauri-plugin-single-instance = "2.4.3"
 arboard = "3.6.1"
 dirs = "6"
 hf-hub = { version = "0.4", default-features = true, optional = true }
-llama-cpp-2 = { version = "0.1", default-features = false, features = ["common", "sampler"], optional = true }
-encoding_rs = { version = "0.8", optional = true }
+rs-llama = { git = "https://github.com/dhhieu113pro/rs-llama", optional = true }
 parking_lot = "0.12"
 once_cell = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
