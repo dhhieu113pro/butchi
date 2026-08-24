@@ -19,7 +19,7 @@
       <header class="settings__header">
         <div>
           <h1>Butchi Settings</h1>
-          <p class="settings__lead">Private local Translate &amp; Rewrite for Windows.</p>
+          <p class="settings__lead">Private local Translate & Rewrite for Windows.</p>
         </div>
         <p class="save-status" id="saveStatus" aria-live="polite"></p>
       </header>
@@ -30,7 +30,7 @@
           <button type="button" data-settings-page="prompts" aria-selected="false" aria-controls="settings-prompts">Prompts</button>
           <button type="button" data-settings-page="model" aria-selected="false" aria-controls="settings-model">Model</button>
           <button type="button" data-settings-page="history" aria-selected="false" aria-controls="settings-history">History</button>
-          <button type="button" data-settings-page="about" aria-selected="false" aria-controls="settings-about">About &amp; Privacy</button>
+          <button type="button" data-settings-page="about" aria-selected="false" aria-controls="settings-about">About & Privacy</button>
         </nav>
 
         <div class="settings-content">
@@ -49,7 +49,8 @@
               <label class="field"><span>Favorite target languages</span><select id="favoriteLanguages" multiple size="6" aria-label="Favorite target languages"><option>Vietnamese</option><option>English</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Korean</option><option>French</option><option>German</option><option>Spanish</option><option>Portuguese</option><option>Thai</option><option>Indonesian</option></select></label>
               <p class="hint">Choose up to 5. These appear as one-click targets in Translate results.</p>
               <label class="field"><span>After an explicit action</span><select id="resultAction"><option value="copy">Copy result only</option><option value="replace">Replace selected text</option><option value="none">Do nothing automatically</option></select></label>
-              <p class="hint">Automatic preview never modifies your text. Copy and Replace remain available on each result.</p>
+              <label class="field"><span>Popover auto-hide (seconds)</span><input id="popoverHideSeconds" type="number" min="2" max="30" step="1" value="6" /></label>
+              <p class="hint">How long the popover stays open when left alone (2–30). Press Esc or the × button to close immediately. Selecting text inside Settings never opens the popover.</p>
             </div>
           </section>
 
@@ -65,7 +66,7 @@
               <p class="hint">Choose a preset as a starting point, then edit it freely. Editing switches the profile to Custom.</p>
             </div>
             <div id="prompt-rewrite" data-prompt-panel="rewrite" hidden>
-              <label class="field"><span>Profile</span><select id="rewritePromptProfile"><option value="natural">Clear &amp; natural — default</option><option value="grammar">Grammar only</option><option value="professional">Professional</option><option value="shorter">Shorter</option><option value="polite">More polite</option><option value="simple">Simple language</option><option value="custom">Custom</option></select></label>
+              <label class="field"><span>Profile</span><select id="rewritePromptProfile"><option value="natural">Clear & natural — default</option><option value="grammar">Grammar only</option><option value="professional">Professional</option><option value="shorter">Shorter</option><option value="polite">More polite</option><option value="simple">Simple language</option><option value="custom">Custom</option></select></label>
               <label class="field"><span>System prompt</span><textarea id="rewriteSystemPrompt" rows="8" spellcheck="true"></textarea></label>
               <p class="hint">Profiles only change the prompt text. Your saved prompt remains fully editable.</p>
             </div>
@@ -109,10 +110,10 @@
           </section>
 
           <section class="settings-panel" id="settings-about" data-settings-panel="about" hidden aria-labelledby="about-title">
-            <header class="panel-header"><h2 id="about-title">About &amp; Privacy</h2><p>What stays local and where Butchi connects.</p></header>
+            <header class="panel-header"><h2 id="about-title">About & Privacy</h2><p>What stays local and where Butchi connects.</p></header>
             <div class="section-group"><h3>Private by default</h3><p class="body-copy">Selected text is processed locally by the configured GGUF model. Butchi does not send selected text or history to a cloud AI service.</p><p class="hint">Network access is used only when you explicitly download model files from Hugging Face.</p></div>
             <div class="danger-zone"><div><h3>Local data</h3><p class="hint">Delete history and downloaded GGUF models while keeping your settings.</p></div><button type="button" class="btn btn--ghost" id="clearLocalDataBtn">Delete history + downloaded models</button></div>
-            <div class="section-group"><h3>About Butchi</h3><p><strong>Butchi <span id="appVersion">0.1.5</span></strong></p><p class="hint">Private local Translate &amp; Rewrite for Windows. License: MIT.</p><p class="hint">Project and support: github.com/dhhieu113pro/butchi</p></div>
+            <div class="section-group"><h3>About Butchi</h3><p><strong>Butchi <span id="appVersion">0.1.5</span></strong></p><p class="hint">Private local Translate & Rewrite for Windows. License: MIT.</p><p class="hint">Project and support: github.com/dhhieu113pro/butchi</p></div>
           </section>
         </div>
       </div>
