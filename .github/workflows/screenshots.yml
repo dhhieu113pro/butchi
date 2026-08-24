@@ -76,12 +76,16 @@ jobs:
             $env:BUTCHI_SCREENSHOT_MODE = $mode
             $process = Start-Process -FilePath $app -PassThru
             try {
-              Start-Sleep -Seconds 3
-              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 30
+              # Give WebView2 + frontend seed time before FindWindow polling.
+              Start-Sleep -Seconds 5
+              if ($process.HasExited) {
+                throw "Butchi exited early in mode=$mode (exit=$($process.ExitCode))"
+              }
+              & ./scripts/capture-ui.ps1 -WindowTitle $title -OutputPath $output -TimeoutSeconds 45 -ProcessId $process.Id
             }
             finally {
               if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-              Start-Sleep -Milliseconds 750
+              Start-Sleep -Milliseconds 900
             }
           }
 

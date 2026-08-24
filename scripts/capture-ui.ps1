@@ -1,36 +1,89 @@
 param(
   [Parameter(Mandatory = $true)][string]$WindowTitle,
   [Parameter(Mandatory = $true)][string]$OutputPath,
-  [int]$TimeoutSeconds = 30
+  [int]$TimeoutSeconds = 45,
+  [int]$ProcessId = 0
 )
 
 $ErrorActionPreference = 'Stop'
 
 Add-Type @"
 using System;
+using System.Text;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 public static class ButchiWindowCapture {
   [StructLayout(LayoutKind.Sequential)]
   public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
   [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
   public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
   [DllImport("user32.dll", SetLastError = true)]
   public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+  [DllImport("user32.dll")]
+  public static extern bool IsWindowVisible(IntPtr hWnd);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+  [DllImport("user32.dll")]
+  public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+  [DllImport("user32.dll")]
+  public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+  [DllImport("user32.dll")]
+  public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 }
 "@
 
 Add-Type -AssemblyName System.Drawing
 
+function Get-VisibleWindowTitles {
+  $titles = New-Object System.Collections.Generic.List[string]
+  $callback = [ButchiWindowCapture+EnumWindowsProc]{
+    param([IntPtr]$hWnd, [IntPtr]$lParam)
+    if (-not [ButchiWindowCapture]::IsWindowVisible($hWnd)) { return $true }
+    $sb = New-Object System.Text.StringBuilder 512
+    [void][ButchiWindowCapture]::GetWindowText($hWnd, $sb, $sb.Capacity)
+    $title = $sb.ToString()
+    if (-not [string]::IsNullOrWhiteSpace($title)) {
+      $procId = 0
+      [void][ButchiWindowCapture]::GetWindowThreadProcessId($hWnd, [ref]$procId)
+      $titles.Add(("$procId`t$title"))
+    }
+    return $true
+  }
+  [void][ButchiWindowCapture]::EnumWindows($callback, [IntPtr]::Zero)
+  return $titles
+}
+
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 $hwnd = [IntPtr]::Zero
 while ((Get-Date) -lt $deadline -and $hwnd -eq [IntPtr]::Zero) {
+  if ($ProcessId -gt 0) {
+    try {
+      $proc = Get-Process -Id $ProcessId -ErrorAction Stop
+      if ($proc.HasExited) {
+        throw "Butchi process $ProcessId exited before the capture window appeared (exit=$($proc.ExitCode))."
+      }
+    } catch [System.Management.Automation.ItemNotFoundException] {
+      throw "Butchi process $ProcessId is no longer running."
+    }
+  }
+
   $hwnd = [ButchiWindowCapture]::FindWindow($null, $WindowTitle)
   if ($hwnd -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 250 }
 }
 
 if ($hwnd -eq [IntPtr]::Zero) {
+  $titles = Get-VisibleWindowTitles
+  Write-Host "Visible top-level windows:"
+  $titles | Select-Object -First 40 | ForEach-Object { Write-Host "  $_" }
   throw "Window '$WindowTitle' was not found within $TimeoutSeconds seconds."
 }
 
@@ -42,11 +95,14 @@ if (-not [ButchiWindowCapture]::GetWindowRect($hwnd, [ref]$rect)) {
 $width = $rect.Right - $rect.Left
 $height = $rect.Bottom - $rect.Top
 if ($width -lt 200 -or $height -lt 200) {
-  throw "Implausible window bounds for '$WindowTitle': ${width}x${height}."
+  throw "Implausible window bounds for '$WindowTitle': ${width}x${height}"
 }
 
-$directory = Split-Path -Parent $OutputPath
-if ($directory) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
+[void][ButchiWindowCapture]::SetForegroundWindow($hwnd)
+Start-Sleep -Milliseconds 800
+
+$dir = Split-Path -Parent $OutputPath
+if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
 
 $bitmap = New-Object System.Drawing.Bitmap $width, $height
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
@@ -59,9 +115,9 @@ finally {
   $bitmap.Dispose()
 }
 
-$file = Get-Item $OutputPath
-if ($file.Length -lt 10000) {
-  throw "Screenshot '$OutputPath' is unexpectedly small ($($file.Length) bytes)."
+if (-not (Test-Path $OutputPath)) { throw "Capture was not created: $OutputPath" }
+if ((Get-Item $OutputPath).Length -lt 10000) {
+  throw "Capture is unexpectedly small: $OutputPath ($((Get-Item $OutputPath).Length) bytes)"
 }
 
-Write-Host "Captured '$WindowTitle' -> $OutputPath (${width}x${height}, $($file.Length) bytes)"
+Write-Host "Captured '$WindowTitle' -> $OutputPath (${width}x${height})"
