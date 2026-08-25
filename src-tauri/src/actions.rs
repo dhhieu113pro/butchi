@@ -156,4 +156,17 @@ mod tests {
     fn empty_input_is_rejected_without_needing_a_model() {
         assert!(process(TextAction::Rewrite, "   ", false).is_err());
     }
+
+    #[test]
+    fn hidden_reasoning_is_removed_from_model_output() {
+        assert_eq!(
+            strip_reasoning("<think>private reasoning</think>Visible answer"),
+            "Visible answer"
+        );
+        assert_eq!(
+            strip_reasoning("Before<think>private reasoning</think>After"),
+            "BeforeAfter"
+        );
+        assert_eq!(strip_reasoning("Visible answer"), "Visible answer");
+    }
 }
