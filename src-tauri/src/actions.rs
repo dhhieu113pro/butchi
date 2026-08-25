@@ -41,6 +41,31 @@ fn validate_action(action: TextAction, cfg: &config::AppConfig) -> Result<(), St
     core_logic::validate_action_enabled(action_name(action), cfg.translate_enabled, cfg.rewrite_enabled)
 }
 
+fn strip_reasoning(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut rest = text;
+
+    loop {
+        let lower = rest.to_ascii_lowercase();
+        let Some(start) = lower.find("<think>") else {
+            output.push_str(rest);
+            break;
+        };
+
+        output.push_str(&rest[..start]);
+        let after_open = &rest[start + "<think>".len()..];
+        let after_lower = after_open.to_ascii_lowercase();
+
+        let Some(end) = after_lower.find("</think>") else {
+            break;
+        };
+
+        rest = &after_open[end + "</think>".len()..];
+    }
+
+    output.trim().to_owned()
+}
+
 fn finish_result(
     action: TextAction,
     source: &str,
@@ -91,30 +116,53 @@ where
     validate_action(action, &cfg)?;
 
     let (text, message) = match action {
-        TextAction::Rewrite => match llm::generate_streaming(&cfg.rewrite_system_prompt, source, &cfg, |piece| on_piece(piece)) {
-            Ok(text) if !text.trim().is_empty() => (
-                text,
-                format!("Rewritten with local LLM ({}). Result copied.", cfg.model_file),
-            ),
-            Ok(_) => {
-                let rewritten = core_logic::rewrite_offline(source);
-                on_piece(&rewritten);
-                (rewritten, "LLM returned empty output — used offline rewrite. Result copied.".into())
+        TextAction::Rewrite => match llm::generate_streaming(
+            &cfg.rewrite_system_prompt,
+            source,
+            &cfg,
+            |piece| on_piece(piece),
+        ) {
+            Ok(text) => {
+                let cleaned = strip_reasoning(&text);
+                if cleaned.is_empty() {
+                    let rewritten = core_logic::rewrite_offline(source);
+                    on_piece(&rewritten);
+                    (
+                        rewritten,
+                        "LLM returned empty output — used offline rewrite. Result copied.".into(),
+                    )
+                } else {
+                    (
+                        cleaned,
+                        format!("Rewritten with local LLM ({}). Result copied.", cfg.model_file),
+                    )
+                }
             }
             Err(error) => {
                 let rewritten = core_logic::rewrite_offline(source);
                 on_piece(&rewritten);
-                (rewritten, format!("LLM unavailable ({error}). Offline rewrite used. Result copied."))
+                (
+                    rewritten,
+                    format!("LLM unavailable ({error}). Offline rewrite used. Result copied."),
+                )
             }
         },
         TextAction::Translate => {
-            let system = format!("{}\n\nTarget language: {}.", cfg.translate_system_prompt, cfg.target_language);
+            let system = format!(
+                "{}\n\nTarget language: {}.",
+                cfg.translate_system_prompt, cfg.target_language
+            );
             match llm::generate_streaming(&system, source, &cfg, |piece| on_piece(piece)) {
-                Ok(text) if !text.trim().is_empty() => (
-                    text,
-                    format!("Translated to {} with local LLM. Result copied.", cfg.target_language),
-                ),
-                Ok(_) => return Err("LLM returned empty translation. Is the model downloaded?".into()),
+                Ok(text) => {
+                    let cleaned = strip_reasoning(&text);
+                    if cleaned.is_empty() {
+                        return Err("LLM returned empty translation. Is the model downloaded?".into());
+                    }
+                    (
+                        cleaned,
+                        format!("Translated to {} with local LLM. Result copied.", cfg.target_language),
+                    )
+                }
                 Err(error) => return Err(format!("Translation needs the local model. {error}")),
             }
         }
