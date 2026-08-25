@@ -20,11 +20,74 @@ fn process_text(action: String, text: String, copy: Option<bool>) -> Result<acti
 }
 
 #[tauri::command]
-fn process_text_stream(action: String, text: String, copy: Option<bool>, on_event: Channel<String>) -> Result<actions::ProcessResult, String> {
+async fn process_text_stream(
+    action: String,
+    text: String,
+    copy: Option<bool>,
+    on_event: Channel<String>,
+) -> Result<actions::ProcessResult, String> {
     let action = actions::TextAction::parse(&action)?;
-    actions::process_stream(action, &text, copy.unwrap_or(true), |piece| {
-        let _ = on_event.send(piece.to_owned());
+    let copy = copy.unwrap_or(true);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        actions::process_stream(action, &text, copy, |piece| {
+            let _ = on_event.send(piece.to_owned());
+        })
     })
+    .await
+    .map_err(|error| format!("process task failed: {error}"))?
+}
+
+#[tauri::command]
+fn resize_popover(app: tauri::AppHandle, height: f64) -> Result<(), String> {
+    let Some(window) = app.get_webview_window("popover") else {
+        return Ok(());
+    };
+
+    let height = if height.is_finite() {
+        height.clamp(180.0, 1200.0)
+    } else {
+        420.0
+    };
+
+    window
+        .set_size(tauri::LogicalSize::new(380.0, height))
+        .map_err(|error| format!("resize popover: {error}"))?;
+
+    let position = window
+        .outer_position()
+        .map_err(|error| format!("read popover position: {error}"))?;
+    let size = window
+        .outer_size()
+        .map_err(|error| format!("read popover size: {error}"))?;
+
+    let monitors = window
+        .available_monitors()
+        .map_err(|error| format!("list monitors: {error}"))?;
+
+    if let Some(monitor) = monitors.into_iter().find(|monitor| {
+        let origin = monitor.position();
+        let bounds = monitor.size();
+        position.x >= origin.x
+            && position.y >= origin.y
+            && position.x < origin.x + bounds.width as i32
+            && position.y < origin.y + bounds.height as i32
+    }) {
+        let top = monitor.position().y;
+        let bottom = top + monitor.size().height as i32;
+        let overflow = position.y + size.height as i32 - bottom;
+
+        if overflow > 0 {
+            window
+                .set_position(tauri::PhysicalPosition::new(
+                    position.x,
+                    (position.y - overflow - 12).max(top),
+                ))
+                .map_err(|error| format!("reposition popover: {error}"))?;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -161,6 +224,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             process_text,
             process_text_stream,
+            resize_popover,
             remember_selection_target,
             replace_selected_text,
             get_config,
