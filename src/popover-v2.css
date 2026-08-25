@@ -1,0 +1,90 @@
+@import "./popover.css";
+
+/* Hallmark · popover v2 · automated results-first layout */
+html,
+body {
+  overflow: hidden;
+}
+
+.popover {
+  display: flex;
+  max-height: 100vh;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.source-block {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding-right: 1.75rem;
+}
+
+.selection {
+  display: -webkit-box;
+  max-height: none;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.45;
+}
+
+.results {
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  margin-bottom: 0;
+}
+
+.result-card {
+  padding: var(--space-3);
+  background: var(--color-paper-raised);
+}
+
+.result-card .block-head {
+  margin-bottom: var(--space-2);
+}
+
+.result-text {
+  max-height: none;
+  overflow: visible;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.result-card[data-state="queued"] {
+  opacity: 0.7;
+}
+
+.result-card[data-state="queued"] .result-state {
+  color: var(--color-muted);
+}
+
+.result-card[data-state="loading"] .result-state::before {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-right: 0.35rem;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.05rem;
+  content: "";
+  animation: spin 700ms linear infinite;
+}
+
+.status {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: visible;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-card[data-state="loading"] .result-state::before {
+    animation-duration: 1400ms;
+  }
+}
