@@ -1,7 +1,7 @@
 # Butchi Avalonia + LLamaSharp Migration Design
 
 Date: 2026-08-25
-Status: Proposed design approved in chat; implementation not started
+Status: Architecture approved; written spec pending review
 Branch: `design/avalonia-llamasharp-migration`
 
 ## 1. Summary
@@ -312,7 +312,7 @@ The popover should show concise errors without crashing the tray application. De
 
 ## 14. Performance requirements
 
-The old Tauri application is the baseline. The same model, quantization, prompt, context, generation settings, GPU layer count, and backend must be used where technically possible.
+The old Tauri application is the baseline. Old and new builds must be measured on the same Windows machine, using the same model, quantization, prompt, context, generation settings, GPU layer count, and backend where technically possible.
 
 Measurements include:
 
@@ -328,17 +328,24 @@ Measurements include:
 - VRAM use;
 - model load time.
 
+Benchmark procedure for release-gate comparisons:
+
+1. Run at least 5 measured iterations after one warm-up iteration where warming is relevant.
+2. Compare medians, not the single best run.
+3. Use identical prompt/model/backend settings for old and new runtimes.
+4. Record the raw measurements and environment metadata in a machine-readable result artifact.
+
 Acceptance gates:
 
-1. Selection captured -> reusable popover visible: target under 50 ms on the reference Windows machine.
+1. Selection captured -> reusable popover visible: target under 50 ms on the baseline machine.
 2. Popover visible -> inference request dispatch: target under 30 ms excluding model load.
-3. First-token latency must not regress materially when using equivalent inference settings.
-4. Tokens/sec must not regress materially when using equivalent backend settings.
+3. Median first-token latency may not regress by more than 5% under equivalent inference settings.
+4. Median tokens/sec may not regress by more than 5% under equivalent backend settings.
 5. Streaming must not cause visible UI freezing or repeated expensive window recreation.
-6. Model memory/VRAM use must not regress enough to make the default supported model unusable on previously supported hardware.
-7. If raw inference is slower through LLamaSharp, the migration cannot be declared complete until the cause is understood and either fixed or explicitly accepted with evidence that total user-perceived latency still improves.
+6. Loaded-model process memory and VRAM may not regress by more than 10% unless the increase is explained by a required runtime/backend difference and the default supported model still operates within its supported hardware envelope.
+7. If LLamaSharp exceeds a regression threshold, the migration cannot be declared complete until the cause is understood and either fixed or the design is explicitly re-approved with the benchmark evidence.
 
-Performance measurements should be emitted in a machine-readable form so release comparisons are possible.
+These thresholds are migration gates, not permanent claims about all hardware. Release validation compares both runtimes on the same hardware to control for machine differences.
 
 ## 15. Testing strategy
 
@@ -468,7 +475,7 @@ Cutover requires:
 - selection/Double-Ctrl/replacement validated on Windows;
 - default model download/load/generate validated;
 - performance comparison recorded;
-- no material tokens/sec regression without explicit acceptance;
+- all Section 14 regression thresholds passed;
 - no critical UI responsiveness regression.
 
 If a release-blocking regression appears after the Avalonia cutover but before the first stable release, the branch can revert to the last Tauri-capable commit without data loss because configuration/history/model migration must be non-destructive until stability is proven.
