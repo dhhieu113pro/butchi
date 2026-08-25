@@ -10,11 +10,11 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="/src/popover.css" />
+    <link rel="stylesheet" href="/src/popover-v2.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Butchi — Text actions</title>
     <script type="module" src="/src/screenshot-mode.ts" defer></script>
-    <script type="module" src="/src/main.ts" defer></script>
+    <script type="module" src="/src/popover-runtime.ts" defer></script>
   </head>
 
   <body>
@@ -41,7 +41,7 @@
         <section class="result-card" data-kind="translate" hidden>
           <header class="block-head">
             <span class="block-title">Translate</span>
-            <span class="result-state" data-role="state">…</span>
+            <span class="result-state" data-role="state"></span>
           </header>
           <div class="language-targets" id="favoriteLanguageButtons" aria-label="Favorite translation targets"></div>
           <p class="result-text" data-role="text"></p>
@@ -49,25 +49,13 @@
         <section class="result-card" data-kind="rewrite" hidden>
           <header class="block-head">
             <span class="block-title">Rewrite</span>
-            <span class="result-state" data-role="state">…</span>
+            <span class="result-state" data-role="state"></span>
           </header>
           <p class="result-text" data-role="text"></p>
         </section>
       </div>
 
-      <div class="actions" role="group" aria-label="Choose a text action">
-        <button class="action" type="button" data-action="translate">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h8M8 3v2m3 0c-.8 3.3-3.2 6.1-6.5 7.5M6 8c1.1 2 2.8 3.7 5 4.7M14 19l3.2-8 3.3 8m-5.3-3h4"/></svg>
-          <span class="action__label">Translate</span>
-          <span class="action__state" aria-hidden="true"></span>
-        </button>
-        <button class="action action--primary" type="button" data-action="rewrite">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 20 4.2-1 10.9-10.9a2.1 2.1 0 0 0-3-3L5.2 16 4 20Zm10.5-13.3 3 3M12 20h8"/></svg>
-          <span class="action__label">Rewrite</span>
-          <span class="action__state" aria-hidden="true"></span>
-        </button>
-      </div>
-      <p class="status" aria-live="polite">Choose an action for the selected text.</p>
+      <p class="status" aria-live="polite">Working…</p>
     </main>
   </body>
 </html>
