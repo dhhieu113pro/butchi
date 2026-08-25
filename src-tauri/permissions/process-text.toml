@@ -1,9 +1,10 @@
 [[permission]]
 identifier = "allow-process-text"
-description = "Allow the popover to run Translate / Rewrite, apply results, and change target language."
+description = "Allow the popover to run Translate / Rewrite, apply results, resize itself, and change target language."
 commands.allow = [
   "process_text",
   "process_text_stream",
+  "resize_popover",
   "get_config",
   "set_target_language",
   "remember_selection_target",
