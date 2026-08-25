@@ -28,7 +28,7 @@ function seedPopover(): void {
     card.dataset.state = "success";
     const state = card.querySelector<HTMLElement>('[data-role="state"]');
     const result = card.querySelector<HTMLElement>('[data-role="text"]');
-    if (state) state.textContent = "";
+    if (state) state.textContent = "Done";
     if (result) result.textContent = text;
   };
 
@@ -42,7 +42,7 @@ function seedPopover(): void {
       '<button type="button" class="language-target" aria-pressed="false">English</button>';
   }
 
-  if (status) status.textContent = "Results ready — use Copy or Replace.";
+  if (status) status.textContent = "Results ready.";
 }
 
 function seedSettings(): void {
