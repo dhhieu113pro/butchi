@@ -16,7 +16,7 @@
         "label": "popover",
         "title": "Butchi — Text actions",
         "width": 380,
-        "height": 420,
+        "height": 220,
         "visible": false,
         "focus": false,
         "resizable": false,
