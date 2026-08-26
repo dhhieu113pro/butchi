@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Butchi.App.Branding;
 using Butchi.App.Tray;
 
 namespace Butchi.App.Management;
@@ -17,6 +18,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         DataContext = viewModel;
 
         Title = "Butchi";
+        Icon = BrandAssets.CreateWindowIcon();
         Width = 900;
         Height = 620;
         MinWidth = 720;

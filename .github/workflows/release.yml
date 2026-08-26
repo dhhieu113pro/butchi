@@ -85,11 +85,7 @@ jobs:
           Copy-Item "artifacts/publish/${{ matrix.rid }}/*" $stage -Recurse -Force
           Move-Item "$stage/Butchi.App.exe" "$stage/butchi.exe" -Force
           New-Item -ItemType Directory -Force "$stage/Assets" | Out-Null
-          $baseline = '2c37febcf79f4632c56143589b51164614092e4c'
-          $assetBase = "https://raw.githubusercontent.com/dhhieu113pro/butchi/$baseline/src-tauri/icons"
-          Invoke-WebRequest "$assetBase/StoreLogo.png" -OutFile "$stage/Assets/StoreLogo.png"
-          Invoke-WebRequest "$assetBase/Square44x44Logo.png" -OutFile "$stage/Assets/Square44x44Logo.png"
-          Invoke-WebRequest "$assetBase/Square150x150Logo.png" -OutFile "$stage/Assets/Square150x150Logo.png"
+          Copy-Item "store/Assets/*" "$stage/Assets" -Force
           $manifest = Get-Content store/Package.appxmanifest.template -Raw
           $manifest = $manifest.Replace('__PACKAGE_NAME__', $env:STORE_PACKAGE_IDENTITY_NAME).Replace('__PUBLISHER__', $env:STORE_PACKAGE_PUBLISHER).Replace('__PUBLISHER_DISPLAY_NAME__', $env:STORE_PUBLISHER_DISPLAY_NAME).Replace('__VERSION__', $env:MSIX_VERSION).Replace('__ARCHITECTURE__', '${{ matrix.arch }}')
           Set-Content "$stage/Package.appxmanifest" $manifest -Encoding utf8
