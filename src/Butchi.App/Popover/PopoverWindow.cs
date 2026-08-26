@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Butchi.App.Branding;
 
 namespace Butchi.App.Popover;
 
@@ -24,6 +25,7 @@ public sealed class PopoverWindow : Window
         Topmost = profile.Topmost;
         ShowInTaskbar = profile.ShowInTaskbar;
         CanResize = profile.CanResize;
+        Icon = BrandAssets.CreateWindowIcon();
         Width = 420;
         MinHeight = 360;
         MaxHeight = 760;
