@@ -1,5 +1,9 @@
 # Butchi
 
+<p align="center">
+  <img src="assets/butchi-logo.svg" alt="Butchi logo" width="128" height="128" />
+</p>
+
 Windows-first local Translate & Rewrite utility built with .NET 10, Avalonia, and LLamaSharp.
 
 Butchi runs local GGUF inference on Windows and provides global Double-Ctrl activation, Windows UI Automation with guarded clipboard fallback, local SQLite history, and x64/ARM64 packaging.
