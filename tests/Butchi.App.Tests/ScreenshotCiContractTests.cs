@@ -30,6 +30,22 @@ public sealed class ScreenshotCiContractTests
         Assert.Contains("RunPopover", runner, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Management_capture_renders_content_offscreen_at_requested_size()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var runnerPath = Path.Combine(repoRoot, "src", "Butchi.App", "Screenshots", "ScreenshotRunner.cs");
+
+        Assert.True(File.Exists(runnerPath), $"Missing screenshot runner: {runnerPath}");
+
+        var runner = File.ReadAllText(runnerPath);
+        Assert.Contains("RenderManagementContent", runner, StringComparison.Ordinal);
+        Assert.Contains("window.Content is Control content", runner, StringComparison.Ordinal);
+        Assert.Contains("content.Measure(new Size(width, height))", runner, StringComparison.Ordinal);
+        Assert.Contains("content.Arrange(new Rect(0, 0, width, height))", runner, StringComparison.Ordinal);
+        Assert.Contains("bitmap.Render(content)", runner, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
