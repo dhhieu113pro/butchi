@@ -2,6 +2,7 @@ namespace Butchi.Core.Configuration;
 
 public sealed record AppConfig
 {
+    public AppThemePreference Theme { get; init; } = AppThemePreference.System;
     public bool TranslateEnabled { get; init; } = true;
     public bool RewriteEnabled { get; init; } = true;
     public string TargetLanguage { get; init; } = "Vietnamese";

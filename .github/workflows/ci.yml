@@ -2,14 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/avalonia-foundation]
+    branches: [main, feat/avalonia-foundation, 'feat/task14-*']
   pull_request:
     branches: [main]
   workflow_dispatch:
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build-test:

@@ -1,19 +1,24 @@
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 namespace Butchi.App.Management;
 
 public enum ManagementPage
 {
-    Settings,
-    History,
-    Models,
-    Status
+    General = 0,
+    Prompts = 1,
+    Model = 2,
+    History = 3,
+    AboutPrivacy = 4,
+
+    // Compatibility aliases for existing tray/screenshot callers during Task 14 rollout.
+    Settings = General,
+    Models = Model,
+    Status = AboutPrivacy
 }
 
 public sealed class ManagementShellViewModel : INotifyPropertyChanged
 {
-    private ManagementPage _selectedPage = ManagementPage.Settings;
+    private ManagementPage _selectedPage = ManagementPage.General;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

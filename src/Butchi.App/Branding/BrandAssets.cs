@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
 namespace Butchi.App.Branding;
@@ -11,5 +12,11 @@ public static class BrandAssets
     {
         using var stream = AssetLoader.Open(LogoUri);
         return new WindowIcon(stream);
+    }
+
+    public static Bitmap CreateBitmap()
+    {
+        using var stream = AssetLoader.Open(LogoUri);
+        return new Bitmap(stream);
     }
 }
