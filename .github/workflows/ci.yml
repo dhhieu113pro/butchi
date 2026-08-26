@@ -1,111 +1,71 @@
 name: CI
+
 on:
   push:
-    branches: [main, master]
+    branches: [main, feat/avalonia-foundation]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-  CMAKE_GENERATOR: Ninja
+
 jobs:
-  test:
-    name: Test (${{ matrix.arch }}, llm+vulkan)
-    runs-on: ${{ matrix.runner }}
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify production cutover contract
+        shell: pwsh
+        run: ./scripts/verify-production-cutover.ps1
+      - name: Restore
+        run: dotnet restore Butchi.slnx
+      - name: Build
+        run: dotnet build Butchi.slnx -c Release --no-restore
+      - name: Test
+        run: dotnet test Butchi.slnx -c Release --no-build
+
+  screenshot-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Capture real Avalonia management pages
+        shell: pwsh
+        run: |
+          $pages = @('settings', 'history', 'models', 'status')
+          foreach ($page in $pages) {
+            dotnet run --project src/Butchi.App/Butchi.App.csproj -c Release -- --screenshot "artifacts/ui/$page.png" --page $page --width 1280 --height 800
+            $path = "artifacts/ui/$page.png"
+            if (-not (Test-Path $path)) { throw "Screenshot missing: $path" }
+            if ((Get-Item $path).Length -le 1024) { throw "Screenshot unexpectedly small: $path" }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: butchi-ui-screenshots
+          path: artifacts/ui/*.png
+          if-no-files-found: error
+
+  publish-smoke:
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { arch: windows-x64, runner: windows-latest, msvc_arch: x64 }
-          - { arch: windows-arm64, runner: windows-11-arm, msvc_arch: arm64 }
+        rid: [win-x64, win-arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: ilammy/msvc-dev-cmd@v1
-        with: { arch: "${{ matrix.msvc_arch }}" }
-      - uses: lukka/get-cmake@latest
-      - name: Install Vulkan SDK
-        shell: pwsh
-        run: |
-          $version = "1.3.296.0"
-          $installer = "$env:RUNNER_TEMP\VulkanSDK-Installer.exe"
-          $url = "https://sdk.lunarg.com/sdk/download/$version/windows/VulkanSDK-$version-Installer.exe"
-          Write-Host "Downloading Vulkan SDK $version…"
-          Invoke-WebRequest -Uri $url -OutFile $installer
-          Start-Process -FilePath $installer -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
-          $sdkRoot = "C:\VulkanSDK\$version"
-          if (-not (Test-Path $sdkRoot)) {
-            $sdkRoot = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $sdkRoot) { throw "Vulkan SDK install path not found" }
-          "VULKAN_SDK=$sdkRoot" >> $env:GITHUB_ENV
-          "PATH=$sdkRoot\Bin;$env:PATH" >> $env:GITHUB_ENV
-          Write-Host "VULKAN_SDK=$sdkRoot"
-      - name: Configure clang-cl for ARM64 llama.cpp
-        if: matrix.arch == 'windows-arm64'
-        shell: pwsh
-        run: |
-          $cmd = Get-Command clang-cl.exe -ErrorAction SilentlyContinue
-          if ($cmd) { $clang = $cmd.Source } else {
-            $candidates = @("$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\ARM64\bin\clang-cl.exe", "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin\clang-cl.exe")
-            $clang = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          }
-          if (-not $clang) { throw "clang-cl.exe was not found on the ARM64 runner" }
-          "CC=$clang" >> $env:GITHUB_ENV; "CXX=$clang" >> $env:GITHUB_ENV
-          "CC_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV; "CXX_aarch64_pc_windows_msvc=$clang" >> $env:GITHUB_ENV
-          "CXXFLAGS=/EHsc" >> $env:GITHUB_ENV; "CXXFLAGS_aarch64_pc_windows_msvc=/EHsc" >> $env:GITHUB_ENV
-          "CMAKE_ARGS=-DGGML_OPENMP=OFF" >> $env:GITHUB_ENV
-      - uses: dtolnay/rust-toolchain@stable
-        with: { components: "clippy,llvm-tools-preview" }
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
-          workspaces: src-tauri -> target
-          shared-key: ${{ matrix.arch }}-vulkan-v2-rs-llama-msvc-bindgen
-      - uses: actions/setup-node@v4
-        with: { node-version: "22", cache: npm }
-      - run: npm ci
-      - name: Typecheck frontend
-        run: npx tsc --noEmit
-      - name: Build frontend
-        run: npm run build
-      - name: Cargo check (llm+vulkan)
-        working-directory: src-tauri
-        run: cargo check --all-targets --features vulkan
-      - name: Cargo test (llm+vulkan, all targets)
-        working-directory: src-tauri
-        run: cargo test --all-targets --features vulkan -- --nocapture
-      - name: Cargo clippy (llm+vulkan)
-        working-directory: src-tauri
-        run: cargo clippy --all-targets --features vulkan --no-deps -- -D warnings
-      - name: Install cargo-llvm-cov
-        if: matrix.arch == 'windows-x64'
-        uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Measure Rust coverage
-        if: matrix.arch == 'windows-x64'
-        working-directory: src-tauri
-        run: cargo llvm-cov --all-targets --no-default-features --features llm --json --output-path coverage.json
-      - name: Enforce 100% deterministic core coverage and report overall
-        if: matrix.arch == 'windows-x64'
-        working-directory: src-tauri
+          dotnet-version: '10.0.x'
+      - name: Publish ${{ matrix.rid }}
+        run: dotnet publish src/Butchi.App/Butchi.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o artifacts/${{ matrix.rid }}
+      - name: Verify executable
         shell: pwsh
         run: |
-          $report = Get-Content coverage.json -Raw | ConvertFrom-Json
-          $core = $report.data[0].files | Where-Object { $_.filename -like '*core_logic.rs' } | Select-Object -First 1
-          if (-not $core) { throw "core_logic.rs was not present in the coverage report" }
-          $corePercent = [double]$core.summary.lines.percent
-          $overall = [double]$report.data[0].totals.lines.percent
-          "### Rust coverage" >> $env:GITHUB_STEP_SUMMARY
-          "- Deterministic core: **$corePercent%** (required: 100%)" >> $env:GITHUB_STEP_SUMMARY
-          "- Overall instrumented Rust: **$overall%**" >> $env:GITHUB_STEP_SUMMARY
-          if ($corePercent -lt 100.0) { throw "Core logic coverage must be 100%, actual: $corePercent%" }
-      - name: Upload coverage report
-        if: matrix.arch == 'windows-x64' && always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: butchi-rust-coverage
-          path: src-tauri/coverage.json
-          if-no-files-found: warn
-          retention-days: 30
+          if (-not (Test-Path "artifacts/${{ matrix.rid }}/Butchi.App.exe")) { throw "Butchi.App.exe missing for ${{ matrix.rid }}" }
