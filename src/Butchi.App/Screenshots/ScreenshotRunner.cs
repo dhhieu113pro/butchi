@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Butchi.App.Management;
@@ -25,7 +26,7 @@ public static class ScreenshotRunner
         {
             Dispatcher.UIThread.Post(() =>
             {
-                Render(window, request.OutputPath, request.Width, request.Height);
+                RenderManagementContent(window, request.OutputPath, request.Width, request.Height);
                 completed();
             }, DispatcherPriority.Loaded);
         };
@@ -56,12 +57,26 @@ public static class ScreenshotRunner
         window.ShowPersistent();
     }
 
-    private static void Render(Avalonia.Controls.Window window, string outputPath, int width, int height)
+    private static void RenderManagementContent(Window window, string outputPath, int width, int height)
     {
-        var fullOutputPath = Path.GetFullPath(outputPath);
-        var directory = Path.GetDirectoryName(fullOutputPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-            Directory.CreateDirectory(directory);
+        if (window.Content is not Control content)
+            throw new InvalidOperationException("Management window content must be an Avalonia control.");
+
+        var fullOutputPath = PrepareOutputPath(outputPath);
+
+        content.Measure(new Size(width, height));
+        content.Arrange(new Rect(0, 0, width, height));
+
+        using var bitmap = new RenderTargetBitmap(
+            new PixelSize(width, height),
+            new Vector(96, 96));
+        bitmap.Render(content);
+        bitmap.Save(fullOutputPath, PngBitmapEncoderOptions.Default);
+    }
+
+    private static void Render(Window window, string outputPath, int width, int height)
+    {
+        var fullOutputPath = PrepareOutputPath(outputPath);
 
         window.Measure(new Size(width, height));
         window.Arrange(new Rect(0, 0, width, height));
@@ -71,5 +86,14 @@ public static class ScreenshotRunner
             new Vector(96, 96));
         bitmap.Render(window);
         bitmap.Save(fullOutputPath, PngBitmapEncoderOptions.Default);
+    }
+
+    private static string PrepareOutputPath(string outputPath)
+    {
+        var fullOutputPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullOutputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+        return fullOutputPath;
     }
 }
