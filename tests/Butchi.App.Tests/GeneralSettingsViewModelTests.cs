@@ -19,7 +19,7 @@ public sealed class GeneralSettingsViewModelTests
         var vm = await GeneralSettingsViewModel.CreateAsync(store, CancellationToken.None);
 
         Assert.Equal("Japanese", vm.TargetLanguage);
-        Assert.Equal(["Japanese", "English"], vm.FavoriteLanguages);
+        Assert.Equal(new[] { "Japanese", "English" }, vm.FavoriteLanguages);
         Assert.Equal(8u, vm.PopoverHideSeconds);
         Assert.Equal("Saved", vm.SaveStatus);
 
@@ -36,7 +36,7 @@ public sealed class GeneralSettingsViewModelTests
         Assert.False(store.Value.TranslateEnabled);
         Assert.False(store.Value.RewriteEnabled);
         Assert.Equal("English", store.Value.TargetLanguage);
-        Assert.Equal(["English", "Vietnamese"], store.Value.FavoriteLanguages);
+        Assert.Equal(new[] { "English", "Vietnamese" }, store.Value.FavoriteLanguages);
         Assert.Equal(ResultAction.Replace, store.Value.ResultAction);
         Assert.Equal(12u, store.Value.PopoverHideSeconds);
         Assert.Equal("Saved", vm.SaveStatus);
