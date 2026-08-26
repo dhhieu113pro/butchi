@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Butchi.App.Branding;
 using Butchi.App.Management;
 using Butchi.App.Popover;
 using Butchi.App.Screenshots;
@@ -90,6 +91,7 @@ public sealed class App : Application, IApplicationShutdown
 
         _trayIcon = new TrayIcon
         {
+            Icon = BrandAssets.CreateWindowIcon(),
             ToolTipText = "Butchi",
             Menu = menu
         };
