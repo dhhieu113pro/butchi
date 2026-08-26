@@ -1,0 +1,92 @@
+name: Final Task 12 Migration Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/final-validation.yml'
+      - 'scripts/verify-final-migration.ps1'
+      - 'tests/Butchi.App.Tests/FinalMigrationGateContractTests.cs'
+  workflow_dispatch:
+    inputs:
+      parityRunId:
+        description: 'Successful Task 12 Parity Validation workflow run ID containing performance-summary.json and task12-parity-result.json'
+        required: true
+        type: string
+      releaseRunId:
+        description: 'Successful Release workflow run ID containing *.msix, *.msixbundle, and *.msixupload'
+        required: true
+        type: string
+      ciRunId:
+        description: 'Successful CI workflow run ID containing real Avalonia screenshots'
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test Butchi.slnx -c Release
+
+  final-validation:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download Task 12 parity and performance evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: task12-validation
+          path: artifacts/final-validation/evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.parityRunId }}
+
+      - name: Download Store release packaging evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: butchi-store-upload
+          path: artifacts/final-validation/evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.releaseRunId }}
+
+      - name: Download real UI screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: butchi-ui-screenshots
+          path: artifacts/final-validation/evidence/screenshots
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.ciRunId }}
+
+      - name: Verify final migration gate
+        shell: pwsh
+        run: |
+          ./scripts/verify-final-migration.ps1 `
+            -EvidenceRoot artifacts/final-validation/evidence `
+            -MarkdownOutputPath artifacts/final-validation/migration-summary.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: butchi-final-migration-validation
+          path: |
+            artifacts/final-validation/evidence/performance-summary.json
+            artifacts/final-validation/evidence/task12-parity-result.json
+            artifacts/final-validation/evidence/*.msix
+            artifacts/final-validation/evidence/*.msixbundle
+            artifacts/final-validation/evidence/*.msixupload
+            artifacts/final-validation/evidence/screenshots/*.png
+            artifacts/final-validation/migration-summary.md
+          if-no-files-found: error

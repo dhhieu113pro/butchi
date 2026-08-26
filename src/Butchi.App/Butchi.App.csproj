@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+    <ProjectReference Include="../Butchi.Core/Butchi.Core.csproj" />
+    <ProjectReference Include="../Butchi.Inference/Butchi.Inference.csproj" />
+    <ProjectReference Include="../Butchi.Infrastructure/Butchi.Infrastructure.csproj" />
+    <ProjectReference Include="../Butchi.Platform.Windows/Butchi.Platform.Windows.csproj" />
+  </ItemGroup>
+</Project>
