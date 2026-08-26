@@ -24,6 +24,24 @@ public sealed class App : Application, IApplicationShutdown
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             ManagementWindow = new ManagementWindow(new ManagementShellViewModel());
 
+            var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
+            if (popoverScreenshotIndex >= 0)
+            {
+                if (popoverScreenshotIndex + 1 >= Program.StartupArgs.Length ||
+                    string.IsNullOrWhiteSpace(Program.StartupArgs[popoverScreenshotIndex + 1]))
+                {
+                    throw new ArgumentException("--screenshot-popover requires an output path.", nameof(Program.StartupArgs));
+                }
+
+                PopoverWindow = new PopoverWindow(new PopoverViewModel());
+                ScreenshotRunner.RunPopover(
+                    Program.StartupArgs[popoverScreenshotIndex + 1],
+                    PopoverWindow,
+                    Shutdown);
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
             if (ScreenshotRequest.TryParse(Program.StartupArgs, out var screenshotRequest))
             {
                 ScreenshotRunner.Run(screenshotRequest!, ManagementWindow, Shutdown);
