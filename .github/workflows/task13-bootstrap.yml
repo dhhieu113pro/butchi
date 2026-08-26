@@ -63,14 +63,20 @@ jobs:
           }
 
           $parityPath = '.github/workflows/parity.yml'
-          $parity = Get-Content $parityPath -Raw
-          $needle = "          repository: dhhieu113pro/butchi`n          path: legacy"
-          $replacement = "          repository: dhhieu113pro/butchi`n          ref: legacy-tauri`n          path: legacy"
-          if (-not $parity.Contains($needle)) {
+          $lines = [System.Collections.ArrayList]@(Get-Content $parityPath)
+          $repositoryLine = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i].Trim() -eq 'repository: dhhieu113pro/butchi') {
+              $repositoryLine = $i
+              break
+            }
+          }
+          if ($repositoryLine -lt 0 -or $repositoryLine + 1 -ge $lines.Count -or $lines[$repositoryLine + 1].Trim() -ne 'path: legacy') {
             throw 'Could not find legacy checkout block in parity workflow.'
           }
-          $parity = $parity.Replace($needle, $replacement)
-          Set-Content $parityPath $parity -Encoding utf8
+          $indent = $lines[$repositoryLine + 1].Substring(0, $lines[$repositoryLine + 1].IndexOf('path: legacy'))
+          [void]$lines.Insert($repositoryLine + 1, "${indent}ref: legacy-tauri")
+          Set-Content $parityPath $lines -Encoding utf8
 
           if (Test-Path '.github/workflows/task13-bootstrap.yml') {
             Remove-Item '.github/workflows/task13-bootstrap.yml' -Force
