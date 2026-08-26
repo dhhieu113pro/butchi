@@ -1,0 +1,143 @@
+name: Task 12 Parity Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/parity.yml'
+      - 'scripts/benchmark-parity.ps1'
+      - 'scripts/benchmark-reference.ps1'
+      - 'scripts/benchmark-candidate.ps1'
+      - 'scripts/evaluate-performance-gate.ps1'
+      - 'scripts/validate-parity-evidence.ps1'
+      - 'docs/validation/task12-parity-performance.md'
+      - 'docs/validation/task12-parity-result.template.json'
+      - 'tests/Butchi.App.Tests/ParityPerformanceGateContractTests.cs'
+      - 'tests/Butchi.App.Tests/WindowsParityEvidenceContractTests.cs'
+  workflow_dispatch:
+    inputs:
+      referenceInferenceCommand:
+        description: 'PowerShell command that performs one equivalent inference through the legacy Butchi application/runtime'
+        required: true
+        type: string
+      candidateInferenceCommand:
+        description: 'PowerShell command that performs the same inference through the .NET/Avalonia Butchi application/runtime'
+        required: true
+        type: string
+      parityEvidenceJson:
+        description: 'Completed task12-parity-result.json content containing real x64 and ARM64 behavioral evidence'
+        required: true
+        type: string
+
+concurrency:
+  group: task12-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  task12-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Butchi.slnx
+
+      - name: Build
+        run: dotnet build Butchi.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test Butchi.slnx -c Release --no-build
+
+      - name: Publish Avalonia candidate
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: dotnet publish src/Butchi.App/Butchi.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/candidate
+
+      - name: Checkout legacy Butchi
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v5
+        with:
+          repository: dhhieu113pro/butchi
+          ref: legacy-tauri
+          path: legacy
+
+      - name: Setup Node for legacy build
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build legacy Butchi
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          corepack enable
+          Push-Location legacy
+          pnpm install --frozen-lockfile
+          pnpm build:app
+          Pop-Location
+
+      - name: Run real old-vs-new benchmark
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $referenceExe = (Resolve-Path 'legacy/src-tauri/target/release/butchi.exe').Path
+          $candidateExe = (Resolve-Path 'artifacts/candidate/Butchi.App.exe').Path
+          $referenceInference = @'
+          ${{ inputs.referenceInferenceCommand }}
+          '@
+          $candidateInference = @'
+          ${{ inputs.candidateInferenceCommand }}
+          '@
+
+          $referenceCommand = "& '$PWD/scripts/benchmark-reference.ps1' -ApplicationPath '$referenceExe' -InferenceCommand '$($referenceInference.Trim().Replace("'", "''"))'"
+          $candidateCommand = "& '$PWD/scripts/benchmark-candidate.ps1' -ApplicationPath '$candidateExe' -InferenceCommand '$($candidateInference.Trim().Replace("'", "''"))'"
+
+          ./scripts/benchmark-parity.ps1 `
+            -ReferenceCommand $referenceCommand `
+            -CandidateCommand $candidateCommand `
+            -Runs 5 `
+            -OutputPath artifacts/task12-validation/benchmark.json
+
+      - name: Evaluate Task 12 performance gate
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          ./scripts/evaluate-performance-gate.ps1 `
+            -BenchmarkPath artifacts/task12-validation/benchmark.json `
+            -JsonOutputPath artifacts/task12-validation/performance-summary.json `
+            -MarkdownOutputPath artifacts/task12-validation/performance-summary.md
+
+      - name: Write Windows parity evidence
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/task12-validation | Out-Null
+          @'
+          ${{ inputs.parityEvidenceJson }}
+          '@ | Set-Content -Path artifacts/task12-validation/task12-parity-result.json -Encoding utf8
+
+      - name: Validate Windows parity evidence
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          ./scripts/validate-parity-evidence.ps1 `
+            -EvidencePath artifacts/task12-validation/task12-parity-result.json `
+            -MarkdownOutputPath artifacts/task12-validation/parity-summary.md
+
+      - name: Copy validation checklist
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/task12-validation | Out-Null
+          Copy-Item docs/validation/task12-parity-performance.md artifacts/task12-validation/checklist.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task12-validation
+          path: artifacts/task12-validation/**
+          if-no-files-found: error
