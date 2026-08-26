@@ -1,0 +1,82 @@
+name: Task 13 Canonical Cutover Bootstrap
+
+on:
+  push:
+    branches:
+      - feat/avalonia-production-cutover
+
+permissions:
+  contents: write
+
+jobs:
+  import-validated-tree:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout canonical repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Import validated Avalonia tree
+        shell: pwsh
+        env:
+          SOURCE_SHA: 7d11bba77a3943d18f4cbaf370dd62eb479729a6
+          LEGACY_SHA: 2c37febcf79f4632c56143589b51164614092e4c
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          $source = Join-Path $env:RUNNER_TEMP 'butchi-fake-source'
+          git clone --no-checkout https://github.com/dhhieu113pro/butchi-fake.git $source
+          git -C $source checkout --detach $env:SOURCE_SHA
+
+          $actualSource = (git -C $source rev-parse HEAD).Trim()
+          if ($actualSource -ne $env:SOURCE_SHA) {
+            throw "Source SHA mismatch: expected $env:SOURCE_SHA, got $actualSource"
+          }
+
+          $actualLegacy = (git rev-parse HEAD).Trim()
+          if ($actualLegacy -ne $env:LEGACY_SHA) {
+            throw "Canonical branch no longer starts at legacy SHA: expected $env:LEGACY_SHA, got $actualLegacy"
+          }
+
+          $preserve = Join-Path $env:RUNNER_TEMP 'butchi-canonical-preserve'
+          New-Item -ItemType Directory -Force $preserve | Out-Null
+          foreach ($path in @('.gitignore', 'LICENSE', 'PRIVACY.md')) {
+            if (Test-Path $path) {
+              Copy-Item $path (Join-Path $preserve $path) -Force
+            }
+          }
+
+          git rm -r .
+
+          Get-ChildItem -Force $source |
+            Where-Object { $_.Name -ne '.git' } |
+            ForEach-Object { Copy-Item $_.FullName -Destination . -Recurse -Force }
+
+          foreach ($path in @('.gitignore', 'LICENSE', 'PRIVACY.md')) {
+            $saved = Join-Path $preserve $path
+            if (Test-Path $saved) {
+              Copy-Item $saved $path -Force
+            }
+          }
+
+          $parityPath = '.github/workflows/parity.yml'
+          $parity = Get-Content $parityPath -Raw
+          $needle = "          repository: dhhieu113pro/butchi`n          path: legacy"
+          $replacement = "          repository: dhhieu113pro/butchi`n          ref: legacy-tauri`n          path: legacy"
+          if (-not $parity.Contains($needle)) {
+            throw 'Could not find legacy checkout block in parity workflow.'
+          }
+          $parity = $parity.Replace($needle, $replacement)
+          Set-Content $parityPath $parity -Encoding utf8
+
+          if (Test-Path '.github/workflows/task13-bootstrap.yml') {
+            Remove-Item '.github/workflows/task13-bootstrap.yml' -Force
+          }
+
+          git add -A
+          git diff --cached --check
+          git commit -m 'feat: stage Avalonia production cutover'
+          git push origin HEAD:feat/avalonia-production-cutover
