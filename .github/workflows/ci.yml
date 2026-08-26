@@ -40,7 +40,7 @@ jobs:
           if (-not (Test-Path $popover)) { throw "Screenshot missing: $popover" }
           if ((Get-Item $popover).Length -le 1024) { throw "Screenshot unexpectedly small: $popover" }
 
-          $pages = @('settings', 'history', 'models', 'status')
+          $pages = @('settings', 'prompts', 'history', 'models', 'status')
           foreach ($page in $pages) {
             dotnet run --project src/Butchi.App/Butchi.App.csproj -c Release -- --screenshot "artifacts/ui/$page.png" --page $page --width 1440 --height 900
             $path = "artifacts/ui/$page.png"
