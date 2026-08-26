@@ -18,7 +18,7 @@ public sealed class ScreenshotCiContractTests
 
         var workflow = File.ReadAllText(workflowPath);
         Assert.Contains("--screenshot-popover \"artifacts/ui/popover.png\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("$pages = @('settings', 'history', 'models', 'status')", workflow, StringComparison.Ordinal);
+        Assert.Contains("$pages = @('settings', 'prompts', 'history', 'models', 'status')", workflow, StringComparison.Ordinal);
         Assert.Contains("--width 1440 --height 900", workflow, StringComparison.Ordinal);
         Assert.Contains("name: butchi-ui-screenshots", workflow, StringComparison.Ordinal);
         Assert.Contains("artifacts/ui/*.png", workflow, StringComparison.Ordinal);

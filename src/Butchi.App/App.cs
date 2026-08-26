@@ -35,11 +35,17 @@ public sealed class App : Application, IApplicationShutdown
                 .AsTask()
                 .GetAwaiter()
                 .GetResult();
+            var prompts = PromptsViewModel
+                .CreateAsync(configStore, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
             ButchiTheme.Apply(this, generalSettings.Theme);
 
             ManagementWindow = new ManagementWindow(
                 new ManagementShellViewModel(),
                 generalSettings,
+                prompts,
                 preference => ButchiTheme.Apply(this, preference));
 
             var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
