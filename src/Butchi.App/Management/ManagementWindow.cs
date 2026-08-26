@@ -14,12 +14,14 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
 {
     private readonly ManagementShellViewModel _viewModel;
     private readonly GeneralSettingsView _generalView;
+    private readonly PromptsView _promptsView;
     private readonly Border _contentHost;
     private readonly Dictionary<ManagementPage, Button> _navigationButtons = [];
 
     public ManagementWindow(
         ManagementShellViewModel viewModel,
         GeneralSettingsViewModel generalSettings,
+        PromptsViewModel prompts,
         Action<AppThemePreference> applyTheme)
     {
         _viewModel = viewModel;
@@ -34,6 +36,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         _generalView = new GeneralSettingsView(generalSettings, applyTheme);
+        _promptsView = new PromptsView(prompts);
         _contentHost = new Border
         {
             Padding = new Thickness(0),
@@ -159,10 +162,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private Control BuildPage(ManagementPage page) => page switch
     {
         ManagementPage.General => _generalView,
-        ManagementPage.Prompts => Placeholder(
-            "PROMPTS",
-            "Control how Translate and Rewrite respond.",
-            "Translate and Rewrite prompt profiles will live here in Task 14.2."),
+        ManagementPage.Prompts => _promptsView,
         ManagementPage.Model => Placeholder(
             "MODEL",
             "Download, load, and tune the local GGUF model.",
