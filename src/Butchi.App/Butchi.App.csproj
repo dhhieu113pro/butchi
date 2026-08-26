@@ -3,6 +3,7 @@
     <OutputType>WinExe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Assets\ButchiLogo.png" />
     <PackageReference Include="Avalonia.Desktop" />
     <ProjectReference Include="../Butchi.Core/Butchi.Core.csproj" />
     <ProjectReference Include="../Butchi.Inference/Butchi.Inference.csproj" />
