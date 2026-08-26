@@ -62,6 +62,9 @@ public static class ScreenshotRunner
         if (window.Content is not Control content)
             throw new InvalidOperationException("Management window content must be an Avalonia control.");
 
+        if (content is Panel panel)
+            panel.Background ??= window.Background;
+
         var fullOutputPath = PrepareOutputPath(outputPath);
 
         content.Measure(new Size(width, height));
