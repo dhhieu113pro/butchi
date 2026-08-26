@@ -126,15 +126,10 @@ public sealed class GeneralSettingsView : ScrollViewer
             OnContent = "On",
             OffContent = "Off"
         };
-        translate.Checked += async (_, _) =>
+        translate.PropertyChanged += async (_, args) =>
         {
-            if (_ready)
-                await RunAsync(() => _viewModel.SetTranslateEnabledAsync(true, CancellationToken.None));
-        };
-        translate.Unchecked += async (_, _) =>
-        {
-            if (_ready)
-                await RunAsync(() => _viewModel.SetTranslateEnabledAsync(false, CancellationToken.None));
+            if (_ready && args.Property == ToggleSwitch.IsCheckedProperty)
+                await RunAsync(() => _viewModel.SetTranslateEnabledAsync(translate.IsChecked == true, CancellationToken.None));
         };
 
         var rewrite = new ToggleSwitch
@@ -143,15 +138,10 @@ public sealed class GeneralSettingsView : ScrollViewer
             OnContent = "On",
             OffContent = "Off"
         };
-        rewrite.Checked += async (_, _) =>
+        rewrite.PropertyChanged += async (_, args) =>
         {
-            if (_ready)
-                await RunAsync(() => _viewModel.SetRewriteEnabledAsync(true, CancellationToken.None));
-        };
-        rewrite.Unchecked += async (_, _) =>
-        {
-            if (_ready)
-                await RunAsync(() => _viewModel.SetRewriteEnabledAsync(false, CancellationToken.None));
+            if (_ready && args.Property == ToggleSwitch.IsCheckedProperty)
+                await RunAsync(() => _viewModel.SetRewriteEnabledAsync(rewrite.IsChecked == true, CancellationToken.None));
         };
 
         var targetLanguage = new ComboBox
@@ -181,8 +171,7 @@ public sealed class GeneralSettingsView : ScrollViewer
                 IsChecked = _viewModel.FavoriteLanguages.Contains(language, StringComparer.OrdinalIgnoreCase),
                 Margin = new Thickness(0, 0, 18, 8)
             };
-            check.Checked += FavoriteLanguageChanged;
-            check.Unchecked += FavoriteLanguageChanged;
+            check.PropertyChanged += FavoriteLanguageChanged;
             _favoriteLanguages[check] = language;
             favoritePanel.Children.Add(check);
         }
@@ -230,9 +219,9 @@ public sealed class GeneralSettingsView : ScrollViewer
         return Card(body);
     }
 
-    private async void FavoriteLanguageChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void FavoriteLanguageChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (!_ready)
+        if (!_ready || e.Property != CheckBox.IsCheckedProperty)
             return;
 
         var selected = _favoriteLanguages
