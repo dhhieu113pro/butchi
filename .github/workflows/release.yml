@@ -35,13 +35,13 @@ jobs:
       - name: Resolve release version and Store identity
         shell: pwsh
         env:
-          STORE_PACKAGE_IDENTITY_NAME: ${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}
-          STORE_PACKAGE_PUBLISHER: ${{ secrets.STORE_PACKAGE_PUBLISHER }}
-          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
+          STORE_PACKAGE_IDENTITY_NAME: ${{ vars.STORE_PACKAGE_IDENTITY_NAME }}
+          STORE_PACKAGE_PUBLISHER: ${{ vars.STORE_PACKAGE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}
         run: |
           if ('${{ github.ref_type }}' -eq 'tag') {
             foreach ($name in 'STORE_PACKAGE_IDENTITY_NAME','STORE_PACKAGE_PUBLISHER','STORE_PUBLISHER_DISPLAY_NAME') {
-              if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Missing $name secret for tagged Store release" }
+              if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Missing $name repository variable for tagged Store release" }
             }
             $version = '${{ github.ref_name }}' -replace '^v',''
           } else {
