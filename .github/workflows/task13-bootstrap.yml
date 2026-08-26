@@ -36,9 +36,9 @@ jobs:
             throw "Source SHA mismatch: expected $env:SOURCE_SHA, got $actualSource"
           }
 
-          $actualLegacy = (git rev-parse HEAD).Trim()
-          if ($actualLegacy -ne $env:LEGACY_SHA) {
-            throw "Canonical branch no longer starts at legacy SHA: expected $env:LEGACY_SHA, got $actualLegacy"
+          git merge-base --is-ancestor $env:LEGACY_SHA HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Canonical cutover branch no longer descends from legacy SHA $env:LEGACY_SHA"
           }
 
           $preserve = Join-Path $env:RUNNER_TEMP 'butchi-canonical-preserve'
