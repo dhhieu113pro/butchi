@@ -5,7 +5,10 @@ using Butchi.App.Branding;
 using Butchi.App.Management;
 using Butchi.App.Popover;
 using Butchi.App.Screenshots;
+using Butchi.App.Settings;
+using Butchi.App.Styling;
 using Butchi.App.Tray;
+using Butchi.Infrastructure;
 
 namespace Butchi.App;
 
@@ -20,10 +23,24 @@ public sealed class App : Application, IApplicationShutdown
 
     public override void OnFrameworkInitializationCompleted()
     {
+        ButchiTheme.Initialize(this);
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            ManagementWindow = new ManagementWindow(new ManagementShellViewModel());
+
+            var configStore = new JsonAppConfigStoreAdapter(new JsonConfigStore(new AppPaths()));
+            var generalSettings = GeneralSettingsViewModel
+                .CreateAsync(configStore, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            ButchiTheme.Apply(this, generalSettings.Theme);
+
+            ManagementWindow = new ManagementWindow(
+                new ManagementShellViewModel(),
+                generalSettings,
+                preference => ButchiTheme.Apply(this, preference));
 
             var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
             if (popoverScreenshotIndex >= 0)
