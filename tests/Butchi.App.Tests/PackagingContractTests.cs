@@ -60,6 +60,23 @@ public sealed class PackagingContractTests
         Assert.Contains("MSIX_VERSION=$major.$minor.$build.$env:STORE_VERSION_REVISION", workflow, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Release_workflow_reads_public_store_identity_from_repository_variables()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var workflowPath = Path.Combine(repoRoot, ".github", "workflows", "release.yml");
+
+        Assert.True(File.Exists(workflowPath), $"Missing release workflow: {workflowPath}");
+
+        var workflow = File.ReadAllText(workflowPath);
+        Assert.Contains("STORE_PACKAGE_IDENTITY_NAME: ${{ vars.STORE_PACKAGE_IDENTITY_NAME }}", workflow, StringComparison.Ordinal);
+        Assert.Contains("STORE_PACKAGE_PUBLISHER: ${{ vars.STORE_PACKAGE_PUBLISHER }}", workflow, StringComparison.Ordinal);
+        Assert.Contains("STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.STORE_PUBLISHER_DISPLAY_NAME }}", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.STORE_PACKAGE_IDENTITY_NAME", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.STORE_PACKAGE_PUBLISHER", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("secrets.STORE_PUBLISHER_DISPLAY_NAME", workflow, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
