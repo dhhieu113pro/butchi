@@ -5,6 +5,7 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\ButchiLogo.png" />
     <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
     <ProjectReference Include="../Butchi.Core/Butchi.Core.csproj" />
     <ProjectReference Include="../Butchi.Inference/Butchi.Inference.csproj" />
     <ProjectReference Include="../Butchi.Infrastructure/Butchi.Infrastructure.csproj" />
