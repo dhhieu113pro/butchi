@@ -1,0 +1,166 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-store-msix:
+    name: Store MSIX (${{ matrix.rid }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            arch: x64
+          - rid: win-arm64
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve release version and Store identity
+        shell: pwsh
+        env:
+          STORE_PACKAGE_IDENTITY_NAME: ${{ secrets.STORE_PACKAGE_IDENTITY_NAME }}
+          STORE_PACKAGE_PUBLISHER: ${{ secrets.STORE_PACKAGE_PUBLISHER }}
+          STORE_PUBLISHER_DISPLAY_NAME: ${{ secrets.STORE_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            foreach ($name in 'STORE_PACKAGE_IDENTITY_NAME','STORE_PACKAGE_PUBLISHER','STORE_PUBLISHER_DISPLAY_NAME') {
+              if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name").Value)) { throw "Missing $name secret for tagged Store release" }
+            }
+            $version = '${{ github.ref_name }}' -replace '^v',''
+          } else {
+            $version = '0.1.0'
+            if ([string]::IsNullOrWhiteSpace($env:STORE_PACKAGE_IDENTITY_NAME)) { $env:STORE_PACKAGE_IDENTITY_NAME = 'Butchi.Test' }
+            if ([string]::IsNullOrWhiteSpace($env:STORE_PACKAGE_PUBLISHER)) { $env:STORE_PACKAGE_PUBLISHER = 'CN=Butchi Test' }
+            if ([string]::IsNullOrWhiteSpace($env:STORE_PUBLISHER_DISPLAY_NAME)) { $env:STORE_PUBLISHER_DISPLAY_NAME = 'Butchi' }
+          }
+
+          $parts = @($version.Split('.'))
+          if ($parts.Count -gt 4) { throw "Version must contain at most four numeric components: $version" }
+          foreach ($part in $parts) {
+            $parsed = 0
+            if (-not [int]::TryParse($part, [ref]$parsed) -or $parsed -lt 0 -or $parsed -gt 65535) { throw "Invalid MSIX version component '$part' in $version" }
+          }
+          while ($parts.Count -lt 3) { $parts += '0' }
+          $major = $parts[0]; $minor = $parts[1]; $build = $parts[2]
+          "BUTCHI_VERSION=$version" >> $env:GITHUB_ENV
+          "STORE_VERSION_REVISION=0" >> $env:GITHUB_ENV
+          "MSIX_VERSION=$major.$minor.$build.0" >> $env:GITHUB_ENV
+          "STORE_PACKAGE_IDENTITY_NAME=$env:STORE_PACKAGE_IDENTITY_NAME" >> $env:GITHUB_ENV
+          "STORE_PACKAGE_PUBLISHER=$env:STORE_PACKAGE_PUBLISHER" >> $env:GITHUB_ENV
+          "STORE_PUBLISHER_DISPLAY_NAME=$env:STORE_PUBLISHER_DISPLAY_NAME" >> $env:GITHUB_ENV
+
+      - name: Publish ${{ matrix.rid }}
+        shell: pwsh
+        run: |
+          dotnet publish src/Butchi.App/Butchi.App.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:Version=$env:BUTCHI_VERSION -o "artifacts/publish/${{ matrix.rid }}"
+          $exe = "artifacts/publish/${{ matrix.rid }}/Butchi.App.exe"
+          if (-not (Test-Path $exe)) { throw "Published executable missing: $exe" }
+
+      - name: Setup WinApp CLI
+        uses: microsoft/setup-WinAppCli@v0.2
+
+      - name: Stage Store package
+        shell: pwsh
+        run: |
+          $stage = "artifacts/store-stage/${{ matrix.rid }}"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "artifacts/publish/${{ matrix.rid }}/*" $stage -Recurse -Force
+          Move-Item "$stage/Butchi.App.exe" "$stage/butchi.exe" -Force
+          New-Item -ItemType Directory -Force "$stage/Assets" | Out-Null
+          $baseline = '2c37febcf79f4632c56143589b51164614092e4c'
+          $assetBase = "https://raw.githubusercontent.com/dhhieu113pro/butchi/$baseline/src-tauri/icons"
+          Invoke-WebRequest "$assetBase/StoreLogo.png" -OutFile "$stage/Assets/StoreLogo.png"
+          Invoke-WebRequest "$assetBase/Square44x44Logo.png" -OutFile "$stage/Assets/Square44x44Logo.png"
+          Invoke-WebRequest "$assetBase/Square150x150Logo.png" -OutFile "$stage/Assets/Square150x150Logo.png"
+          $manifest = Get-Content store/Package.appxmanifest.template -Raw
+          $manifest = $manifest.Replace('__PACKAGE_NAME__', $env:STORE_PACKAGE_IDENTITY_NAME).Replace('__PUBLISHER__', $env:STORE_PACKAGE_PUBLISHER).Replace('__PUBLISHER_DISPLAY_NAME__', $env:STORE_PUBLISHER_DISPLAY_NAME).Replace('__VERSION__', $env:MSIX_VERSION).Replace('__ARCHITECTURE__', '${{ matrix.arch }}')
+          Set-Content "$stage/Package.appxmanifest" $manifest -Encoding utf8
+
+      - name: Pack unsigned Store MSIX
+        shell: pwsh
+        run: |
+          $output = "artifacts/store/${{ matrix.rid }}"
+          New-Item -ItemType Directory -Force $output | Out-Null
+          winapp pack "artifacts/store-stage/${{ matrix.rid }}" --manifest "artifacts/store-stage/${{ matrix.rid }}/Package.appxmanifest" --output $output
+          $msix = Get-ChildItem $output -Filter '*.msix' | Select-Object -First 1
+          if (-not $msix) { throw "MSIX was not generated for ${{ matrix.rid }}" }
+          Move-Item $msix.FullName (Join-Path $output "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}.msix") -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: butchi-msix-${{ matrix.arch }}
+          path: artifacts/store/${{ matrix.rid }}/*.msix
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: GitHub release package
+    needs: build-store-msix
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: butchi-msix-*
+          path: artifacts/msix
+          merge-multiple: true
+      - name: Create Store MSIX bundle and upload container
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_type }}' -eq 'tag') { $version = '${{ github.ref_name }}' -replace '^v','' } else { $version = '0.1.0' }
+          $files = @(Get-ChildItem artifacts/msix -Filter '*.msix')
+          if ($files.Count -ne 2) { throw "Expected exactly 2 MSIX packages, found $($files.Count)" }
+          $kitsRoot = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots').KitsRoot10
+          $makeAppx = Get-ChildItem (Join-Path $kitsRoot 'bin') -Filter 'MakeAppx.exe' -Recurse | Where-Object { $_.FullName -match '\\x64\\MakeAppx\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $makeAppx) { throw "MakeAppx.exe was not found in the Windows SDK" }
+          $bundleInput = 'artifacts/bundle-input'; New-Item -ItemType Directory -Force $bundleInput | Out-Null; Copy-Item $files.FullName $bundleInput -Force
+          $bundle = "artifacts/msix/Butchi_$version.msixbundle"
+          & $makeAppx.FullName bundle /d $bundleInput /p $bundle /o
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bundle)) { throw "MSIX bundle generation failed" }
+          $uploadZip = "artifacts/msix/Butchi_$version.zip"; Compress-Archive -Path $bundle -DestinationPath $uploadZip -Force
+          $upload = "artifacts/msix/Butchi_$version.msixupload"; Move-Item $uploadZip $upload -Force
+          if (-not (Test-Path $upload) -or (Get-Item $upload).Length -le 0) { throw "Store .msixupload was not generated" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: butchi-store-upload
+          path: |
+            artifacts/msix/*.msix
+            artifacts/msix/*.msixbundle
+            artifacts/msix/*.msixupload
+          if-no-files-found: error
+          retention-days: 30
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/msix/*.msix
+            artifacts/msix/*.msixbundle
+            artifacts/msix/*.msixupload
+          body: |
+            ## Butchi .NET / Avalonia release
+            - Windows x64 Store MSIX
+            - Windows ARM64 Store MSIX
+            - multi-architecture MSIX bundle
+            - Microsoft Store `.msixupload`
+            - packages are unsigned; Microsoft Store signs certified submissions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
