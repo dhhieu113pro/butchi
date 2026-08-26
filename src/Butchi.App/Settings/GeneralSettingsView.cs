@@ -18,7 +18,7 @@ public sealed class GeneralSettingsView : ScrollViewer
     private readonly GeneralSettingsViewModel _viewModel;
     private readonly Action<AppThemePreference> _applyTheme;
     private readonly TextBlock _saveStatus;
-    private readonly List<CheckBox> _favoriteChecks = [];
+    private readonly Dictionary<CheckBox, string> _favoriteLanguages = [];
     private bool _ready;
 
     public GeneralSettingsView(
@@ -71,8 +71,7 @@ public sealed class GeneralSettingsView : ScrollViewer
             Text = "GENERAL",
             FontSize = 11,
             FontWeight = FontWeight.Bold,
-            Foreground = ButchiTheme.CobaltBrush,
-            LetterSpacing = 1.2
+            Foreground = ButchiTheme.CobaltBrush
         });
         titleStack.Children.Add(new TextBlock
         {
@@ -180,12 +179,11 @@ public sealed class GeneralSettingsView : ScrollViewer
             {
                 Content = language,
                 IsChecked = _viewModel.FavoriteLanguages.Contains(language, StringComparer.OrdinalIgnoreCase),
-                Margin = new Thickness(0, 0, 18, 8),
-                Tag = language
+                Margin = new Thickness(0, 0, 18, 8)
             };
             check.Checked += FavoriteLanguageChanged;
             check.Unchecked += FavoriteLanguageChanged;
-            _favoriteChecks.Add(check);
+            _favoriteLanguages[check] = language;
             favoritePanel.Children.Add(check);
         }
 
@@ -237,9 +235,9 @@ public sealed class GeneralSettingsView : ScrollViewer
         if (!_ready)
             return;
 
-        var selected = _favoriteChecks
-            .Where(item => item.IsChecked == true)
-            .Select(item => (string)item.Tag!)
+        var selected = _favoriteLanguages
+            .Where(pair => pair.Key.IsChecked == true)
+            .Select(pair => pair.Value)
             .ToArray();
 
         if (selected.Length > 5)
