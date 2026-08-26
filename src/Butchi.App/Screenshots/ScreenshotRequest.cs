@@ -55,6 +55,7 @@ public sealed record ScreenshotRequest(
     private static ManagementPage ParsePage(string value) => value.ToLowerInvariant() switch
     {
         "settings" => ManagementPage.Settings,
+        "prompts" => ManagementPage.Prompts,
         "history" => ManagementPage.History,
         "models" => ManagementPage.Models,
         "status" => ManagementPage.Status,
