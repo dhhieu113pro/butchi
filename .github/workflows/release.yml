@@ -59,9 +59,10 @@ jobs:
           }
           while ($parts.Count -lt 3) { $parts += '0' }
           $major = $parts[0]; $minor = $parts[1]; $build = $parts[2]
+          $env:STORE_VERSION_REVISION = '0'
           "BUTCHI_VERSION=$version" >> $env:GITHUB_ENV
           "STORE_VERSION_REVISION=0" >> $env:GITHUB_ENV
-          "MSIX_VERSION=$major.$minor.$build.0" >> $env:GITHUB_ENV
+          "MSIX_VERSION=$major.$minor.$build.$env:STORE_VERSION_REVISION" >> $env:GITHUB_ENV
           "STORE_PACKAGE_IDENTITY_NAME=$env:STORE_PACKAGE_IDENTITY_NAME" >> $env:GITHUB_ENV
           "STORE_PACKAGE_PUBLISHER=$env:STORE_PACKAGE_PUBLISHER" >> $env:GITHUB_ENV
           "STORE_PUBLISHER_DISPLAY_NAME=$env:STORE_PUBLISHER_DISPLAY_NAME" >> $env:GITHUB_ENV
