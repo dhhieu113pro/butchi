@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Import validated Avalonia tree
+      - name: Import validated Avalonia tree except workflows
         shell: pwsh
         env:
           SOURCE_SHA: 7d11bba77a3943d18f4cbaf370dd62eb479729a6
@@ -48,12 +48,16 @@ jobs:
               Copy-Item $path (Join-Path $preserve $path) -Force
             }
           }
+          Copy-Item '.github/workflows' (Join-Path $preserve 'workflows') -Recurse -Force
 
           git rm -r .
 
           Get-ChildItem -Force $source |
-            Where-Object { $_.Name -ne '.git' } |
+            Where-Object { $_.Name -notin @('.git', '.github') } |
             ForEach-Object { Copy-Item $_.FullName -Destination . -Recurse -Force }
+
+          New-Item -ItemType Directory -Force '.github' | Out-Null
+          Copy-Item (Join-Path $preserve 'workflows') '.github/workflows' -Recurse -Force
 
           foreach ($path in @('.gitignore', 'LICENSE', 'PRIVACY.md')) {
             $saved = Join-Path $preserve $path
@@ -62,27 +66,13 @@ jobs:
             }
           }
 
-          $parityPath = '.github/workflows/parity.yml'
-          $lines = [System.Collections.ArrayList]@(Get-Content $parityPath)
-          $repositoryLine = -1
-          for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].Trim() -eq 'repository: dhhieu113pro/butchi') {
-              $repositoryLine = $i
-              break
-            }
-          }
-          if ($repositoryLine -lt 0 -or $repositoryLine + 1 -ge $lines.Count -or $lines[$repositoryLine + 1].Trim() -ne 'path: legacy') {
-            throw 'Could not find legacy checkout block in parity workflow.'
-          }
-          $indent = $lines[$repositoryLine + 1].Substring(0, $lines[$repositoryLine + 1].IndexOf('path: legacy'))
-          [void]$lines.Insert($repositoryLine + 1, "${indent}ref: legacy-tauri")
-          Set-Content $parityPath $lines -Encoding utf8
-
-          if (Test-Path '.github/workflows/task13-bootstrap.yml') {
-            Remove-Item '.github/workflows/task13-bootstrap.yml' -Force
-          }
-
           git add -A
           git diff --cached --check
-          git commit -m 'feat: stage Avalonia production cutover'
+
+          $workflowDiff = git diff --cached --name-only -- '.github/workflows'
+          if ($workflowDiff) {
+            throw "Bootstrap must not modify workflow files: $($workflowDiff -join ', ')"
+          }
+
+          git commit -m 'feat: stage Avalonia production cutover tree'
           git push origin HEAD:feat/avalonia-production-cutover
