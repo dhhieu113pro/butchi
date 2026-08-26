@@ -40,7 +40,8 @@ public sealed class ScreenshotCiContractTests
 
         var runner = File.ReadAllText(runnerPath);
         Assert.Contains("RenderManagementContent", runner, StringComparison.Ordinal);
-        Assert.Contains("window.Content is Control content", runner, StringComparison.Ordinal);
+        Assert.Contains("window.Content is not Control content", runner, StringComparison.Ordinal);
+        Assert.Contains("panel.Background ??= window.Background", runner, StringComparison.Ordinal);
         Assert.Contains("content.Measure(new Size(width, height))", runner, StringComparison.Ordinal);
         Assert.Contains("content.Arrange(new Rect(0, 0, width, height))", runner, StringComparison.Ordinal);
         Assert.Contains("bitmap.Render(content)", runner, StringComparison.Ordinal);
