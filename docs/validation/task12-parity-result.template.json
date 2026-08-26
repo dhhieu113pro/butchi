@@ -1,0 +1,34 @@
+{
+  "x64": {
+    "launch": false,
+    "doubleCtrl": false,
+    "selectionCapture": false,
+    "clipboardPreserved": false,
+    "translate": false,
+    "rewrite": false,
+    "cancel": false,
+    "settings": false,
+    "history": false,
+    "models": false,
+    "status": false,
+    "modelLoading": false,
+    "packagedLaunch": false,
+    "notes": ""
+  },
+  "arm64": {
+    "launch": false,
+    "doubleCtrl": false,
+    "selectionCapture": false,
+    "clipboardPreserved": false,
+    "translate": false,
+    "rewrite": false,
+    "cancel": false,
+    "settings": false,
+    "history": false,
+    "models": false,
+    "status": false,
+    "modelLoading": false,
+    "packagedLaunch": false,
+    "notes": ""
+  }
+}
