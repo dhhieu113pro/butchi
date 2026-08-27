@@ -33,4 +33,31 @@ public sealed class InstalledAppProbeTests
         Assert.Null(result.PromptContent);
         Assert.Null(result.HistoryContent);
     }
+
+    [Fact]
+    public void Installed_msix_probe_is_bounded_and_release_runs_cancel_stale_pr_verification()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+        var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
+
+        Assert.Contains("WaitForExit(30000)", script, StringComparison.Ordinal);
+        Assert.Contains("Kill", script, StringComparison.Ordinal);
+        Assert.Contains("probeProduced", script, StringComparison.Ordinal);
+        Assert.Contains("cancel-in-progress: true", workflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Butchi.slnx")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate Butchi repository root from the test output directory.");
+    }
 }
