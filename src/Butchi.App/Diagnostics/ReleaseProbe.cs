@@ -40,6 +40,7 @@ public static class ReleaseProbe
             await historyStore.InitializeAsync(cancellationToken);
             var historyEntries = await historyStore.SearchAsync(limit: 500, cancellationToken: cancellationToken);
             var historyReady = historyEntries is not null;
+            var historyEntryCount = historyEntries?.Count ?? 0;
 
             using var httpClient = new HttpClient();
             var downloader = new ModelDownloader(new HuggingFaceModelDownloadSource(httpClient));
@@ -64,7 +65,7 @@ public static class ReleaseProbe
             result = ReleaseProbeResult.CreateSuccess(
                 identity,
                 version,
-                historyEntryCount: historyEntries.Count,
+                historyEntryCount: historyEntryCount,
                 firstRunCompositionReady: firstRunCompositionReady,
                 trayReady: trayReady,
                 settingsReady: settingsReady,
