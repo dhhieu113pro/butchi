@@ -175,9 +175,11 @@ public sealed class PromptsView : ScrollViewer
     private void RefreshFromViewModel()
     {
         _translateButton.Background = _viewModel.Mode == PromptMode.Translate ? ButchiTheme.CobaltBrush : Brushes.Transparent;
-        _translateButton.Foreground = _viewModel.Mode == PromptMode.Translate ? ButchiTheme.WhiteBrush : null;
+        _translateButton.ClearValue(ForegroundProperty);
+        if (_viewModel.Mode == PromptMode.Translate) _translateButton.Foreground = ButchiTheme.WhiteBrush;
         _rewriteButton.Background = _viewModel.Mode == PromptMode.Rewrite ? ButchiTheme.CobaltBrush : Brushes.Transparent;
-        _rewriteButton.Foreground = _viewModel.Mode == PromptMode.Rewrite ? ButchiTheme.WhiteBrush : null;
+        _rewriteButton.ClearValue(ForegroundProperty);
+        if (_viewModel.Mode == PromptMode.Rewrite) _rewriteButton.Foreground = ButchiTheme.WhiteBrush;
 
         _profiles.ItemsSource = _viewModel.Profiles;
         _profiles.SelectedItem = _viewModel.Profiles.First(profile => profile.Name == _viewModel.SelectedProfile.Name);
