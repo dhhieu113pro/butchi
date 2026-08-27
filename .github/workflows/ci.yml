@@ -46,8 +46,8 @@ jobs:
             Assert-VisualEvidence $path
             $image = [System.Drawing.Image]::FromFile((Resolve-Path $path))
             try {
-              if ($image.Width -ne 1440) { throw "Unexpected screenshot width for $path: $($image.Width)" }
-              if ($image.Height -ne 900) { throw "Unexpected screenshot height for $path: $($image.Height)" }
+              if ($image.Width -ne 1440) { throw "Unexpected screenshot width for ${path}: $($image.Width)" }
+              if ($image.Height -ne 900) { throw "Unexpected screenshot height for ${path}: $($image.Height)" }
             }
             finally {
               $image.Dispose()
