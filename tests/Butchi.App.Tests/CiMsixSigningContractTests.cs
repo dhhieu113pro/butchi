@@ -24,7 +24,17 @@ public sealed class CiMsixSigningContractTests
         Assert.Contains("Resolve-Path", sign, StringComparison.Ordinal);
         Assert.Contains("SignTool", sign, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Get-AuthenticodeSignature", sign, StringComparison.Ordinal);
-        Assert.Contains("Valid", sign, StringComparison.Ordinal);
+        Assert.Contains("SignerCertificate", sign, StringComparison.Ordinal);
+        Assert.Contains("Thumbprint", sign, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Signing_helper_uses_signtool_to_verify_the_signed_msix_package()
+    {
+        var sign = ReadScript("Sign-CiMsix.ps1");
+
+        Assert.Contains("verify", sign, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/pa", sign, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
