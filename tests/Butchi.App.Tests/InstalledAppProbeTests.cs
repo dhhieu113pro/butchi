@@ -89,15 +89,16 @@ public sealed class InstalledAppProbeTests
     }
 
     [Fact]
-    public void Installed_msix_probe_queries_the_COM_activation_interface_instead_of_using_a_managed_cast()
+    public void Installed_msix_probe_invokes_COM_activation_through_a_managed_helper()
     {
         var repoRoot = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
 
-        Assert.Contains("GetIUnknownForObject", script, StringComparison.Ordinal);
-        Assert.Contains("GetTypedObjectForIUnknown", script, StringComparison.Ordinal);
-        Assert.Contains("Release($activationUnknown)", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("[Butchi.ReleaseValidation.IApplicationActivationManager][Butchi.ReleaseValidation.ApplicationActivationManager]::new()", script, StringComparison.Ordinal);
+        Assert.Contains("public static class ApplicationActivator", script, StringComparison.Ordinal);
+        Assert.Contains("(IApplicationActivationManager)new ApplicationActivationManager()", script, StringComparison.Ordinal);
+        Assert.Contains("[Butchi.ReleaseValidation.ApplicationActivator]::ActivateApplication", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetTypedObjectForIUnknown", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$activationManager.ActivateApplication", script, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
