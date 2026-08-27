@@ -101,6 +101,17 @@ public sealed class InstalledAppProbeTests
         Assert.DoesNotContain("$activationManager.ActivateApplication", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_probe_uses_probe_document_as_authoritative_result_after_registered_activation()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("if (-not (Test-Path $probePath))", script, StringComparison.Ordinal);
+        Assert.Contains("if (-not $probe.success -or -not $probe.compositionHealthy)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$process.ExitCode", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
