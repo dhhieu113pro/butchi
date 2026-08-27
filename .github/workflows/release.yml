@@ -100,6 +100,16 @@ jobs:
           if (-not $msix) { throw "MSIX was not generated for ${{ matrix.rid }}" }
           Move-Item $msix.FullName (Join-Path $output "Butchi_$env:BUTCHI_VERSION`_${{ matrix.arch }}.msix") -Force
 
+      - name: Validate unsigned Store MSIX
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem "artifacts/store/${{ matrix.rid }}" -Filter '*.msix' | Select-Object -First 1
+          ./scripts/Release/Validate-StorePackage.ps1 `
+            -StagePath "artifacts/store-stage/${{ matrix.rid }}" `
+            -Architecture '${{ matrix.arch }}' `
+            -Version $env:MSIX_VERSION `
+            -PackagePath $package.FullName
+
       - uses: actions/upload-artifact@v4
         with:
           name: butchi-msix-${{ matrix.arch }}
@@ -122,6 +132,8 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ github.ref_type }}' -eq 'tag') { $version = '${{ github.ref_name }}' -replace '^v','' } else { $version = '0.1.0' }
+          $parts = @($version.Split('.')); while ($parts.Count -lt 3) { $parts += '0' }
+          $msixVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
           $files = @(Get-ChildItem artifacts/msix -Filter '*.msix')
           if ($files.Count -ne 2) { throw "Expected exactly 2 MSIX packages, found $($files.Count)" }
           $kitsRoot = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots').KitsRoot10
@@ -134,6 +146,18 @@ jobs:
           $uploadZip = "artifacts/msix/Butchi_$version.zip"; Compress-Archive -Path $bundle -DestinationPath $uploadZip -Force
           $upload = "artifacts/msix/Butchi_$version.msixupload"; Move-Item $uploadZip $upload -Force
           if (-not (Test-Path $upload) -or (Get-Item $upload).Length -le 0) { throw "Store .msixupload was not generated" }
+          "MSIX_VERSION=$msixVersion" >> $env:GITHUB_ENV
+          "BUNDLE_PATH=$bundle" >> $env:GITHUB_ENV
+          "UPLOAD_PATH=$upload" >> $env:GITHUB_ENV
+      - name: Validate Store bundle and upload
+        shell: pwsh
+        run: |
+          ./scripts/Release/Validate-StorePackage.ps1 `
+            -StagePath 'store' `
+            -Architecture 'x64' `
+            -Version $env:MSIX_VERSION `
+            -BundlePath $env:BUNDLE_PATH `
+            -UploadPath $env:UPLOAD_PATH
       - uses: actions/upload-artifact@v4
         with:
           name: butchi-store-upload
