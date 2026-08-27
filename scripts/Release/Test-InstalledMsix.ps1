@@ -42,7 +42,13 @@ try {
     $env:BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY = $identityName
     $env:BUTCHI_RELEASE_PROBE_PACKAGE_VERSION = $expectedVersion
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
-    $process = Start-Process -FilePath $exe -ArgumentList @('--release-probe', $probePath) -PassThru -Wait
+    $process = Start-Process -FilePath $exe -ArgumentList @('--release-probe', $probePath) -PassThru
+    $probeProduced = $process.WaitForExit(30000)
+    if (-not $probeProduced) {
+        $process.Kill($true)
+        $process.WaitForExit()
+        throw 'Installed release probe exceeded the 30 second timeout.'
+    }
     if ($process.ExitCode -ne 0) { throw "Installed release probe exited with code $($process.ExitCode)." }
     if (-not (Test-Path $probePath)) { throw 'Installed release probe did not produce output JSON.' }
 
