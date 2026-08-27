@@ -1,3 +1,4 @@
+# Final composite gate: .github/workflows/release-readiness.yml
 name: CI
 
 on:
@@ -6,6 +7,7 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build-test:
