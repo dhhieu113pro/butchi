@@ -51,4 +51,4 @@ if ($signature.SignerCertificate.Thumbprint -ne $CertificateThumbprint) {
     throw "CI MSIX signer thumbprint '$($signature.SignerCertificate.Thumbprint)' does not match expected '$CertificateThumbprint'."
 }
 
-Write-Host "CI MSIX signed and verified with certificate $CertificateThumbprint: $resolvedInput"
+Write-Host "CI MSIX signed and verified with certificate ${CertificateThumbprint}: $resolvedInput"
