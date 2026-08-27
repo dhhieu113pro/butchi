@@ -48,6 +48,18 @@ public sealed class UpgradeProbeTests
         Assert.Contains("Test-InstalledMsix.ps1", workflow, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Generated_upgrade_package_function_suppresses_tool_output_before_returning_path()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-MsixUpgrade.ps1"));
+
+        Assert.Contains("& $makeAppx.FullName unpack", script, StringComparison.Ordinal);
+        Assert.Contains("| Out-Null", script, StringComparison.Ordinal);
+        Assert.Contains("Sign-CiMsix.ps1", script, StringComparison.Ordinal);
+        Assert.Contains("return $output", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
