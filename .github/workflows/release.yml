@@ -119,6 +119,67 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  validate-ci-signing:
+    name: CI-only MSIX signing
+    needs: build-store-msix
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: butchi-msix-x64
+          path: artifacts/production-msix
+
+      - name: Create and trust ephemeral CI signing certificate
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/production-msix -Filter '*.msix' | Select-Object -First 1
+          if (-not $package) { throw 'x64 production MSIX missing for CI signing validation' }
+
+          $manifestStage = Join-Path $PWD 'artifacts/ci-signing/manifest'
+          New-Item -ItemType Directory -Force $manifestStage | Out-Null
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($package.FullName, $manifestStage)
+          [xml]$manifest = Get-Content (Join-Path $manifestStage 'AppxManifest.xml') -Raw
+          $publisher = $manifest.Package.Identity.Publisher
+          if ([string]::IsNullOrWhiteSpace($publisher)) { throw 'Packaged manifest publisher is missing.' }
+
+          $ciCertificate = ./scripts/Release/New-CiMsixSigningCertificate.ps1 `
+            -PublicCertificatePath 'artifacts/ci-signing/butchi-ci.cer' `
+            -Subject $publisher
+          Import-Certificate -FilePath $ciCertificate.PublicCertificatePath -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          "CI_SIGNING_THUMBPRINT=$($ciCertificate.Thumbprint)" >> $env:GITHUB_ENV
+          "CI_SIGNING_CERT_PATH=$($ciCertificate.PublicCertificatePath)" >> $env:GITHUB_ENV
+
+      - name: Copy and sign CI-only x64 MSIX
+        shell: pwsh
+        run: |
+          $productionPackage = Get-ChildItem artifacts/production-msix -Filter '*.msix' | Select-Object -First 1
+          $ciDirectory = Join-Path $PWD 'artifacts/ci-install'
+          New-Item -ItemType Directory -Force $ciDirectory | Out-Null
+          $ciPackage = Join-Path $ciDirectory 'Butchi_CI_x64.msix'
+          Copy-Item $productionPackage.FullName $ciPackage -Force
+
+          ./scripts/Release/Sign-CiMsix.ps1 `
+            -InputMsix $ciPackage `
+            -CertificateThumbprint $env:CI_SIGNING_THUMBPRINT `
+            -ProductionRoot (Join-Path $PWD 'artifacts/production-msix')
+
+          $productionSignature = Get-AuthenticodeSignature -FilePath $productionPackage.FullName
+          if ($productionSignature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
+            throw "Production Store MSIX was unexpectedly signed: $($productionSignature.Status)"
+          }
+
+      - name: Cleanup CI signing material
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:CI_SIGNING_THUMBPRINT)) {
+            Remove-Item "Cert:\CurrentUser\My\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\CurrentUser\TrustedPeople\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+          }
+          if (Test-Path 'artifacts/ci-signing') { Remove-Item 'artifacts/ci-signing' -Recurse -Force }
+          if (Test-Path 'artifacts/ci-install') { Remove-Item 'artifacts/ci-install' -Recurse -Force }
+
   publish-release:
     name: GitHub release package
     needs: build-store-msix
