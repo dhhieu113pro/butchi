@@ -148,6 +148,8 @@ jobs:
             -PublicCertificatePath 'artifacts/ci-signing/butchi-ci.cer' `
             -Subject $publisher
           Import-Certificate -FilePath $ciCertificate.PublicCertificatePath -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          certutil -user -f -addstore Root $ciCertificate.PublicCertificatePath
+          if ($LASTEXITCODE -ne 0) { throw "certutil failed to trust the CI signing certificate in CurrentUser Root with exit code $LASTEXITCODE" }
           "CI_SIGNING_THUMBPRINT=$($ciCertificate.Thumbprint)" >> $env:GITHUB_ENV
           "CI_SIGNING_CERT_PATH=$($ciCertificate.PublicCertificatePath)" >> $env:GITHUB_ENV
 
@@ -182,6 +184,7 @@ jobs:
           if (-not [string]::IsNullOrWhiteSpace($env:CI_SIGNING_THUMBPRINT)) {
             Remove-Item "Cert:\CurrentUser\My\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
             Remove-Item "Cert:\CurrentUser\TrustedPeople\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\CurrentUser\Root\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
           }
           if (Test-Path 'artifacts/ci-signing') { Remove-Item 'artifacts/ci-signing' -Recurse -Force }
           if (Test-Path 'artifacts/ci-install') { Remove-Item 'artifacts/ci-install' -Recurse -Force }
