@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Butchi.App.Models;
 using Butchi.App.Settings;
-using Butchi.App.Tray;
+using Butchi.App.Startup;
 using Butchi.Inference;
 using Butchi.Infrastructure;
 
@@ -50,13 +50,12 @@ public static class ReleaseProbe
             var models = await ModelManagementViewModel.CreateAsync(modelManager, configStore, cancellationToken);
             var modelsReady = models is not null;
 
-            var trayCommands = Enum.GetValues<TrayCommand>();
-            var trayReady = trayCommands.Contains(TrayCommand.OpenSettings)
-                && trayCommands.Contains(TrayCommand.OpenHistory)
-                && trayCommands.Contains(TrayCommand.OpenModels)
-                && trayCommands.Contains(TrayCommand.OpenStatus)
-                && trayCommands.Contains(TrayCommand.Exit);
-            var firstRunCompositionReady = settingsReady && modelsReady && historyReady && trayReady;
+            var startupBehavior = await StartupBehaviorProbe.RunAsync(cancellationToken);
+            var trayReady = startupBehavior.TrayReady;
+            var firstRunCompositionReady = settingsReady
+                && modelsReady
+                && historyReady
+                && startupBehavior.FirstRunCompositionReady;
 
             var identity = Environment.GetEnvironmentVariable("BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY") ?? "Butchi";
             var version = Environment.GetEnvironmentVariable("BUTCHI_RELEASE_PROBE_PACKAGE_VERSION")
