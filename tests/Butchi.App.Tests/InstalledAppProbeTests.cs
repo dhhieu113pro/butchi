@@ -1,4 +1,5 @@
 using Butchi.App.Diagnostics;
+using Xunit;
 
 namespace Butchi.App.Tests;
 
