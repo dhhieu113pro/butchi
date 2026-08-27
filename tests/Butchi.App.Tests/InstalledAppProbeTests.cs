@@ -77,6 +77,17 @@ public sealed class InstalledAppProbeTests
         Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_probe_activates_the_registered_application_instead_of_launching_the_exe_directly()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("IApplicationActivationManager", script, StringComparison.Ordinal);
+        Assert.Contains("ActivateApplication", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start-Process -FilePath $exe", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
