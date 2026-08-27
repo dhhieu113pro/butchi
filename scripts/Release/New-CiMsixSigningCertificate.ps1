@@ -28,11 +28,13 @@ try {
 
     Export-Certificate -Cert $cert -FilePath $OutputCerPath -Force | Out-Null
     Import-Certificate -FilePath $OutputCerPath -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+    Import-Certificate -FilePath $OutputCerPath -CertStoreLocation 'Cert:\CurrentUser\Root' | Out-Null
 
     Write-Output $cert.Thumbprint
 }
 catch {
     if ($cert) {
+        Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath "Cert:\CurrentUser\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
     }
