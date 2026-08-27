@@ -83,6 +83,49 @@ public sealed class PersistenceCompatibilityTests : IDisposable
     }
 
     [Fact]
+    public async Task Config_status_distinguishes_missing_ready_and_invalid_content()
+    {
+        var paths = new AppPaths(_root);
+        var store = new JsonConfigStore(paths);
+
+        var missing = await store.LoadWithStatusAsync();
+        Assert.Equal(ConfigLoadState.Missing, missing.State);
+        Assert.Equal("Vietnamese", missing.Config.TargetLanguage);
+        Assert.Equal(["Vietnamese", "English"], missing.Config.FavoriteLanguages);
+        Assert.Null(missing.ErrorCode);
+
+        await store.SaveAsync(AppConfig.Default with { TargetLanguage = "Japanese" });
+        var ready = await store.LoadWithStatusAsync();
+        Assert.Equal(ConfigLoadState.Ready, ready.State);
+        Assert.Equal("Japanese", ready.Config.TargetLanguage);
+        Assert.Null(ready.ErrorCode);
+
+        await File.WriteAllTextAsync(paths.ConfigPath, "{not-json");
+        var invalid = await store.LoadWithStatusAsync();
+        Assert.Equal(ConfigLoadState.Invalid, invalid.State);
+        Assert.Equal("Vietnamese", invalid.Config.TargetLanguage);
+        Assert.Equal(["Vietnamese", "English"], invalid.Config.FavoriteLanguages);
+        Assert.Equal(nameof(JsonException), invalid.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Config_status_maps_read_failure_without_exposing_exception_message()
+    {
+        var paths = new AppPaths(_root);
+        paths.EnsureDirectories();
+        await File.WriteAllTextAsync(paths.ConfigPath, "{}");
+        var store = new JsonConfigStore(paths, _ => throw new IOException("private config content"));
+
+        var result = await store.LoadWithStatusAsync();
+
+        Assert.Equal(ConfigLoadState.Unavailable, result.State);
+        Assert.Equal("Vietnamese", result.Config.TargetLanguage);
+        Assert.Equal(["Vietnamese", "English"], result.Config.FavoriteLanguages);
+        Assert.Equal(nameof(IOException), result.ErrorCode);
+        Assert.DoesNotContain("private config content", result.ErrorCode);
+    }
+
+    [Fact]
     public async Task History_search_filters_case_insensitively_orders_descending_and_clamps_limits()
     {
         var store = new SqliteHistoryStore(new AppPaths(_root));
