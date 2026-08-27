@@ -41,10 +41,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "SignTool failed for CI MSIX copy: $inputPath"
 }
 
-$signature = Get-AuthenticodeSignature -FilePath $inputPath
-if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-    throw "CI MSIX signature is not Valid: $($signature.Status)"
+& $SignTool.FullName verify /pa /v $inputPath
+if ($LASTEXITCODE -ne 0) {
+    throw "SignTool verify failed for CI MSIX copy: $inputPath"
 }
+
+$signature = Get-AuthenticodeSignature -FilePath $inputPath
 if (-not $signature.SignerCertificate -or
     $signature.SignerCertificate.Thumbprint -ne $CertificateThumbprint) {
     throw 'CI MSIX signer thumbprint does not match the ephemeral certificate.'
