@@ -60,13 +60,15 @@ public sealed class InstalledAppProbeTests
     }
 
     [Fact]
-    public void Installed_msix_smoke_relies_on_noninteractive_trusted_people_store()
+    public void Installed_msix_smoke_uses_noninteractive_ci_root_trust()
     {
         var repoRoot = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
         var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
 
         Assert.Contains("Cert:\\CurrentUser\\TrustedPeople", workflow, StringComparison.Ordinal);
+        Assert.Contains("certutil -user -f -addstore Root", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cert:\\CurrentUser\\Root\\$env:CI_SIGNING_THUMBPRINT", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
     }
 
