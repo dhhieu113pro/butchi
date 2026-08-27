@@ -45,6 +45,30 @@ namespace Butchi.ReleaseValidation
     public class ApplicationActivationManager
     {
     }
+
+    public static class ApplicationActivator
+    {
+        public static uint ActivateApplication(string appUserModelId, string arguments)
+        {
+            var manager = (IApplicationActivationManager)new ApplicationActivationManager();
+            try
+            {
+                var result = manager.ActivateApplication(
+                    appUserModelId,
+                    arguments,
+                    ActivateOptions.None,
+                    out var processId);
+                if (result < 0)
+                    Marshal.ThrowExceptionForHR(result);
+                return processId;
+            }
+            finally
+            {
+                if (Marshal.IsComObject(manager))
+                    Marshal.FinalReleaseComObject(manager);
+            }
+        }
+    }
 }
 '@
 }
@@ -87,26 +111,12 @@ try {
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
 
     $appUserModelId = "$($package.PackageFamilyName)!$applicationId"
-    $activationObject = [Butchi.ReleaseValidation.ApplicationActivationManager]::new()
-    $activationUnknown = [System.Runtime.InteropServices.Marshal]::GetIUnknownForObject($activationObject)
-    try {
-        $activationManager = [System.Runtime.InteropServices.Marshal]::GetTypedObjectForIUnknown(
-            $activationUnknown,
-            [Butchi.ReleaseValidation.IApplicationActivationManager])
-    }
-    finally {
-        [void][System.Runtime.InteropServices.Marshal]::Release($activationUnknown)
-    }
-    $processId = [uint32]0
     $activationArguments = "--release-probe `"$probePath`""
 
     Write-Host 'PROBE_LAUNCH'
-    $hresult = $activationManager.ActivateApplication(
+    $processId = [Butchi.ReleaseValidation.ApplicationActivator]::ActivateApplication(
         $appUserModelId,
-        $activationArguments,
-        [Butchi.ReleaseValidation.ActivateOptions]::None,
-        [ref]$processId)
-    if ($hresult -ne 0) { [System.Runtime.InteropServices.Marshal]::ThrowExceptionForHR($hresult) }
+        $activationArguments)
     if ($processId -eq 0) { throw 'Package activation did not return a process id.' }
 
     $process = [System.Diagnostics.Process]::GetProcessById([int]$processId)
@@ -136,12 +146,6 @@ try {
     }
 }
 finally {
-    if ($null -ne $activationManager -and [System.Runtime.InteropServices.Marshal]::IsComObject($activationManager)) {
-        [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($activationManager)
-    }
-    if ($null -ne $activationObject -and [System.Runtime.InteropServices.Marshal]::IsComObject($activationObject)) {
-        [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($activationObject)
-    }
     Get-Process -Name 'butchi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     if ($identityName) {
         Write-Host 'UNINSTALL_BEGIN'
