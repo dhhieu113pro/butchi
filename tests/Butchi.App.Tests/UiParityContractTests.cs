@@ -16,7 +16,7 @@ public sealed class UiParityContractTests
             [Path.Combine(root, "src", "Butchi.App", "Settings", "PromptsView.cs")] = ["Translate", "Rewrite", "System prompt"],
             [Path.Combine(root, "src", "Butchi.App", "Models", "ModelManagementView.cs")] = ["Model setup", "Device", "Advanced inference settings"],
             [Path.Combine(root, "src", "Butchi.App", "History", "HistoryView.cs")] = ["History", "Search", "Retention"],
-            [Path.Combine(root, "src", "Butchi.App", "About", "AboutPrivacyView.cs")] = ["About", "Privacy", "Delete local data"]
+            [Path.Combine(root, "src", "Butchi.App", "About", "AboutPrivacyView.cs")] = ["About", "Privacy", "Delete local AI data"]
         };
 
         foreach (var (path, markers) in surfaces)
@@ -27,6 +27,18 @@ public sealed class UiParityContractTests
                 Assert.Contains(marker, source, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Task 14.", source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Prompts_inactive_mode_segment_inherits_theme_foreground()
+    {
+        var root = FindRepositoryRoot();
+        var path = Path.Combine(root, "src", "Butchi.App", "Settings", "PromptsView.cs");
+        var source = File.ReadAllText(path);
+
+        Assert.DoesNotContain("? ButchiTheme.WhiteBrush : null", source, StringComparison.Ordinal);
+        Assert.Contains("if (_viewModel.Mode == PromptMode.Translate) _translateButton.Foreground = ButchiTheme.WhiteBrush;", source, StringComparison.Ordinal);
+        Assert.Contains("if (_viewModel.Mode == PromptMode.Rewrite) _rewriteButton.Foreground = ButchiTheme.WhiteBrush;", source, StringComparison.Ordinal);
     }
 
     [Theory]
