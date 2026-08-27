@@ -58,6 +58,7 @@ try {
 
     $probe = Get-Content $probePath -Raw | ConvertFrom-Json
     if (-not $probe.success -or -not $probe.compositionHealthy) { throw 'Installed release probe reported unhealthy startup composition.' }
+    if (-not $probe.configReadable -or -not $probe.historyReadable) { throw 'Installed release probe could not read persisted app data.' }
     if ($probe.packageIdentity -ne $identityName) { throw 'Release probe package identity mismatch.' }
     if ($probe.packageVersion -ne $expectedVersion) { throw 'Release probe package version mismatch.' }
     foreach ($sensitiveField in 'selectedText','promptContent','historyContent') {
@@ -79,3 +80,10 @@ finally {
 }
 
 Write-Host "Installed MSIX smoke passed for $identityName."
+
+$upgradeScript = Join-Path $PSScriptRoot 'Test-MsixUpgrade.ps1'
+$upgradeSeedRoot = Join-Path $env:RUNNER_TEMP 'butchi-upgrade-seed'
+& $upgradeScript `
+    -InputMsixN (Resolve-Path $InputMsix) `
+    -PackageIdentity $identityName `
+    -SeedRoot $upgradeSeedRoot
