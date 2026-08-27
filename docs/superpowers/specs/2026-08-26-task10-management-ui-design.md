@@ -1,5 +1,7 @@
 # Task 10 — Management UI Design
 
+> Startup and first-run routing in this historical design are superseded by [2026-08-27-startup-welcome-setup-design.md](2026-08-27-startup-welcome-setup-design.md), which is authoritative for current startup behavior.
+
 ## Goal
 Add a native Avalonia management shell for Settings, History, Models, and Status/About while preserving Butchi’s existing persistent stores, inference lifetime rules, and lightweight popover behavior.
 
