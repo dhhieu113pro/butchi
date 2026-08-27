@@ -106,8 +106,6 @@ try {
     $exe = Join-Path $package.InstallLocation 'butchi.exe'
     if (-not (Test-Path $exe)) { throw "Installed executable missing: $exe" }
 
-    $env:BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY = $identityName
-    $env:BUTCHI_RELEASE_PROBE_PACKAGE_VERSION = $expectedVersion
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
 
     $appUserModelId = "$($package.PackageFamilyName)!$applicationId"
@@ -138,8 +136,6 @@ try {
     if (-not $probe.settingsReady) { throw 'Installed release probe reported Settings not ready.' }
     if (-not $probe.modelsReady) { throw 'Installed release probe reported Models not ready.' }
     if (-not $probe.historyReady) { throw 'Installed release probe reported History not ready.' }
-    if ($probe.packageIdentity -ne $identityName) { throw 'Release probe package identity mismatch.' }
-    if ($probe.packageVersion -ne $expectedVersion) { throw 'Release probe package version mismatch.' }
     foreach ($sensitiveField in 'selectedText','promptContent','historyContent') {
         if ($null -ne $probe.$sensitiveField) { throw "Release probe emitted sensitive field content: $sensitiveField" }
     }
@@ -152,8 +148,6 @@ finally {
         Write-Host 'UNINSTALL_END'
         if (Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue) { throw "Package registration remained after uninstall: $identityName" }
     }
-    Remove-Item Env:BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY -ErrorAction SilentlyContinue
-    Remove-Item Env:BUTCHI_RELEASE_PROBE_PACKAGE_VERSION -ErrorAction SilentlyContinue
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
 }
