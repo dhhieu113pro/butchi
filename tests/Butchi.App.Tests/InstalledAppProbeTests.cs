@@ -47,6 +47,18 @@ public sealed class InstalledAppProbeTests
         Assert.Contains("cancel-in-progress: true", workflow, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Installed_msix_release_job_is_time_bounded_and_emits_stage_markers()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+        var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
+
+        Assert.Contains("timeout-minutes: 5", workflow, StringComparison.OrdinalIgnoreCase);
+        foreach (var marker in new[] { "INSTALL_BEGIN", "INSTALL_END", "PROBE_LAUNCH", "PROBE_EXIT", "UNINSTALL_BEGIN", "UNINSTALL_END" })
+            Assert.Contains(marker, script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
