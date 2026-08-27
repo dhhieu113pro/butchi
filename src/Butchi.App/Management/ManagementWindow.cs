@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Butchi.App.Branding;
+using Butchi.App.History;
 using Butchi.App.Models;
 using Butchi.App.Settings;
 using Butchi.App.Styling;
@@ -17,6 +18,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private readonly GeneralSettingsView _generalView;
     private readonly PromptsView _promptsView;
     private readonly ModelManagementView _modelView;
+    private readonly HistoryView _historyView;
     private readonly Border _contentHost;
     private readonly Dictionary<ManagementPage, Button> _navigationButtons = [];
 
@@ -25,6 +27,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         GeneralSettingsViewModel generalSettings,
         PromptsViewModel prompts,
         ModelManagementViewModel models,
+        HistoryViewModel history,
         Action<AppThemePreference> applyTheme)
     {
         _viewModel = viewModel;
@@ -40,6 +43,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         _generalView = new GeneralSettingsView(generalSettings, applyTheme);
         _promptsView = new PromptsView(prompts);
         _modelView = new ModelManagementView(models);
+        _historyView = new HistoryView(history);
         _contentHost = new Border { Padding = new Thickness(0), Child = _generalView };
 
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("248,*") };
@@ -105,7 +109,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         ManagementPage.General => _generalView,
         ManagementPage.Prompts => _promptsView,
         ManagementPage.Model => _modelView,
-        ManagementPage.History => Placeholder("HISTORY", "Search private Translate and Rewrite results stored on this device.", "Task 14.4 will connect the existing SQLite history service to this surface."),
+        ManagementPage.History => _historyView,
         ManagementPage.AboutPrivacy => Placeholder("ABOUT & PRIVACY", "Local processing, runtime status, version, and data controls.", "Task 14.5 will fill this surface with live status and privacy controls."),
         _ => throw new ArgumentOutOfRangeException(nameof(page), page, null)
     };
