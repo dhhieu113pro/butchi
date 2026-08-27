@@ -137,7 +137,7 @@
 - [ ] **Step 1: Write failing tests** requiring ARM64 manifest architecture, expected executable/runtime/native files, matching identity/version semantics, and bundle inclusion.
 - [ ] **Step 2: Run focused tests** and verify RED for any missing ARM64-specific validation.
 - [ ] **Step 3: Extend the validator** to unpack/inspect ARM64 package contents and compare identity/version with x64 while allowing architecture-specific differences.
-- [ ] **Step 4: Keep existing `dotnet publish -r win-arm64 --self-contained true` smoke and ARM64-focused tests as required dependencies of this gate.
+- [ ] **Step 4: Keep existing `dotnet publish -r win-arm64 --self-contained true` smoke and ARM64-focused tests as required dependencies of this gate.**
 - [ ] **Step 5: Run full tests and release workflow**; verify ARM64 package structural validation passes without claiming ARM64 native launch.
 - [ ] **Step 6: Commit** `test: enforce ARM64 Store package readiness`.
 
