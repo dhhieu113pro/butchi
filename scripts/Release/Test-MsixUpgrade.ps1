@@ -3,7 +3,6 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$InputMsixN,
 
-    [Parameter(Mandatory = $true)]
     [string]$InputMsixNPlus1,
 
     [Parameter(Mandatory = $true)]
@@ -15,9 +14,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-foreach ($path in @($InputMsixN, $InputMsixNPlus1)) {
-    if (-not (Test-Path $path)) { throw "MSIX not found: $path" }
-}
+if (-not (Test-Path $InputMsixN)) { throw "MSIX not found: $InputMsixN" }
+if ($InputMsixNPlus1 -and -not (Test-Path $InputMsixNPlus1)) { throw "MSIX not found: $InputMsixNPlus1" }
 
 function Get-MsixManifestInfo([string]$PackagePath) {
     $stage = Join-Path $env:RUNNER_TEMP ("butchi-upgrade-manifest-" + [guid]::NewGuid().ToString('N'))
@@ -32,6 +30,49 @@ function Get-MsixManifestInfo([string]$PackagePath) {
     finally {
         if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     }
+}
+
+function New-UpgradePackage([string]$PackagePath, [version]$SourceVersion) {
+    if ([string]::IsNullOrWhiteSpace($env:CI_SIGNING_THUMBPRINT)) {
+        throw 'CI_SIGNING_THUMBPRINT is required to build the N+1 upgrade package.'
+    }
+    if ($SourceVersion.Revision -ge 65535) { throw 'Cannot increment MSIX revision beyond 65535.' }
+
+    $kitsRoot = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Kits\Installed Roots').KitsRoot10
+    $makeAppx = Get-ChildItem (Join-Path $kitsRoot 'bin') -Filter 'MakeAppx.exe' -Recurse |
+        Where-Object { $_.FullName -match '\\x64\\MakeAppx\.exe$' } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+    if (-not $makeAppx) { throw 'MakeAppx.exe was not found in the Windows SDK.' }
+
+    $stage = Join-Path $env:RUNNER_TEMP 'butchi-upgrade-n-plus-1-stage'
+    $output = Join-Path $env:RUNNER_TEMP 'Butchi_CI_upgrade_n_plus_1.msix'
+    if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+    if (Test-Path $output) { Remove-Item $output -Force }
+
+    & $makeAppx.FullName unpack /p (Resolve-Path $PackagePath) /d $stage /o
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to unpack version N package.' }
+
+    foreach ($metadata in 'AppxSignature.p7x','AppxBlockMap.xml','[Content_Types].xml') {
+        $metadataPath = Join-Path $stage $metadata
+        if (Test-Path -LiteralPath $metadataPath) { Remove-Item -LiteralPath $metadataPath -Force }
+    }
+
+    $manifestPath = Join-Path $stage 'AppxManifest.xml'
+    [xml]$manifest = Get-Content $manifestPath -Raw
+    $nextVersion = [version]::new($SourceVersion.Major, $SourceVersion.Minor, $SourceVersion.Build, $SourceVersion.Revision + 1)
+    $manifest.Package.Identity.Version = $nextVersion.ToString()
+    $manifest.Save($manifestPath)
+
+    & $makeAppx.FullName pack /d $stage /p $output /o
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $output)) { throw 'Failed to pack version N+1 package.' }
+
+    ./scripts/Release/Sign-CiMsix.ps1 `
+        -InputMsix $output `
+        -CertificateThumbprint $env:CI_SIGNING_THUMBPRINT `
+        -ProductionRoot (Join-Path $PWD 'artifacts/production-msix')
+
+    return $output
 }
 
 function Invoke-InstalledProbe($Package, [version]$ExpectedVersion, [string]$ProbePath) {
@@ -65,10 +106,16 @@ function Invoke-InstalledProbe($Package, [version]$ExpectedVersion, [string]$Pro
 }
 
 $n = Get-MsixManifestInfo $InputMsixN
-$nPlus1 = Get-MsixManifestInfo $InputMsixNPlus1
-if ($n.Name -ne $PackageIdentity -or $nPlus1.Name -ne $PackageIdentity) {
-    throw "Upgrade packages must share identity '$PackageIdentity'."
+if ($n.Name -ne $PackageIdentity) { throw "Version N package identity '$($n.Name)' does not match '$PackageIdentity'." }
+
+$generatedNPlus1 = $false
+if ([string]::IsNullOrWhiteSpace($InputMsixNPlus1)) {
+    $InputMsixNPlus1 = New-UpgradePackage $InputMsixN $n.Version
+    $generatedNPlus1 = $true
 }
+
+$nPlus1 = Get-MsixManifestInfo $InputMsixNPlus1
+if ($nPlus1.Name -ne $PackageIdentity) { throw "Version N+1 package identity '$($nPlus1.Name)' does not match '$PackageIdentity'." }
 if ($nPlus1.Version -le $n.Version) {
     throw "Upgrade version '$($nPlus1.Version)' must be greater than '$($n.Version)'."
 }
@@ -121,4 +168,7 @@ finally {
     if (Test-Path $SeedRoot) { Remove-Item $SeedRoot -Recurse -Force }
     if (Test-Path $probeNPath) { Remove-Item $probeNPath -Force }
     if (Test-Path $probeNPlus1Path) { Remove-Item $probeNPlus1Path -Force }
+    if ($generatedNPlus1 -and $InputMsixNPlus1 -and (Test-Path $InputMsixNPlus1)) { Remove-Item $InputMsixNPlus1 -Force }
+    $generatedStage = Join-Path $env:RUNNER_TEMP 'butchi-upgrade-n-plus-1-stage'
+    if (Test-Path $generatedStage) { Remove-Item $generatedStage -Recurse -Force }
 }
