@@ -11,6 +11,7 @@ using Butchi.App.Screenshots;
 using Butchi.App.Settings;
 using Butchi.App.Styling;
 using Butchi.App.Tray;
+using Butchi.Core.Actions;
 using Butchi.Inference;
 using Butchi.Infrastructure;
 
@@ -57,22 +58,11 @@ public sealed class App : Application, IApplicationShutdown
             var runtime = modelManager.GetStatus();
             var about = new AboutPrivacyViewModel(
                 new LocalAiDataCleanup(historyStore, new LocalAiDataManager(paths, _inferenceEngine)),
-                new AboutPrivacyMetadata(
-                    typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0",
-                    "Butchi",
-                    "MIT",
-                    "https://github.com/dhhieu113pro/butchi"),
+                new AboutPrivacyMetadata(typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0", "Butchi", "MIT", "https://github.com/dhhieu113pro/butchi"),
                 new AboutRuntimeStatus(runtime.IsLoaded, runtime.ActualBackend, runtime.ActualDevice));
 
             ButchiTheme.Apply(this, generalSettings.Theme);
-            ManagementWindow = new ManagementWindow(
-                new ManagementShellViewModel(),
-                generalSettings,
-                prompts,
-                models,
-                history,
-                about,
-                preference => ButchiTheme.Apply(this, preference));
+            ManagementWindow = new ManagementWindow(new ManagementShellViewModel(), generalSettings, prompts, models, history, about, preference => ButchiTheme.Apply(this, preference));
 
             var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
             if (popoverScreenshotIndex >= 0)
@@ -80,7 +70,7 @@ public sealed class App : Application, IApplicationShutdown
                 if (popoverScreenshotIndex + 1 >= Program.StartupArgs.Length || string.IsNullOrWhiteSpace(Program.StartupArgs[popoverScreenshotIndex + 1]))
                     throw new ArgumentException("--screenshot-popover requires an output path.", nameof(Program.StartupArgs));
 
-                PopoverWindow = new PopoverWindow(new PopoverViewModel());
+                PopoverWindow = new PopoverWindow(CreatePopoverScreenshotViewModel(GetOptionValue(Program.StartupArgs, "--fixture") ?? "success"));
                 ScreenshotRunner.RunPopover(Program.StartupArgs[popoverScreenshotIndex + 1], PopoverWindow, Shutdown);
                 base.OnFrameworkInitializationCompleted();
                 return;
@@ -99,6 +89,39 @@ public sealed class App : Application, IApplicationShutdown
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static PopoverViewModel CreatePopoverScreenshotViewModel(string fixture)
+    {
+        var vm = new PopoverViewModel();
+        vm.SetSession("Good morning, could you send the report before lunch?", TextAction.Translate, "Vietnamese");
+        switch (fixture.Trim().ToLowerInvariant())
+        {
+            case "idle":
+                break;
+            case "loading":
+                vm.Begin(TextAction.Translate, 1);
+                vm.Append(TextAction.Translate, 1, "Chào buổi sáng");
+                vm.FlushPendingUpdates();
+                break;
+            case "error":
+                vm.Begin(TextAction.Translate, 1);
+                vm.Fail(TextAction.Translate, 1, "Local model is not loaded. Open Model settings to continue.");
+                break;
+            default:
+                vm.Begin(TextAction.Translate, 1);
+                vm.Append(TextAction.Translate, 1, "Chào buổi sáng, bạn có thể gửi báo cáo trước bữa trưa không?");
+                vm.FlushPendingUpdates();
+                vm.Complete(TextAction.Translate, 1);
+                break;
+        }
+        return vm;
+    }
+
+    private static string? GetOptionValue(string[] args, string option)
+    {
+        var index = Array.IndexOf(args, option);
+        return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
     }
 
     public void Shutdown()
