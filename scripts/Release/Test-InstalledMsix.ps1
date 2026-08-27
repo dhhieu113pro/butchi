@@ -11,7 +11,6 @@ if (-not (Test-Path $InputMsix)) { throw "MSIX not found: $InputMsix" }
 $stage = Join-Path $env:RUNNER_TEMP 'butchi-installed-msix-manifest'
 $probePath = Join-Path $env:RUNNER_TEMP 'butchi-release-probe.json'
 $identityName = $null
-$rootThumbprint = $null
 
 try {
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
@@ -25,8 +24,6 @@ try {
     if ([string]::IsNullOrWhiteSpace($env:CI_SIGNING_CERT_PATH) -or -not (Test-Path $env:CI_SIGNING_CERT_PATH)) {
         throw 'CI signing public certificate is required for installed MSIX validation.'
     }
-    $rootCertificate = Import-Certificate -FilePath $env:CI_SIGNING_CERT_PATH -CertStoreLocation 'Cert:\CurrentUser\Root'
-    $rootThumbprint = $rootCertificate.Thumbprint
 
     Write-Host 'INSTALL_BEGIN'
     Add-AppxPackage -Path (Resolve-Path $InputMsix)
@@ -74,9 +71,6 @@ finally {
         Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
         Write-Host 'UNINSTALL_END'
         if (Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue) { throw "Package registration remained after uninstall: $identityName" }
-    }
-    if ($rootThumbprint) {
-        Remove-Item "Cert:\CurrentUser\Root\$rootThumbprint" -Force -ErrorAction SilentlyContinue
     }
     Remove-Item Env:BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY -ErrorAction SilentlyContinue
     Remove-Item Env:BUTCHI_RELEASE_PROBE_PACKAGE_VERSION -ErrorAction SilentlyContinue
