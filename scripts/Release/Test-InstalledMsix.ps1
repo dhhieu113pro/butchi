@@ -59,6 +59,11 @@ try {
     $probe = Get-Content $probePath -Raw | ConvertFrom-Json
     if (-not $probe.success -or -not $probe.compositionHealthy) { throw 'Installed release probe reported unhealthy startup composition.' }
     if (-not $probe.configReadable -or -not $probe.historyReadable) { throw 'Installed release probe could not read persisted app data.' }
+    if (-not $probe.firstRunCompositionReady) { throw 'Installed release probe reported first-run composition not ready.' }
+    if (-not $probe.trayReady) { throw 'Installed release probe reported tray startup not ready.' }
+    if (-not $probe.settingsReady) { throw 'Installed release probe reported Settings not ready.' }
+    if (-not $probe.modelsReady) { throw 'Installed release probe reported Models not ready.' }
+    if (-not $probe.historyReady) { throw 'Installed release probe reported History not ready.' }
     if ($probe.packageIdentity -ne $identityName) { throw 'Release probe package identity mismatch.' }
     if ($probe.packageVersion -ne $expectedVersion) { throw 'Release probe package version mismatch.' }
     foreach ($sensitiveField in 'selectedText','promptContent','historyContent') {
