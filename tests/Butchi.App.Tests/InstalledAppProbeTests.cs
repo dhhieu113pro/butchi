@@ -112,6 +112,20 @@ public sealed class InstalledAppProbeTests
         Assert.DoesNotContain("$process.ExitCode", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_identity_and_version_are_verified_from_registration_not_probe_environment_transport()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("Installed package registration not found", script, StringComparison.Ordinal);
+        Assert.Contains("Installed version", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$probe.packageIdentity", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$probe.packageVersion", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("BUTCHI_RELEASE_PROBE_PACKAGE_VERSION", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
