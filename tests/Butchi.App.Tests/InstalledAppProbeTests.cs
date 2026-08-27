@@ -67,7 +67,11 @@ public sealed class InstalledAppProbeTests
         var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
 
         Assert.Contains("Cert:\\CurrentUser\\TrustedPeople", workflow, StringComparison.Ordinal);
-        Assert.Contains("certutil -user -f -addstore Root", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("System.Security.Cryptography.X509Certificates.X509Store", workflow, StringComparison.Ordinal);
+        Assert.Contains("StoreName]::Root", workflow, StringComparison.Ordinal);
+        Assert.Contains("StoreLocation]::CurrentUser", workflow, StringComparison.Ordinal);
+        Assert.Contains(".Add($rootCertificate)", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("certutil -user -f -addstore Root", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Cert:\\CurrentUser\\Root\\$env:CI_SIGNING_THUMBPRINT", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
     }
