@@ -54,9 +54,9 @@ public sealed class UpgradeProbeTests
         var repoRoot = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-MsixUpgrade.ps1"));
 
-        Assert.Contains("& $makeAppx.FullName unpack", script, StringComparison.Ordinal);
-        Assert.Contains("| Out-Null", script, StringComparison.Ordinal);
-        Assert.Contains("Sign-CiMsix.ps1", script, StringComparison.Ordinal);
+        Assert.Contains("& $makeAppx.FullName unpack /p (Resolve-Path $PackagePath) /d $stage /o | Out-Null", script, StringComparison.Ordinal);
+        Assert.Contains("& $makeAppx.FullName pack /d $stage /p $output /o | Out-Null", script, StringComparison.Ordinal);
+        Assert.Contains("-ProductionRoot (Join-Path $PWD 'artifacts/production-msix') | Out-Null", script, StringComparison.Ordinal);
         Assert.Contains("return $output", script, StringComparison.Ordinal);
     }
 
