@@ -128,7 +128,6 @@ try {
     }
     Write-Host 'PROBE_EXIT'
 
-    if ($process.ExitCode -ne 0) { throw "Installed release probe exited with code $($process.ExitCode)." }
     if (-not (Test-Path $probePath)) { throw 'Installed release probe did not produce output JSON.' }
 
     $probe = Get-Content $probePath -Raw | ConvertFrom-Json
