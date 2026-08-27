@@ -5,7 +5,10 @@ public sealed record ModelOption(
     string Label,
     string Repo,
     string File,
-    string SizeHint);
+    string SizeHint)
+{
+    public override string ToString() => Label;
+}
 
 public static class ModelCatalog
 {
