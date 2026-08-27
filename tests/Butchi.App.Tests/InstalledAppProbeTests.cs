@@ -59,6 +59,17 @@ public sealed class InstalledAppProbeTests
             Assert.Contains(marker, script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_smoke_relies_on_noninteractive_trusted_people_store()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+        var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
+
+        Assert.Contains("Cert:\\CurrentUser\\TrustedPeople", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
