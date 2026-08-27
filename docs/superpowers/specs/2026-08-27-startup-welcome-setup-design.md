@@ -84,7 +84,7 @@ public Task<ConfigLoadResult> LoadWithStatusAsync(
 
 ### Runtime ownership
 
-`ButchiRuntime` owns the long-lived resources currently stored directly in `App`: `HttpClient`, the single `LLamaSharpInferenceEngine`, model manager, history store, popover, management window, tray icon collection, and any Windows trigger services. It implements `IAsyncDisposable` and disposes resources in a deterministic order.
+`StartupApplicationServices` owns shared non-visual resources currently stored directly in `App`: `HttpClient`, the single `LLamaSharpInferenceEngine`, model manager, and history store. `ButchiRuntime` owns the popover, management window, tray icon collection, and any Windows trigger services. Both implement `IAsyncDisposable` and dispose their own resources in a deterministic order.
 
 `ButchiRuntimeFactory.CreateAsync(AppConfig, CancellationToken)` composes view models asynchronously. UI objects are created after awaits resume on Avalonia's UI context. It never synchronously waits on tasks.
 
