@@ -87,7 +87,16 @@ try {
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
 
     $appUserModelId = "$($package.PackageFamilyName)!$applicationId"
-    $activationManager = [Butchi.ReleaseValidation.IApplicationActivationManager][Butchi.ReleaseValidation.ApplicationActivationManager]::new()
+    $activationObject = [Butchi.ReleaseValidation.ApplicationActivationManager]::new()
+    $activationUnknown = [System.Runtime.InteropServices.Marshal]::GetIUnknownForObject($activationObject)
+    try {
+        $activationManager = [System.Runtime.InteropServices.Marshal]::GetTypedObjectForIUnknown(
+            $activationUnknown,
+            [Butchi.ReleaseValidation.IApplicationActivationManager])
+    }
+    finally {
+        [void][System.Runtime.InteropServices.Marshal]::Release($activationUnknown)
+    }
     $processId = [uint32]0
     $activationArguments = "--release-probe `"$probePath`""
 
@@ -127,6 +136,12 @@ try {
     }
 }
 finally {
+    if ($null -ne $activationManager -and [System.Runtime.InteropServices.Marshal]::IsComObject($activationManager)) {
+        [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($activationManager)
+    }
+    if ($null -ne $activationObject -and [System.Runtime.InteropServices.Marshal]::IsComObject($activationObject)) {
+        [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($activationObject)
+    }
     Get-Process -Name 'butchi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     if ($identityName) {
         Write-Host 'UNINSTALL_BEGIN'
