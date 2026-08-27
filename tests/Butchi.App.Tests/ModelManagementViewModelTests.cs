@@ -10,6 +10,14 @@ namespace Butchi.App.Tests;
 public sealed class ModelManagementViewModelTests
 {
     [Fact]
+    public void Model_options_render_with_human_readable_labels()
+    {
+        var option = ModelCatalog.Options[0];
+
+        Assert.Equal(option.Label, option.ToString());
+    }
+
+    [Fact]
     public async Task Create_maps_setup_state_runtime_status_and_advanced_settings()
     {
         var option = ModelCatalog.Options[0];
