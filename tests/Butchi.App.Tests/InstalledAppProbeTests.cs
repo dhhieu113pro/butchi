@@ -60,7 +60,7 @@ public sealed class InstalledAppProbeTests
     }
 
     [Fact]
-    public void Installed_msix_smoke_uses_noninteractive_ci_root_trust()
+    public void Installed_msix_smoke_uses_machine_root_trust_on_disposable_runner()
     {
         var repoRoot = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
@@ -69,10 +69,11 @@ public sealed class InstalledAppProbeTests
         Assert.Contains("Cert:\\CurrentUser\\TrustedPeople", workflow, StringComparison.Ordinal);
         Assert.Contains("System.Security.Cryptography.X509Certificates.X509Store", workflow, StringComparison.Ordinal);
         Assert.Contains("StoreName]::Root", workflow, StringComparison.Ordinal);
-        Assert.Contains("StoreLocation]::CurrentUser", workflow, StringComparison.Ordinal);
+        Assert.Contains("StoreLocation]::LocalMachine", workflow, StringComparison.Ordinal);
         Assert.Contains(".Add($rootCertificate)", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("certutil -user -f -addstore Root", workflow, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Cert:\\CurrentUser\\Root\\$env:CI_SIGNING_THUMBPRINT", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("StoreLocation]::CurrentUser", workflow, StringComparison.Ordinal);
+        Assert.Contains("Cert:\\LocalMachine\\Root\\$env:CI_SIGNING_THUMBPRINT", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cert:\\CurrentUser\\Root", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
     }
 
