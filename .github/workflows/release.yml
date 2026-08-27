@@ -169,6 +169,11 @@ jobs:
             throw "Production Store MSIX was unexpectedly signed: $($productionSignature.Status)"
           }
 
+      - name: Install, probe, and uninstall CI-only x64 MSIX
+        shell: pwsh
+        run: |
+          ./scripts/Release/Test-InstalledMsix.ps1 -InputMsix (Join-Path $PWD 'artifacts/ci-install/Butchi_CI_x64.msix')
+
       - name: Cleanup CI signing material
         if: always()
         shell: pwsh
