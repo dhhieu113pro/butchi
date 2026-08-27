@@ -26,11 +26,17 @@ public static class ReleaseProbe
         ReleaseProbeResult result;
         try
         {
-            var paths = new AppPaths();
+            var dataRoot = Environment.GetEnvironmentVariable("BUTCHI_RELEASE_PROBE_DATA_ROOT");
+            var paths = new AppPaths(dataRoot);
             paths.EnsureDirectories();
             var configStore = new JsonAppConfigStoreAdapter(new JsonConfigStore(paths));
+            _ = await configStore.LoadAsync(cancellationToken);
             _ = await GeneralSettingsViewModel.CreateAsync(configStore, cancellationToken);
             _ = await PromptsViewModel.CreateAsync(configStore, cancellationToken);
+
+            var historyStore = new SqliteHistoryStore(paths);
+            await historyStore.InitializeAsync(cancellationToken);
+            var historyEntries = await historyStore.SearchAsync(limit: 500, cancellationToken: cancellationToken);
 
             using var httpClient = new HttpClient();
             var downloader = new ModelDownloader(new HuggingFaceModelDownloadSource(httpClient));
@@ -43,7 +49,7 @@ public static class ReleaseProbe
             var version = Environment.GetEnvironmentVariable("BUTCHI_RELEASE_PROBE_PACKAGE_VERSION")
                 ?? typeof(ReleaseProbe).Assembly.GetName().Version?.ToString(4)
                 ?? "0.0.0.0";
-            result = ReleaseProbeResult.CreateSuccess(identity, version);
+            result = ReleaseProbeResult.CreateSuccess(identity, version, historyEntryCount: historyEntries.Count);
         }
         catch (Exception ex)
         {
@@ -65,14 +71,22 @@ public sealed record ReleaseProbeResult(
     bool CompositionHealthy,
     string PackageIdentity,
     string PackageVersion,
+    bool ConfigReadable,
+    bool HistoryReadable,
+    int HistoryEntryCount,
     string? ErrorCode,
     string? SelectedText,
     string? PromptContent,
     string? HistoryContent)
 {
-    public static ReleaseProbeResult CreateSuccess(string packageIdentity, string packageVersion) =>
-        new(true, true, packageIdentity, packageVersion, null, null, null, null);
+    public static ReleaseProbeResult CreateSuccess(
+        string packageIdentity,
+        string packageVersion,
+        bool configReadable = true,
+        bool historyReadable = true,
+        int historyEntryCount = 0) =>
+        new(true, true, packageIdentity, packageVersion, configReadable, historyReadable, historyEntryCount, null, null, null, null);
 
     public static ReleaseProbeResult Failure(string errorCode) =>
-        new(false, false, string.Empty, string.Empty, errorCode, null, null, null);
+        new(false, false, string.Empty, string.Empty, false, false, 0, errorCode, null, null, null);
 }
