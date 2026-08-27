@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Butchi.App.About;
 using Butchi.App.Branding;
 using Butchi.App.History;
 using Butchi.App.Models;
@@ -19,6 +20,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private readonly PromptsView _promptsView;
     private readonly ModelManagementView _modelView;
     private readonly HistoryView _historyView;
+    private readonly AboutPrivacyView _aboutPrivacyView;
     private readonly Border _contentHost;
     private readonly Dictionary<ManagementPage, Button> _navigationButtons = [];
 
@@ -28,6 +30,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         PromptsViewModel prompts,
         ModelManagementViewModel models,
         HistoryViewModel history,
+        AboutPrivacyViewModel aboutPrivacy,
         Action<AppThemePreference> applyTheme)
     {
         _viewModel = viewModel;
@@ -44,6 +47,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         _promptsView = new PromptsView(prompts);
         _modelView = new ModelManagementView(models);
         _historyView = new HistoryView(history);
+        _aboutPrivacyView = new AboutPrivacyView(aboutPrivacy);
         _contentHost = new Border { Padding = new Thickness(0), Child = _generalView };
 
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("248,*") };
@@ -52,7 +56,6 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         root.Children.Add(_contentHost);
         Content = root;
         RefreshNavigation();
-
         Closing += (_, e) => { e.Cancel = true; Hide(); };
     }
 
@@ -110,18 +113,9 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         ManagementPage.Prompts => _promptsView,
         ManagementPage.Model => _modelView,
         ManagementPage.History => _historyView,
-        ManagementPage.AboutPrivacy => Placeholder("ABOUT & PRIVACY", "Local processing, runtime status, version, and data controls.", "Task 14.5 will fill this surface with live status and privacy controls."),
+        ManagementPage.AboutPrivacy => _aboutPrivacyView,
         _ => throw new ArgumentOutOfRangeException(nameof(page), page, null)
     };
-
-    private static Control Placeholder(string eyebrow, string title, string detail)
-    {
-        var content = new StackPanel { Margin = new Thickness(36, 30, 42, 48), Spacing = 16, MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
-        content.Children.Add(new TextBlock { Text = eyebrow, FontSize = 11, FontWeight = FontWeight.Bold, Foreground = ButchiTheme.CobaltBrush, LetterSpacing = 1.2 });
-        content.Children.Add(new TextBlock { Text = title, FontSize = 30, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-        content.Children.Add(new Border { Margin = new Thickness(0, 8, 0, 0), Padding = new Thickness(22), CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(1), BorderBrush = ButchiTheme.DividerBrush, Background = ButchiTheme.SubtleSurfaceBrush, Child = new TextBlock { Text = detail, FontSize = 14, Opacity = 0.72, TextWrapping = TextWrapping.Wrap } });
-        return new ScrollViewer { Content = content };
-    }
 
     private void RefreshNavigation()
     {

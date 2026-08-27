@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Butchi.App.About;
 using Butchi.App.Branding;
 using Butchi.App.History;
 using Butchi.App.Management;
@@ -53,6 +54,16 @@ public sealed class App : Application, IApplicationShutdown
             var historyClipboard = new AvaloniaHistoryClipboard(() => ManagementWindow?.Clipboard);
             var history = HistoryViewModel.CreateAsync(historyStore, historyClipboard, configStore, CancellationToken.None).AsTask().GetAwaiter().GetResult();
 
+            var runtime = modelManager.GetStatus();
+            var about = new AboutPrivacyViewModel(
+                new LocalAiDataCleanup(historyStore, new LocalAiDataManager(paths, _inferenceEngine)),
+                new AboutPrivacyMetadata(
+                    typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0",
+                    "Butchi",
+                    "MIT",
+                    "https://github.com/dhhieu113pro/butchi"),
+                new AboutRuntimeStatus(runtime.IsLoaded, runtime.ActualBackend, runtime.ActualDevice));
+
             ButchiTheme.Apply(this, generalSettings.Theme);
             ManagementWindow = new ManagementWindow(
                 new ManagementShellViewModel(),
@@ -60,6 +71,7 @@ public sealed class App : Application, IApplicationShutdown
                 prompts,
                 models,
                 history,
+                about,
                 preference => ButchiTheme.Apply(this, preference));
 
             var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
