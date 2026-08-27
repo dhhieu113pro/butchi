@@ -47,6 +47,11 @@ jobs:
             if (-not (Test-Path $path)) { throw "Screenshot missing: $path" }
             if ((Get-Item $path).Length -le 1024) { throw "Screenshot unexpectedly small: $path" }
           }
+
+          dotnet run --project src/Butchi.App/Butchi.App.csproj -c Release -- --screenshot "artifacts/ui/history-empty.png" --page history --fixture empty --width 1440 --height 900
+          $historyEmpty = "artifacts/ui/history-empty.png"
+          if (-not (Test-Path $historyEmpty)) { throw "Screenshot missing: $historyEmpty" }
+          if ((Get-Item $historyEmpty).Length -le 1024) { throw "Screenshot unexpectedly small: $historyEmpty" }
       - uses: actions/upload-artifact@v4
         with:
           name: butchi-ui-screenshots

@@ -6,7 +6,8 @@ public sealed record ScreenshotRequest(
     string OutputPath,
     ManagementPage Page,
     int Width,
-    int Height)
+    int Height,
+    string? Fixture = null)
 {
     public static bool TryParse(string[] args, out ScreenshotRequest? request)
     {
@@ -24,6 +25,7 @@ public sealed record ScreenshotRequest(
         var page = ManagementPage.Settings;
         var width = 1280;
         var height = 800;
+        string? fixture = null;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -38,10 +40,13 @@ public sealed record ScreenshotRequest(
                 case "--height":
                     height = ParsePositiveInt(RequiredValue(args, ref i, "--height"), "--height");
                     break;
+                case "--fixture":
+                    fixture = RequiredValue(args, ref i, "--fixture").Trim().ToLowerInvariant();
+                    break;
             }
         }
 
-        request = new ScreenshotRequest(outputPath, page, width, height);
+        request = new ScreenshotRequest(outputPath, page, width, height, fixture);
         return true;
     }
 
