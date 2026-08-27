@@ -50,7 +50,7 @@ function New-UpgradePackage([string]$PackagePath, [version]$SourceVersion) {
     if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
     if (Test-Path $output) { Remove-Item $output -Force }
 
-    & $makeAppx.FullName unpack /p (Resolve-Path $PackagePath) /d $stage /o
+    & $makeAppx.FullName unpack /p (Resolve-Path $PackagePath) /d $stage /o | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Failed to unpack version N package.' }
 
     foreach ($metadata in 'AppxSignature.p7x','AppxBlockMap.xml','[Content_Types].xml') {
@@ -64,13 +64,13 @@ function New-UpgradePackage([string]$PackagePath, [version]$SourceVersion) {
     $manifest.Package.Identity.Version = $nextVersion.ToString()
     $manifest.Save($manifestPath)
 
-    & $makeAppx.FullName pack /d $stage /p $output /o
+    & $makeAppx.FullName pack /d $stage /p $output /o | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $output)) { throw 'Failed to pack version N+1 package.' }
 
     ./scripts/Release/Sign-CiMsix.ps1 `
         -InputMsix $output `
         -CertificateThumbprint $env:CI_SIGNING_THUMBPRINT `
-        -ProductionRoot (Join-Path $PWD 'artifacts/production-msix')
+        -ProductionRoot (Join-Path $PWD 'artifacts/production-msix') | Out-Null
 
     return $output
 }
