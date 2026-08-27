@@ -152,10 +152,16 @@ jobs:
       - name: Validate Store bundle and upload
         shell: pwsh
         run: |
+          $package = Get-ChildItem artifacts/msix -Filter '*_x64.msix' | Select-Object -First 1
+          if (-not $package) { throw 'x64 MSIX package missing for final Store validation' }
+          $stage = 'artifacts/validate-x64-stage'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($package.FullName, (Join-Path $PWD $stage))
           ./scripts/Release/Validate-StorePackage.ps1 `
-            -StagePath 'store' `
+            -StagePath $stage `
             -Architecture 'x64' `
             -Version $env:MSIX_VERSION `
+            -PackagePath $package.FullName `
             -BundlePath $env:BUNDLE_PATH `
             -UploadPath $env:UPLOAD_PATH
       - uses: actions/upload-artifact@v4
