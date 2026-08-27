@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-store-msix:
@@ -123,6 +123,7 @@ jobs:
     name: CI-only MSIX signing
     needs: build-store-msix
     runs-on: windows-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -147,6 +148,18 @@ jobs:
             -PublicCertificatePath 'artifacts/ci-signing/butchi-ci.cer' `
             -Subject $publisher
           Import-Certificate -FilePath $ciCertificate.PublicCertificatePath -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          $rootCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($ciCertificate.PublicCertificatePath)
+          $rootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::LocalMachine)
+          try {
+            $rootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $rootStore.Add($rootCertificate)
+          }
+          finally {
+            $rootStore.Close()
+            $rootCertificate.Dispose()
+          }
           "CI_SIGNING_THUMBPRINT=$($ciCertificate.Thumbprint)" >> $env:GITHUB_ENV
           "CI_SIGNING_CERT_PATH=$($ciCertificate.PublicCertificatePath)" >> $env:GITHUB_ENV
 
@@ -169,6 +182,11 @@ jobs:
             throw "Production Store MSIX was unexpectedly signed: $($productionSignature.Status)"
           }
 
+      - name: Install, probe, and uninstall CI-only x64 MSIX
+        shell: pwsh
+        run: |
+          ./scripts/Release/Test-InstalledMsix.ps1 -InputMsix (Join-Path $PWD 'artifacts/ci-install/Butchi_CI_x64.msix')
+
       - name: Cleanup CI signing material
         if: always()
         shell: pwsh
@@ -176,6 +194,7 @@ jobs:
           if (-not [string]::IsNullOrWhiteSpace($env:CI_SIGNING_THUMBPRINT)) {
             Remove-Item "Cert:\CurrentUser\My\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
             Remove-Item "Cert:\CurrentUser\TrustedPeople\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\LocalMachine\Root\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
           }
           if (Test-Path 'artifacts/ci-signing') { Remove-Item 'artifacts/ci-signing' -Recurse -Force }
           if (Test-Path 'artifacts/ci-install') { Remove-Item 'artifacts/ci-install' -Recurse -Force }
