@@ -9,11 +9,11 @@ public sealed class ScreenshotCiContractTests
     {
         var repoRoot = FindRepositoryRoot();
         var workflowPath = Path.Combine(repoRoot, ".github", "workflows", "ci.yml");
-        var appPath = Path.Combine(repoRoot, "src", "Butchi.App", "App.cs");
+        var appPath = Path.Combine(repoRoot, "src", "Butchi.App", "Startup", "ScreenshotStartup.cs");
         var runnerPath = Path.Combine(repoRoot, "src", "Butchi.App", "Screenshots", "ScreenshotRunner.cs");
 
         Assert.True(File.Exists(workflowPath), $"Missing CI workflow: {workflowPath}");
-        Assert.True(File.Exists(appPath), $"Missing app bootstrap: {appPath}");
+        Assert.True(File.Exists(appPath), $"Missing screenshot startup: {appPath}");
         Assert.True(File.Exists(runnerPath), $"Missing screenshot runner: {runnerPath}");
 
         var workflow = File.ReadAllText(workflowPath);
@@ -24,9 +24,9 @@ public sealed class ScreenshotCiContractTests
         Assert.Contains("name: butchi-task14-ui-evidence", workflow, StringComparison.Ordinal);
         Assert.Contains("artifacts/ui/*.png", workflow, StringComparison.Ordinal);
 
-        var app = File.ReadAllText(appPath);
-        Assert.Contains("--screenshot-popover", app, StringComparison.Ordinal);
-        Assert.Contains("ScreenshotRequest.ParseTheme", app, StringComparison.Ordinal);
+        var startup = File.ReadAllText(appPath);
+        Assert.Contains("--screenshot-popover", startup, StringComparison.Ordinal);
+        Assert.Contains("ScreenshotRequest.ParseTheme", startup, StringComparison.Ordinal);
 
         var runner = File.ReadAllText(runnerPath);
         Assert.Contains("RunPopover", runner, StringComparison.Ordinal);

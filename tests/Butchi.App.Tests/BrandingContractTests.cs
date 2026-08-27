@@ -23,8 +23,8 @@ public sealed class BrandingContractTests
         var project = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Butchi.App.csproj"));
         Assert.Contains("Assets\\ButchiLogo.png", project, StringComparison.Ordinal);
 
-        var app = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "App.cs"));
-        Assert.Contains("BrandAssets.CreateWindowIcon()", app, StringComparison.Ordinal);
+        var runtime = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Startup", "ButchiRuntime.cs"));
+        Assert.Contains("BrandAssets.CreateWindowIcon()", runtime, StringComparison.Ordinal);
 
         var management = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Management", "ManagementWindow.cs"));
         Assert.Contains("Icon = BrandAssets.CreateWindowIcon()", management, StringComparison.Ordinal);
