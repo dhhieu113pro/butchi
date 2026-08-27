@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Butchi.App.Branding;
+using Butchi.App.History;
 using Butchi.App.Management;
 using Butchi.App.Models;
 using Butchi.App.Popover;
@@ -45,12 +46,20 @@ public sealed class App : Application, IApplicationShutdown
             var modelManager = new FileModelManager(paths, downloader, _inferenceEngine, configStore);
             var models = ModelManagementViewModel.CreateAsync(modelManager, configStore, CancellationToken.None).AsTask().GetAwaiter().GetResult();
 
+            var hasManagementScreenshot = ScreenshotRequest.TryParse(Program.StartupArgs, out var screenshotRequest);
+            IHistoryStore historyStore = hasManagementScreenshot && screenshotRequest!.Page == ManagementPage.History
+                ? new ScreenshotHistoryStore(screenshotRequest.Fixture != "empty")
+                : new SqliteHistoryStoreAdapter(new SqliteHistoryStore(paths));
+            var historyClipboard = new AvaloniaHistoryClipboard(() => ManagementWindow?.Clipboard);
+            var history = HistoryViewModel.CreateAsync(historyStore, historyClipboard, configStore, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+
             ButchiTheme.Apply(this, generalSettings.Theme);
             ManagementWindow = new ManagementWindow(
                 new ManagementShellViewModel(),
                 generalSettings,
                 prompts,
                 models,
+                history,
                 preference => ButchiTheme.Apply(this, preference));
 
             var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
@@ -65,7 +74,7 @@ public sealed class App : Application, IApplicationShutdown
                 return;
             }
 
-            if (ScreenshotRequest.TryParse(Program.StartupArgs, out var screenshotRequest))
+            if (hasManagementScreenshot)
             {
                 ScreenshotRunner.Run(screenshotRequest!, ManagementWindow, Shutdown);
                 base.OnFrameworkInitializationCompleted();
