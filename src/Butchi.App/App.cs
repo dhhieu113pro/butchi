@@ -61,10 +61,15 @@ public sealed class App : Application, IApplicationShutdown
                 new AboutPrivacyMetadata(typeof(App).Assembly.GetName().Version?.ToString(3) ?? "0.0.0", "Butchi", "MIT", "https://github.com/dhhieu113pro/butchi"),
                 new AboutRuntimeStatus(runtime.IsLoaded, runtime.ActualBackend, runtime.ActualDevice));
 
-            ButchiTheme.Apply(this, generalSettings.Theme);
+            var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
+            var screenshotTheme = hasManagementScreenshot
+                ? screenshotRequest!.Theme
+                : popoverScreenshotIndex >= 0
+                    ? ScreenshotRequest.ParseTheme(GetOptionValue(Program.StartupArgs, "--theme") ?? "system")
+                    : generalSettings.Theme;
+            ButchiTheme.Apply(this, screenshotTheme);
             ManagementWindow = new ManagementWindow(new ManagementShellViewModel(), generalSettings, prompts, models, history, about, preference => ButchiTheme.Apply(this, preference));
 
-            var popoverScreenshotIndex = Array.IndexOf(Program.StartupArgs, "--screenshot-popover");
             if (popoverScreenshotIndex >= 0)
             {
                 if (popoverScreenshotIndex + 1 >= Program.StartupArgs.Length || string.IsNullOrWhiteSpace(Program.StartupArgs[popoverScreenshotIndex + 1]))
