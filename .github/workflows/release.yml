@@ -151,7 +151,7 @@ jobs:
           $rootCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($ciCertificate.PublicCertificatePath)
           $rootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new(
             [System.Security.Cryptography.X509Certificates.StoreName]::Root,
-            [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::LocalMachine)
           try {
             $rootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
             $rootStore.Add($rootCertificate)
@@ -194,7 +194,7 @@ jobs:
           if (-not [string]::IsNullOrWhiteSpace($env:CI_SIGNING_THUMBPRINT)) {
             Remove-Item "Cert:\CurrentUser\My\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
             Remove-Item "Cert:\CurrentUser\TrustedPeople\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
-            Remove-Item "Cert:\CurrentUser\Root\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\LocalMachine\Root\$env:CI_SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
           }
           if (Test-Path 'artifacts/ci-signing') { Remove-Item 'artifacts/ci-signing' -Recurse -Force }
           if (Test-Path 'artifacts/ci-install') { Remove-Item 'artifacts/ci-install' -Recurse -Force }
