@@ -30,6 +30,21 @@ function Assert-Unsigned([string]$Path) {
     }
 }
 
+function Read-ZipManifest([System.IO.Compression.ZipArchive]$Archive) {
+    $manifestEntry = $Archive.Entries | Where-Object { $_.FullName -ieq 'AppxManifest.xml' } | Select-Object -First 1
+    if (-not $manifestEntry) { throw 'Packaged AppxManifest.xml is missing.' }
+
+    $stream = $manifestEntry.Open()
+    $reader = [System.IO.StreamReader]::new($stream)
+    try {
+        return [xml]$reader.ReadToEnd()
+    }
+    finally {
+        $reader.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $versionParts = @($Version.Split('.'))
 if ($versionParts.Count -ne 4) {
     throw "MSIX version must contain exactly four numeric components: $Version"
@@ -78,6 +93,31 @@ if ($PackagePath) {
         throw "Architecture-specific Store package must use .msix extension: $PackagePath"
     }
     Assert-Unsigned $PackagePath
+
+    $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $PackagePath))
+    try {
+        $packageManifest = Read-ZipManifest $package
+        $packageIdentity = $packageManifest.Package.Identity
+        if ([string]$packageIdentity.ProcessorArchitecture -ne $Architecture) {
+            throw "Packaged manifest architecture '$($packageIdentity.ProcessorArchitecture)' does not match expected '$Architecture'."
+        }
+        if ([string]$packageIdentity.Version -ne $Version) {
+            throw "Packaged manifest version '$($packageIdentity.Version)' does not match expected '$Version'."
+        }
+        if ([string]$packageIdentity.Name -ne [string]$identity.Name) {
+            throw "Packaged manifest identity '$($packageIdentity.Name)' does not match staged identity '$($identity.Name)'."
+        }
+
+        $packageEntries = @($package.Entries | ForEach-Object { $_.FullName })
+        foreach ($requiredFile in 'butchi.exe', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll') {
+            if (-not ($packageEntries | Where-Object { $_ -ieq $requiredFile })) {
+                throw "Architecture-specific MSIX payload is missing required runtime file: $requiredFile"
+            }
+        }
+    }
+    finally {
+        $package.Dispose()
+    }
 }
 
 if ($BundlePath) {
@@ -87,6 +127,53 @@ if ($BundlePath) {
         $packages = @($bundle.Entries | Where-Object { $_.FullName -match '\.msix$' })
         if ($packages.Count -ne 2) {
             throw "MSIX bundle must contain exactly two architecture packages; found $($packages.Count)."
+        }
+
+        $bundleIdentities = @()
+        $bundleVersions = @()
+        $bundleArchitectures = @()
+
+        foreach ($packageEntry in $packages) {
+            $packageStream = $packageEntry.Open()
+            $memory = [System.IO.MemoryStream]::new()
+            try {
+                $packageStream.CopyTo($memory)
+                $memory.Position = 0
+                $innerPackage = [System.IO.Compression.ZipArchive]::new(
+                    $memory,
+                    [System.IO.Compression.ZipArchiveMode]::Read,
+                    $true)
+                try {
+                    $innerManifest = Read-ZipManifest $innerPackage
+                    $innerIdentity = $innerManifest.Package.Identity
+                    $bundleIdentities += [string]$innerIdentity.Name
+                    $bundleVersions += [string]$innerIdentity.Version
+                    $bundleArchitectures += [string]$innerIdentity.ProcessorArchitecture
+                }
+                finally {
+                    $innerPackage.Dispose()
+                }
+            }
+            finally {
+                $memory.Dispose()
+                $packageStream.Dispose()
+            }
+        }
+
+        $uniqueIdentities = @($bundleIdentities | Sort-Object -Unique)
+        $uniqueVersions = @($bundleVersions | Sort-Object -Unique)
+        $uniqueArchitectures = @($bundleArchitectures | Sort-Object -Unique)
+        if ($uniqueIdentities.Count -ne 1) {
+            throw "MSIX bundle packages must share one package identity; found: $($uniqueIdentities -join ', ')."
+        }
+        if ($uniqueVersions.Count -ne 1 -or $uniqueVersions[0] -ne $Version) {
+            throw "MSIX bundle packages must share expected version '$Version'; found: $($uniqueVersions -join ', ')."
+        }
+        if ($uniqueArchitectures.Count -ne 2 -or -not ($uniqueArchitectures -contains 'x64') -or -not ($uniqueArchitectures -contains 'arm64')) {
+            throw "MSIX bundle must contain exactly x64 and arm64 packages; found: $($uniqueArchitectures -join ', ')."
+        }
+        if ($uniqueIdentities[0] -ne [string]$identity.Name) {
+            throw "MSIX bundle identity '$($uniqueIdentities[0])' does not match expected '$($identity.Name)'."
         }
     }
     finally {
