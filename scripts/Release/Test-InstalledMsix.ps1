@@ -28,7 +28,10 @@ try {
     $rootCertificate = Import-Certificate -FilePath $env:CI_SIGNING_CERT_PATH -CertStoreLocation 'Cert:\CurrentUser\Root'
     $rootThumbprint = $rootCertificate.Thumbprint
 
+    Write-Host 'INSTALL_BEGIN'
     Add-AppxPackage -Path (Resolve-Path $InputMsix)
+    Write-Host 'INSTALL_END'
+
     $package = Get-AppxPackage -Name $identityName | Sort-Object Version -Descending | Select-Object -First 1
     if (-not $package) { throw "Installed package registration not found: $identityName" }
     if ([string]$package.Version -ne $expectedVersion) { throw "Installed version '$($package.Version)' does not match '$expectedVersion'." }
@@ -42,6 +45,8 @@ try {
     $env:BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY = $identityName
     $env:BUTCHI_RELEASE_PROBE_PACKAGE_VERSION = $expectedVersion
     if (Test-Path $probePath) { Remove-Item $probePath -Force }
+
+    Write-Host 'PROBE_LAUNCH'
     $process = Start-Process -FilePath $exe -ArgumentList @('--release-probe', $probePath) -PassThru
     $probeProduced = $process.WaitForExit(30000)
     if (-not $probeProduced) {
@@ -49,6 +54,8 @@ try {
         $process.WaitForExit()
         throw 'Installed release probe exceeded the 30 second timeout.'
     }
+    Write-Host 'PROBE_EXIT'
+
     if ($process.ExitCode -ne 0) { throw "Installed release probe exited with code $($process.ExitCode)." }
     if (-not (Test-Path $probePath)) { throw 'Installed release probe did not produce output JSON.' }
 
@@ -63,7 +70,9 @@ try {
 finally {
     Get-Process -Name 'butchi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     if ($identityName) {
+        Write-Host 'UNINSTALL_BEGIN'
         Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue | Remove-AppxPackage -ErrorAction SilentlyContinue
+        Write-Host 'UNINSTALL_END'
         if (Get-AppxPackage -Name $identityName -ErrorAction SilentlyContinue) { throw "Package registration remained after uninstall: $identityName" }
     }
     if ($rootThumbprint) {
