@@ -161,9 +161,9 @@ public sealed class PopoverWindow : Window
             Padding = new Thickness(12, 8),
             CornerRadius = new CornerRadius(9),
             FontWeight = FontWeight.SemiBold,
-            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.SubtleSurfaceBrush,
-            Foreground = selected ? ButchiTheme.WhiteBrush : null
+            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.SubtleSurfaceBrush
         };
+        if (selected) button.Foreground = ButchiTheme.WhiteBrush;
         button.Click += (_, _) => ViewModel.SelectAction(action);
         return button;
     }
