@@ -50,6 +50,18 @@ public sealed class CiMsixSigningContractTests
     }
 
     [Fact]
+    public void Ephemeral_self_signed_certificate_is_trusted_only_for_runner_validation_and_cleaned_up()
+    {
+        var cert = ReadScript("New-CiMsixSigningCertificate.ps1");
+        var repoRoot = FindRepositoryRoot();
+        var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
+
+        Assert.Contains("Cert:\\CurrentUser\\Root", cert, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Cert:\\CurrentUser\\Root", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("if: always()", workflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Release_workflow_signs_only_ci_copy_and_never_uploads_private_key_material()
     {
         var repoRoot = FindRepositoryRoot();
