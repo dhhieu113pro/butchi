@@ -35,10 +35,14 @@ jobs:
       - name: Capture real Avalonia UI
         shell: pwsh
         run: |
+          dotnet run --project src/Butchi.App/Butchi.App.csproj -c Release -- --screenshot-popover "artifacts/ui/popover.png"
+          $popover = "artifacts/ui/popover.png"
+          if (-not (Test-Path $popover)) { throw "Screenshot missing: $popover" }
+          if ((Get-Item $popover).Length -le 1024) { throw "Screenshot unexpectedly small: $popover" }
+
           $popoverFixtures = @{
             'popover-idle.png' = 'idle'
             'popover-loading.png' = 'loading'
-            'popover.png' = 'success'
             'popover-error.png' = 'error'
           }
           foreach ($entry in $popoverFixtures.GetEnumerator()) {
