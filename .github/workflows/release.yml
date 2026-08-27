@@ -143,6 +143,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:CI_SIGNING_THUMBPRINT) {
+            Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$env:CI_SIGNING_THUMBPRINT" -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath "Cert:\CurrentUser\TrustedPeople\$env:CI_SIGNING_THUMBPRINT" -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath "Cert:\CurrentUser\My\$env:CI_SIGNING_THUMBPRINT" -ErrorAction SilentlyContinue
           }
