@@ -46,7 +46,7 @@ public sealed class HistoryView : UserControl
         content.Children.Add(header);
 
         var filters = new Grid { ColumnDefinitions = new ColumnDefinitions("*,190"), ColumnSpacing = 10 };
-        var search = new TextBox { Watermark = "Search source or result…", MinHeight = 38, Text = _viewModel.Query };
+        var search = new TextBox { PlaceholderText = "Search source or result…", MinHeight = 38, Text = _viewModel.Query };
         search.KeyUp += async (_, _) => { _viewModel.Query = search.Text; await _viewModel.RefreshAsync(CancellationToken.None); Refresh(); };
         filters.Children.Add(search);
         var filter = new ComboBox { ItemsSource = new[] { "All actions", "Translate", "Rewrite" }, SelectedIndex = 0, MinHeight = 38 };
