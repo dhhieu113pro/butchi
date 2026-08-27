@@ -28,15 +28,24 @@ public sealed class UpgradeProbeTests
     public void Repository_defines_automated_N_to_N_plus_1_msix_upgrade_lifecycle()
     {
         var repoRoot = FindRepositoryRoot();
-        var scriptPath = Path.Combine(repoRoot, "scripts", "Release", "Test-MsixUpgrade.ps1");
+        var upgradeScriptPath = Path.Combine(repoRoot, "scripts", "Release", "Test-MsixUpgrade.ps1");
+        var installedSmokePath = Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1");
         var workflowPath = Path.Combine(repoRoot, ".github", "workflows", "release.yml");
 
-        Assert.True(File.Exists(scriptPath), $"Upgrade lifecycle script missing: {scriptPath}");
+        Assert.True(File.Exists(upgradeScriptPath), $"Upgrade lifecycle script missing: {upgradeScriptPath}");
+
+        var upgradeScript = File.ReadAllText(upgradeScriptPath);
+        Assert.Contains("$SourceVersion.Revision + 1", upgradeScript, StringComparison.Ordinal);
+        Assert.Contains("Sign-CiMsix.ps1", upgradeScript, StringComparison.Ordinal);
+        Assert.Contains("UPGRADE_N_INSTALL_BEGIN", upgradeScript, StringComparison.Ordinal);
+        Assert.Contains("UPGRADE_N_PLUS_1_INSTALL_END", upgradeScript, StringComparison.Ordinal);
+        Assert.Contains("UPGRADE_UNINSTALL_END", upgradeScript, StringComparison.Ordinal);
+
+        var installedSmoke = File.ReadAllText(installedSmokePath);
+        Assert.Contains("Test-MsixUpgrade.ps1", installedSmoke, StringComparison.Ordinal);
 
         var workflow = File.ReadAllText(workflowPath);
-        Assert.Contains("Test-MsixUpgrade.ps1", workflow, StringComparison.Ordinal);
-        Assert.Contains("0.1.0.0", workflow, StringComparison.Ordinal);
-        Assert.Contains("0.1.0.1", workflow, StringComparison.Ordinal);
+        Assert.Contains("Test-InstalledMsix.ps1", workflow, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
