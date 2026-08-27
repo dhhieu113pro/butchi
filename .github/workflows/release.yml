@@ -148,8 +148,18 @@ jobs:
             -PublicCertificatePath 'artifacts/ci-signing/butchi-ci.cer' `
             -Subject $publisher
           Import-Certificate -FilePath $ciCertificate.PublicCertificatePath -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
-          certutil -user -f -addstore Root $ciCertificate.PublicCertificatePath
-          if ($LASTEXITCODE -ne 0) { throw "certutil failed to trust the CI signing certificate in CurrentUser Root with exit code $LASTEXITCODE" }
+          $rootCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($ciCertificate.PublicCertificatePath)
+          $rootStore = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+            [System.Security.Cryptography.X509Certificates.StoreName]::Root,
+            [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+          try {
+            $rootStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $rootStore.Add($rootCertificate)
+          }
+          finally {
+            $rootStore.Close()
+            $rootCertificate.Dispose()
+          }
           "CI_SIGNING_THUMBPRINT=$($ciCertificate.Thumbprint)" >> $env:GITHUB_ENV
           "CI_SIGNING_CERT_PATH=$($ciCertificate.PublicCertificatePath)" >> $env:GITHUB_ENV
 
