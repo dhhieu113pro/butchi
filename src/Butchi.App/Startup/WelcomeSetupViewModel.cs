@@ -141,12 +141,9 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             if (!_modelManager.IsDownloaded(model))
             {
                 SetStage(WelcomeSetupStage.Downloading);
-                var progress = new Progress<ModelDownloadProgress>(value =>
-                {
-                    _downloadProgress = value;
-                    OnPropertyChanged(nameof(DownloadProgress));
-                });
+                var progress = new LatestProgress<ModelDownloadProgress>(SetDownloadProgress);
                 await _modelManager.DownloadAsync(model, progress, cancellationToken);
+                progress.FlushLatest();
             }
 
             SetStage(WelcomeSetupStage.Loading);
@@ -194,6 +191,12 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
     {
         SetError(message);
         SetStage(WelcomeSetupStage.Error);
+    }
+
+    private void SetDownloadProgress(ModelDownloadProgress value)
+    {
+        _downloadProgress = value;
+        OnPropertyChanged(nameof(DownloadProgress));
     }
 
     private void SetBusy(bool value)
@@ -248,4 +251,56 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private sealed class LatestProgress<T>(Action<T> update) : IProgress<T>
+    {
+        private readonly SynchronizationContext? _context = SynchronizationContext.Current;
+        private readonly object _gate = new();
+        private T? _latest;
+        private long _sequence;
+        private bool _hasValue;
+
+        public void Report(T value)
+        {
+            long sequence;
+            lock (_gate)
+            {
+                _latest = value;
+                _hasValue = true;
+                sequence = ++_sequence;
+            }
+
+            if (_context is null || ReferenceEquals(_context, SynchronizationContext.Current))
+            {
+                ApplyIfLatest(sequence, value);
+                return;
+            }
+
+            _context.Post(state =>
+            {
+                var item = ((LatestProgress<T> Owner, long Sequence, T Value))state!;
+                item.Owner.ApplyIfLatest(item.Sequence, item.Value);
+            }, (this, sequence, value));
+        }
+
+        public void FlushLatest()
+        {
+            T? value;
+            lock (_gate)
+            {
+                if (!_hasValue) return;
+                value = _latest;
+            }
+            update(value!);
+        }
+
+        private void ApplyIfLatest(long sequence, T value)
+        {
+            lock (_gate)
+            {
+                if (sequence != _sequence) return;
+            }
+            update(value);
+        }
+    }
 }
