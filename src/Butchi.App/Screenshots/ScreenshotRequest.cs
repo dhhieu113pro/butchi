@@ -1,4 +1,5 @@
 using Butchi.App.Management;
+using Butchi.Core.Configuration;
 
 namespace Butchi.App.Screenshots;
 
@@ -7,7 +8,8 @@ public sealed record ScreenshotRequest(
     ManagementPage Page,
     int Width,
     int Height,
-    string? Fixture = null)
+    string? Fixture = null,
+    AppThemePreference Theme = AppThemePreference.System)
 {
     public static bool TryParse(string[] args, out ScreenshotRequest? request)
     {
@@ -26,6 +28,7 @@ public sealed record ScreenshotRequest(
         var width = 1280;
         var height = 800;
         string? fixture = null;
+        var theme = AppThemePreference.System;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -43,12 +46,23 @@ public sealed record ScreenshotRequest(
                 case "--fixture":
                     fixture = RequiredValue(args, ref i, "--fixture").Trim().ToLowerInvariant();
                     break;
+                case "--theme":
+                    theme = ParseTheme(RequiredValue(args, ref i, "--theme"));
+                    break;
             }
         }
 
-        request = new ScreenshotRequest(outputPath, page, width, height, fixture);
+        request = new ScreenshotRequest(outputPath, page, width, height, fixture, theme);
         return true;
     }
+
+    public static AppThemePreference ParseTheme(string value) => value.Trim().ToLowerInvariant() switch
+    {
+        "light" => AppThemePreference.Light,
+        "dark" => AppThemePreference.Dark,
+        "system" => AppThemePreference.System,
+        _ => throw new ArgumentException($"Unknown screenshot theme '{value}'.", nameof(value))
+    };
 
     private static string RequiredValue(string[] args, ref int index, string option)
     {

@@ -17,14 +17,16 @@ public sealed class ScreenshotCiContractTests
         Assert.True(File.Exists(runnerPath), $"Missing screenshot runner: {runnerPath}");
 
         var workflow = File.ReadAllText(workflowPath);
-        Assert.Contains("--screenshot-popover \"artifacts/ui/popover.png\"", workflow, StringComparison.Ordinal);
-        Assert.Contains("$pages = @('settings', 'prompts', 'history', 'models', 'status')", workflow, StringComparison.Ordinal);
-        Assert.Contains("--width 1440 --height 900", workflow, StringComparison.Ordinal);
-        Assert.Contains("name: butchi-ui-screenshots", workflow, StringComparison.Ordinal);
+        Assert.Contains("--screenshot-popover \"artifacts/ui/popover-light.png\" --theme light", workflow, StringComparison.Ordinal);
+        Assert.Contains("--screenshot-popover \"artifacts/ui/popover-dark.png\" --theme dark", workflow, StringComparison.Ordinal);
+        Assert.Contains("$pages = @('prompts', 'history', 'models', 'status')", workflow, StringComparison.Ordinal);
+        Assert.Contains("--width 1440 --height 900 --theme light", workflow, StringComparison.Ordinal);
+        Assert.Contains("name: butchi-task14-ui-evidence", workflow, StringComparison.Ordinal);
         Assert.Contains("artifacts/ui/*.png", workflow, StringComparison.Ordinal);
 
         var app = File.ReadAllText(appPath);
         Assert.Contains("--screenshot-popover", app, StringComparison.Ordinal);
+        Assert.Contains("ScreenshotRequest.ParseTheme", app, StringComparison.Ordinal);
 
         var runner = File.ReadAllText(runnerPath);
         Assert.Contains("RunPopover", runner, StringComparison.Ordinal);
@@ -53,9 +55,7 @@ public sealed class ScreenshotCiContractTests
         while (directory is not null)
         {
             if (File.Exists(Path.Combine(directory.FullName, "Butchi.slnx")))
-            {
                 return directory.FullName;
-            }
 
             directory = directory.Parent;
         }
