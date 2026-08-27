@@ -23,7 +23,7 @@ public sealed class InstalledAppProbeTests
     [Fact]
     public void Result_contains_only_privacy_safe_startup_markers()
     {
-        var result = ReleaseProbeResult.Success("Butchi.Test", "0.1.0.0");
+        var result = ReleaseProbeResult.CreateSuccess("Butchi.Test", "0.1.0.0");
 
         Assert.True(result.Success);
         Assert.True(result.CompositionHealthy);
