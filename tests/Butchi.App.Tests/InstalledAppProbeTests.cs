@@ -77,6 +77,55 @@ public sealed class InstalledAppProbeTests
         Assert.DoesNotContain("Cert:\\CurrentUser\\Root", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_probe_activates_the_registered_application_instead_of_launching_the_exe_directly()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("IApplicationActivationManager", script, StringComparison.Ordinal);
+        Assert.Contains("ActivateApplication", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start-Process -FilePath $exe", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Installed_msix_probe_invokes_COM_activation_through_a_managed_helper()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("public static class ApplicationActivator", script, StringComparison.Ordinal);
+        Assert.Contains("(IApplicationActivationManager)new ApplicationActivationManager()", script, StringComparison.Ordinal);
+        Assert.Contains("[Butchi.ReleaseValidation.ApplicationActivator]::ActivateApplication", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetTypedObjectForIUnknown", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$activationManager.ActivateApplication", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Installed_msix_probe_uses_probe_document_as_authoritative_result_after_registered_activation()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("if (-not (Test-Path $probePath))", script, StringComparison.Ordinal);
+        Assert.Contains("if (-not $probe.success -or -not $probe.compositionHealthy)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$process.ExitCode", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Installed_msix_identity_and_version_are_verified_from_registration_not_probe_environment_transport()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("Installed package registration not found", script, StringComparison.Ordinal);
+        Assert.Contains("Installed version", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$probe.packageIdentity", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("$probe.packageVersion", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("BUTCHI_RELEASE_PROBE_PACKAGE_IDENTITY", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("BUTCHI_RELEASE_PROBE_PACKAGE_VERSION", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
