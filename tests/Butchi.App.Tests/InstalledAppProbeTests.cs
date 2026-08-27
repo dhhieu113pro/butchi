@@ -88,6 +88,18 @@ public sealed class InstalledAppProbeTests
         Assert.DoesNotContain("Start-Process -FilePath $exe", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Installed_msix_probe_queries_the_COM_activation_interface_instead_of_using_a_managed_cast()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var script = File.ReadAllText(Path.Combine(repoRoot, "scripts", "Release", "Test-InstalledMsix.ps1"));
+
+        Assert.Contains("GetIUnknownForObject", script, StringComparison.Ordinal);
+        Assert.Contains("GetTypedObjectForIUnknown", script, StringComparison.Ordinal);
+        Assert.Contains("Release($activationUnknown)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("[Butchi.ReleaseValidation.IApplicationActivationManager][Butchi.ReleaseValidation.ApplicationActivationManager]::new()", script, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
