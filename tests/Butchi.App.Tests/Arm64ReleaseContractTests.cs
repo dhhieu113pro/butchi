@@ -31,24 +31,16 @@ public sealed class Arm64ReleaseContractTests
     }
 
     [Fact]
-    public void Arm64_validation_is_structural_and_does_not_claim_native_execution_on_x64_runner()
+    public void Arm64_validation_is_structural_and_native_runtime_smoke_remains_x64_only()
     {
         var repoRoot = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(repoRoot, ".github", "workflows", "release.yml"));
 
         Assert.Contains("win-arm64", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Validate-StorePackage.ps1", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Test-InstalledMsix.ps1 -InputMsix", ExtractArm64Job(workflow), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string ExtractArm64Job(string workflow)
-    {
-        var arm64Start = workflow.IndexOf("Store MSIX (win-arm64)", StringComparison.OrdinalIgnoreCase);
-        if (arm64Start < 0)
-            return workflow;
-
-        var nextJob = workflow.IndexOf("\n  ", arm64Start + 1, StringComparison.Ordinal);
-        return nextJob > arm64Start ? workflow[arm64Start..nextJob] : workflow[arm64Start..];
+        Assert.Contains("butchi-msix-x64", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Butchi_CI_x64.msix", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Butchi_CI_arm64.msix", workflow, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadValidator()
