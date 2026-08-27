@@ -43,7 +43,7 @@ public static class ReleaseProbe
             var version = Environment.GetEnvironmentVariable("BUTCHI_RELEASE_PROBE_PACKAGE_VERSION")
                 ?? typeof(ReleaseProbe).Assembly.GetName().Version?.ToString(4)
                 ?? "0.0.0.0";
-            result = ReleaseProbeResult.Success(identity, version);
+            result = ReleaseProbeResult.CreateSuccess(identity, version);
         }
         catch (Exception ex)
         {
@@ -70,7 +70,7 @@ public sealed record ReleaseProbeResult(
     string? PromptContent,
     string? HistoryContent)
 {
-    public static ReleaseProbeResult Success(string packageIdentity, string packageVersion) =>
+    public static ReleaseProbeResult CreateSuccess(string packageIdentity, string packageVersion) =>
         new(true, true, packageIdentity, packageVersion, null, null, null, null);
 
     public static ReleaseProbeResult Failure(string errorCode) =>
