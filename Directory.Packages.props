@@ -5,6 +5,7 @@
   <ItemGroup>
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="LLamaSharp" Version="0.27.0" />
     <PackageVersion Include="LLamaSharp.Backend.Cpu" Version="0.27.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
