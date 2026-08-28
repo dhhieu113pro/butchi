@@ -32,7 +32,8 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         ModelManagementViewModel models,
         HistoryViewModel history,
         AboutPrivacyViewModel aboutPrivacy,
-        Action<AppThemePreference> applyTheme)
+        Action<AppThemePreference> applyTheme,
+        bool autoPrepareModel = true)
     {
         _viewModel = viewModel;
         DataContext = viewModel;
@@ -46,7 +47,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
 
         _generalView = new GeneralSettingsView(generalSettings, applyTheme);
         _promptsView = new PromptsView(prompts);
-        _modelView = new ModelManagementView(models);
+        _modelView = new ModelManagementView(models, autoPrepareModel);
         _historyView = new HistoryView(history);
         _aboutPrivacyView = new AboutPrivacyView(aboutPrivacy);
         _contentHost = new Border { Padding = new Thickness(0), Child = _generalView };
