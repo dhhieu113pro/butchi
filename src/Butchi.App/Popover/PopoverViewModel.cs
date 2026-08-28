@@ -32,9 +32,15 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
 
     public void SetSession(string sourceText, TextAction action, string? targetLanguage)
     {
+        _pending[TextAction.Translate].Clear();
+        _pending[TextAction.Rewrite].Clear();
+        Translate = ActionPresentationState.Empty;
+        Rewrite = ActionPresentationState.Empty;
         SourceText = sourceText ?? string.Empty;
         SelectedAction = action;
         TargetLanguage = string.IsNullOrWhiteSpace(targetLanguage) ? null : targetLanguage.Trim();
+        OnPropertyChanged(nameof(Translate));
+        OnPropertyChanged(nameof(Rewrite));
         OnPropertyChanged(nameof(SourceText));
         OnPropertyChanged(nameof(SelectedAction));
         OnPropertyChanged(nameof(TargetLanguage));

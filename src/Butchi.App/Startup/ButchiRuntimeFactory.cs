@@ -12,6 +12,7 @@ using Butchi.App.Windows;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
 using Butchi.Infrastructure;
+using Butchi.Platform.Windows.Actions;
 using Butchi.Platform.Windows.Pointer;
 using Butchi.Platform.Windows.Selection;
 using Butchi.Platform.Windows.Triggers;
@@ -27,19 +28,41 @@ public sealed class ButchiRuntimeFactory(
     {
         ButchiTheme.Apply(application, config.Theme);
         var management = await CreateManagementAsync(services.HistoryStore, cancellationToken);
-        var popover = new PopoverWindow(new PopoverViewModel());
+
+        var clipboard = new WindowsClipboardSelectionSource();
+        var pasteSender = new WindowsPasteSender();
+        var resultSink = new WindowsResultActionSink(
+            clipboard,
+            pasteSender,
+            TimeSpan.FromMilliseconds(80));
+        var scheduler = new TextActionScheduler(services.InferenceEngine, resultSink);
+        var popoverViewModel = new PopoverViewModel();
+        popoverViewModel.SetSession(string.Empty, TextAction.Translate, config.TargetLanguage);
+        var popoverActionController = new PopoverActionController(
+            popoverViewModel,
+            scheduler,
+            services.ConfigStore,
+            resultSink);
+        var popover = new PopoverWindow(popoverViewModel);
         var selectionReader = new WindowsSelectionReader(
             new WindowsUiAutomationSelectionSource(),
-            new WindowsClipboardSelectionSource());
+            clipboard);
         var activation = new WindowsActivationCoordinator(
             selectionReader,
             new WindowsPointerContext(new Win32PointerSource()),
-            popover);
+            popover,
+            pasteSender);
         var trigger = new WindowsTriggerService(
             new WindowsKeyboardHookSource(),
             TimeSpan.FromMilliseconds(350));
         var interaction = new WindowsInteractionRuntime(trigger, activation);
-        return new ButchiRuntime(application, management, popover, interaction, shutdown);
+        return new ButchiRuntime(
+            application,
+            management,
+            popover,
+            interaction,
+            popoverActionController, scheduler,
+            shutdown);
     }
 
     public async ValueTask<ManagementWindow> CreateManagementScreenshotAsync(
