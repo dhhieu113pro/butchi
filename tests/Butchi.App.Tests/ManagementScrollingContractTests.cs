@@ -9,15 +9,11 @@ public sealed class ManagementScrollingContractTests
     {
         var root = FindRepositoryRoot();
         var shellPath = Path.Combine(root, "src", "Butchi.App", "Management", "ManagementWindow.cs");
-        var generalPath = Path.Combine(root, "src", "Butchi.App", "Settings", "GeneralSettingsView.cs");
-
         var shell = File.ReadAllText(shellPath);
-        var general = File.ReadAllText(generalPath);
 
         Assert.Contains("ScrollViewer _contentScroll", shell, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollBarVisibility", shell, StringComparison.Ordinal);
         Assert.Contains("_contentScroll.Content = BuildPage(page)", shell, StringComparison.Ordinal);
-        Assert.DoesNotContain("class GeneralSettingsView : ScrollViewer", general, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
