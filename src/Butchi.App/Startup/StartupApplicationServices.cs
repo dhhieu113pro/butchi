@@ -33,7 +33,13 @@ public sealed class StartupApplicationServices : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        await InferenceEngine.DisposeAsync();
-        HttpClient.Dispose();
+        try
+        {
+            await InferenceEngine.DisposeAsync();
+        }
+        finally
+        {
+            HttpClient.Dispose();
+        }
     }
 }

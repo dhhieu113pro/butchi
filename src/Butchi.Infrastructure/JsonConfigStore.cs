@@ -53,8 +53,10 @@ public sealed class JsonConfigStore
             await using var stream = _openRead(_paths.ConfigPath);
             var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, _options, cancellationToken)
                 .ConfigureAwait(false);
-            return config is null
-                ? new ConfigLoadResult(AppConfig.Default, ConfigLoadState.Invalid, nameof(JsonException))
+            if (config is null)
+                return new ConfigLoadResult(AppConfig.Default, ConfigLoadState.Invalid, nameof(JsonException));
+            return !IsUsable(config)
+                ? new ConfigLoadResult(AppConfig.Default, ConfigLoadState.Invalid, "InvalidConfiguration")
                 : new ConfigLoadResult(config, ConfigLoadState.Ready);
         }
         catch (JsonException ex)
@@ -70,6 +72,16 @@ public sealed class JsonConfigStore
             return new ConfigLoadResult(AppConfig.Default, ConfigLoadState.Unavailable, ex.GetType().Name);
         }
     }
+
+    private static bool IsUsable(AppConfig config) =>
+        !string.IsNullOrWhiteSpace(config.TargetLanguage)
+        && config.FavoriteLanguages is not null
+        && config.FavoriteLanguages.Count <= 5
+        && config.FavoriteLanguages.All(language => !string.IsNullOrWhiteSpace(language))
+        && config.RewriteSystemPrompt is not null
+        && config.TranslateSystemPrompt is not null
+        && !string.IsNullOrWhiteSpace(config.ModelRepo)
+        && !string.IsNullOrWhiteSpace(config.ModelFile);
 
     public async Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default)
     {

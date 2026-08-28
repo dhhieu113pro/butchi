@@ -92,6 +92,30 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(StartupCoordinatorState.Running, coordinator.State);
     }
 
+    [Fact]
+    public async Task Disposal_waits_for_active_startup_and_disposes_runtime_once()
+    {
+        var runtime = new FakeRuntime();
+        var runtimeReady = new TaskCompletionSource<IButchiRuntime>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = CreateCoordinator(
+            new ImmediateReadiness(Ready()),
+            new FakeWelcomeHost(),
+            new PendingRuntimeFactory(runtimeReady.Task));
+
+        var startup = coordinator.RunAsync(CancellationToken.None);
+        var disposal = coordinator.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+
+        runtimeReady.SetResult(runtime);
+        await startup;
+        await disposal;
+        await coordinator.DisposeAsync();
+
+        Assert.Equal(1, runtime.DisposeCalls);
+        Assert.Equal(StartupCoordinatorState.Exiting, coordinator.State);
+    }
+
     private static StartupCoordinator CreateCoordinator(
         IStartupReadinessService readiness,
         IWelcomeSetupHost setup,
@@ -147,12 +171,24 @@ public sealed class StartupCoordinatorTests
         }
     }
 
+    private sealed class PendingRuntimeFactory(Task<IButchiRuntime> runtime) : IButchiRuntimeFactory
+    {
+        public ValueTask<IButchiRuntime> CreateAsync(AppConfig config, CancellationToken cancellationToken) =>
+            new(runtime);
+    }
+
     private sealed class FakeRuntime : IButchiRuntime
     {
         public int StartCalls { get; private set; }
+        public int DisposeCalls { get; private set; }
         public bool IsTrayStarted { get; private set; }
         public void StartTray() { StartCalls++; IsTrayStarted = true; }
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            DisposeCalls++;
+            IsTrayStarted = false;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class NoOpConfigStore : IAppConfigStore

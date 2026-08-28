@@ -65,7 +65,7 @@ public sealed class StartupReadinessService(
 
         try
         {
-            await modelManager.LoadAsync(configuredModel, cancellationToken);
+            await modelManager.LoadAsync(configuredModel, configResult.Config, cancellationToken);
             var status = modelManager.GetStatus();
             var isReady = status.IsLoaded &&
                           status.ModelRepo == configuredModel.Repo &&

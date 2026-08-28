@@ -57,6 +57,9 @@ public sealed class StartupReadinessTests
         Assert.True(manager.Status.IsLoaded);
         Assert.Equal(ModelCatalog.Options[0].Repo, manager.Status.ModelRepo);
         Assert.Equal(1, manager.LoadCalls);
+        Assert.Equal(AppConfig.Default.ModelRepo, manager.LoadConfig?.ModelRepo);
+        Assert.Equal(AppConfig.Default.ModelFile, manager.LoadConfig?.ModelFile);
+        Assert.Equal(AppConfig.Default.TargetLanguage, manager.LoadConfig?.TargetLanguage);
     }
 
     [Fact]
@@ -115,6 +118,7 @@ public sealed class StartupReadinessTests
         public Exception? LoadError { get; init; }
         public bool ReportLoaded { get; init; } = true;
         public int LoadCalls { get; private set; }
+        public AppConfig? LoadConfig { get; private set; }
         public InferenceStatus Status { get; private set; } = new(false);
 
         public bool IsDownloaded(ModelOption model) => Downloaded;
@@ -131,6 +135,12 @@ public sealed class StartupReadinessTests
             if (ReportLoaded)
                 Status = new InferenceStatus(true, model.Repo, model.File, "Cpu", "CPU");
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask LoadAsync(ModelOption model, AppConfig config, CancellationToken cancellationToken)
+        {
+            LoadConfig = config;
+            return LoadAsync(model, cancellationToken);
         }
 
         public ValueTask UnloadAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;

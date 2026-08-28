@@ -19,12 +19,14 @@ public sealed class StartupCoordinator(
 {
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private IButchiRuntime? _runtime;
+    private int _disposed;
 
     public StartupCoordinatorState State { get; private set; } = StartupCoordinatorState.NotStarted;
     public IButchiRuntime? Runtime => _runtime;
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
         await _runGate.WaitAsync(cancellationToken);
         try
         {
@@ -87,11 +89,21 @@ public sealed class StartupCoordinator(
 
     public async ValueTask DisposeAsync()
     {
-        State = StartupCoordinatorState.Exiting;
-        if (_runtime is not null)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        await _runGate.WaitAsync();
+        try
         {
-            await _runtime.DisposeAsync();
-            _runtime = null;
+            State = StartupCoordinatorState.Exiting;
+            if (_runtime is not null)
+            {
+                await _runtime.DisposeAsync();
+                _runtime = null;
+            }
+        }
+        finally
+        {
+            _runGate.Release();
+            _runGate.Dispose();
         }
     }
 }

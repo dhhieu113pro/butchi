@@ -125,6 +125,27 @@ public sealed class PersistenceCompatibilityTests : IDisposable
         Assert.DoesNotContain("private config content", result.ErrorCode);
     }
 
+    [Theory]
+    [InlineData("{\"targetLanguage\":null}")]
+    [InlineData("{\"targetLanguage\":\"   \"}")]
+    [InlineData("{\"modelRepo\":null}")]
+    [InlineData("{\"modelFile\":\"\"}")]
+    [InlineData("{\"favoriteLanguages\":null}")]
+    public async Task Config_status_rejects_semantically_unusable_values(string json)
+    {
+        var paths = new AppPaths(_root);
+        paths.EnsureDirectories();
+        await File.WriteAllTextAsync(paths.ConfigPath, json);
+
+        var result = await new JsonConfigStore(paths).LoadWithStatusAsync();
+
+        Assert.Equal(ConfigLoadState.Invalid, result.State);
+        Assert.Equal(AppConfig.Default.TargetLanguage, result.Config.TargetLanguage);
+        Assert.Equal(AppConfig.Default.ModelRepo, result.Config.ModelRepo);
+        Assert.Equal(AppConfig.Default.ModelFile, result.Config.ModelFile);
+        Assert.Equal("InvalidConfiguration", result.ErrorCode);
+    }
+
     [Fact]
     public async Task History_search_filters_case_insensitively_orders_descending_and_clamps_limits()
     {

@@ -18,6 +18,13 @@ public interface IWelcomeSetupSurface
     void CloseAfterCompletion();
 }
 
+public interface ICancellableWelcomeSetupSurface
+{
+    void SetOperationCancellation(CancellationToken cancellationToken);
+    void CancelActiveOperation();
+    ValueTask WaitForActiveOperationAsync();
+}
+
 public interface IWelcomeSetupHost
 {
     ValueTask<WelcomeSetupCompletion?> ShowAsync(
@@ -36,10 +43,16 @@ public sealed class WelcomeSetupHost(
         CancellationToken cancellationToken)
     {
         var surface = _createSurface(viewModel);
+        var cancellableSurface = surface as ICancellableWelcomeSetupSurface;
+        cancellableSurface?.SetOperationCancellation(cancellationToken);
         var completion = new TaskCompletionSource<WelcomeSetupCompletion?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         void Complete(WelcomeSetupCompletion value) => completion.TrySetResult(value);
-        void Exit() => completion.TrySetResult(null);
+        void Exit()
+        {
+            cancellableSurface?.CancelActiveOperation();
+            completion.TrySetResult(null);
+        }
 
         surface.Completed += Complete;
         surface.ExitRequested += Exit;
@@ -51,6 +64,9 @@ public sealed class WelcomeSetupHost(
         }
         finally
         {
+            cancellableSurface?.CancelActiveOperation();
+            if (cancellableSurface is not null)
+                await cancellableSurface.WaitForActiveOperationAsync();
             surface.Completed -= Complete;
             surface.ExitRequested -= Exit;
             surface.CloseAfterCompletion();
@@ -58,7 +74,7 @@ public sealed class WelcomeSetupHost(
     }
 }
 
-public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface
+public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancellableWelcomeSetupSurface
 {
     private readonly WelcomeSetupViewModel _viewModel;
     private readonly ComboBox _theme;
@@ -69,6 +85,8 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface
     private readonly TextBlock _status;
     private readonly TextBlock _error;
     private readonly Button _finish;
+    private CancellationTokenSource? _operationCancellation;
+    private Task _activeOperation = Task.CompletedTask;
     private bool _completed;
 
     public WelcomeSetupWindow(WelcomeSetupViewModel viewModel)
@@ -113,12 +131,7 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface
 
         var exit = new Button { Content = "Exit" };
         exit.Click += (_, _) => ExitRequested?.Invoke();
-        _finish.Click += async (_, _) =>
-        {
-            var result = await _viewModel.FinishAsync(CancellationToken.None);
-            Refresh();
-            if (result is not null) Completed?.Invoke(result);
-        };
+        _finish.Click += (_, _) => _activeOperation = FinishSetupAsync();
 
         var actions = new StackPanel
         {
@@ -161,6 +174,45 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface
     {
         _completed = true;
         if (IsVisible) Close();
+    }
+
+    public void SetOperationCancellation(CancellationToken cancellationToken)
+    {
+        _operationCancellation?.Dispose();
+        _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    }
+
+    public void CancelActiveOperation() => _operationCancellation?.Cancel();
+
+    public async ValueTask WaitForActiveOperationAsync()
+    {
+        try
+        {
+            await _activeOperation;
+        }
+        catch (OperationCanceledException) when (_operationCancellation?.IsCancellationRequested == true)
+        {
+        }
+        finally
+        {
+            _operationCancellation?.Dispose();
+            _operationCancellation = null;
+        }
+    }
+
+    private async Task FinishSetupAsync()
+    {
+        try
+        {
+            var result = await _viewModel.FinishAsync(
+                _operationCancellation?.Token ?? CancellationToken.None);
+            Refresh();
+            if (result is not null) Completed?.Invoke(result);
+        }
+        catch (OperationCanceledException) when (_operationCancellation?.IsCancellationRequested == true)
+        {
+            Refresh();
+        }
     }
 
     private Control BuildHeader()

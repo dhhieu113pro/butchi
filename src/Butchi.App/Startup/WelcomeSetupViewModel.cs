@@ -147,7 +147,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             }
 
             SetStage(WelcomeSetupStage.Loading);
-            await _modelManager.LoadAsync(model, cancellationToken);
+            await _modelManager.LoadAsync(model, config, cancellationToken);
             var status = _modelManager.GetStatus();
             if (!status.IsLoaded || status.ModelRepo != model.Repo || status.ModelFile != model.File)
                 throw new InvalidOperationException("Selected model did not become ready.");

@@ -53,6 +53,21 @@ public sealed class WelcomeSetupHostTests
         Assert.Equal(1, surface.CloseAfterCompletionCalls);
     }
 
+    [Fact]
+    public async Task Exit_cancels_and_waits_for_active_setup_operation()
+    {
+        var surface = new CancellableWelcomeSetupSurface();
+        var host = new WelcomeSetupHost(_ => surface);
+        var pending = host.ShowAsync(CreateViewModel(), CancellationToken.None).AsTask();
+
+        surface.Exit();
+
+        Assert.False(pending.IsCompleted);
+        Assert.True(surface.OperationToken.IsCancellationRequested);
+        surface.FinishCancellation();
+        Assert.Null(await pending);
+    }
+
     private static WelcomeSetupViewModel CreateViewModel() =>
         new(
             new StartupReadinessResult(false, AppConfig.Default, StartupReadinessReason.SettingsMissing),
@@ -70,6 +85,36 @@ public sealed class WelcomeSetupHostTests
         public void CloseAfterCompletion() => CloseAfterCompletionCalls++;
         public void Complete(WelcomeSetupCompletion completion) => Completed?.Invoke(completion);
         public void Exit() => ExitRequested?.Invoke();
+    }
+
+    private sealed class CancellableWelcomeSetupSurface : IWelcomeSetupSurface, ICancellableWelcomeSetupSurface
+    {
+        private readonly TaskCompletionSource _operation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private CancellationTokenSource? _operationCancellation;
+
+        public event Action<WelcomeSetupCompletion>? Completed;
+        public event Action? ExitRequested;
+        public CancellationToken OperationToken { get; private set; }
+
+        public void SetOperationCancellation(CancellationToken cancellationToken)
+        {
+            _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            OperationToken = _operationCancellation.Token;
+        }
+
+        public void CancelActiveOperation() => _operationCancellation?.Cancel();
+
+        public async ValueTask WaitForActiveOperationAsync()
+        {
+            await _operation.Task;
+            _operationCancellation?.Dispose();
+        }
+
+        public void Show() { }
+        public void CloseAfterCompletion() { }
+        public void Complete(WelcomeSetupCompletion completion) => Completed?.Invoke(completion);
+        public void Exit() => ExitRequested?.Invoke();
+        public void FinishCancellation() => _operation.TrySetResult();
     }
 
     private sealed class NoOpConfigStore : IAppConfigStore

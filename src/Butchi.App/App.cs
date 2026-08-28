@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using System.Diagnostics;
 using Butchi.App.Management;
 using Butchi.App.Popover;
 using Butchi.App.Startup;
@@ -96,13 +97,37 @@ public sealed class App : Application, IApplicationShutdown
     private async Task ShutdownAsync()
     {
         if (Interlocked.Exchange(ref _shutdownStarted, 1) != 0) return;
-        _shutdownCts?.Cancel();
-        if (_coordinator is not null) await _coordinator.DisposeAsync();
-        if (_services is not null) await _services.DisposeAsync();
-        _shutdownCts?.Dispose();
-        _shutdownCts = null;
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.Shutdown();
+        try
+        {
+            _shutdownCts?.Cancel();
+            if (_startupTask is not null)
+                await _startupTask;
+            if (_coordinator is not null)
+                await _coordinator.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"Butchi shutdown coordination failed: {exception.GetType().Name}");
+        }
+        finally
+        {
+            try
+            {
+                if (_services is not null)
+                    await _services.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                Trace.WriteLine($"Butchi service cleanup failed: {exception.GetType().Name}");
+            }
+            finally
+            {
+                _shutdownCts?.Dispose();
+                _shutdownCts = null;
+                if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                    desktop.Shutdown();
+            }
+        }
     }
 
     private sealed class FixedReadinessService(StartupReadinessResult result) : IStartupReadinessService

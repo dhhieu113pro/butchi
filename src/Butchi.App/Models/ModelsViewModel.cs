@@ -1,4 +1,5 @@
 using Butchi.App.Settings;
+using Butchi.Core.Configuration;
 using Butchi.Core.Inference;
 using Butchi.Inference;
 using Butchi.Infrastructure;
@@ -12,6 +13,8 @@ public interface IModelManager
     InferenceStatus GetStatus();
     ValueTask DownloadAsync(ModelOption model, IProgress<ModelDownloadProgress>? progress, CancellationToken cancellationToken);
     ValueTask LoadAsync(ModelOption model, CancellationToken cancellationToken);
+    ValueTask LoadAsync(ModelOption model, AppConfig config, CancellationToken cancellationToken) =>
+        LoadAsync(model, cancellationToken);
     ValueTask UnloadAsync(CancellationToken cancellationToken);
     ValueTask DeleteAsync(ModelOption model, CancellationToken cancellationToken);
 }
@@ -90,6 +93,15 @@ public sealed class FileModelManager(
         var config = await configStore.LoadAsync(cancellationToken);
         config = config with { ModelRepo = model.Repo, ModelFile = model.File };
         await configStore.SaveAsync(config, cancellationToken);
+        await inferenceEngine.LoadAsync(config, cancellationToken);
+    }
+
+    public async ValueTask LoadAsync(ModelOption model, AppConfig config, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        ArgumentNullException.ThrowIfNull(config);
+        if (config.ModelRepo != model.Repo || config.ModelFile != model.File)
+            throw new ArgumentException("Configuration must select the requested model.", nameof(config));
         await inferenceEngine.LoadAsync(config, cancellationToken);
     }
 
