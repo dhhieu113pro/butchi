@@ -14,6 +14,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event EventHandler<TextAction>? ActionRequested;
     public event EventHandler<string>? TranslateLanguageRequested;
     public event EventHandler<TextAction>? RerunRequested;
     public event EventHandler<string>? CopyRequested;
@@ -45,6 +46,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         SelectedAction = action;
         OnPropertyChanged(nameof(SelectedAction));
         OnPropertyChanged(nameof(SelectedState));
+        ActionRequested?.Invoke(this, action);
     }
 
     public void Begin(TextAction action, long runId)
