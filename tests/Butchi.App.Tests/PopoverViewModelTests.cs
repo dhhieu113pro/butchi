@@ -6,6 +6,21 @@ namespace Butchi.App.Tests;
 
 public sealed class PopoverViewModelTests
 {
+    [Theory]
+    [InlineData(TextAction.Translate)]
+    [InlineData(TextAction.Rewrite)]
+    public void Selecting_action_raises_action_request(TextAction action)
+    {
+        var vm = new PopoverViewModel();
+        TextAction? requested = null;
+        vm.ActionRequested += (_, value) => requested = value;
+
+        vm.SelectAction(action);
+
+        Assert.Equal(action, vm.SelectedAction);
+        Assert.Equal(action, requested);
+    }
+
     [Fact]
     public void Translate_and_rewrite_keep_independent_state()
     {
