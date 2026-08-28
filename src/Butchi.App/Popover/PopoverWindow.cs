@@ -7,11 +7,12 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Butchi.App.Branding;
 using Butchi.App.Styling;
+using Butchi.App.Windows;
 using Butchi.Core.Actions;
 
 namespace Butchi.App.Popover;
 
-public sealed class PopoverWindow : Window
+public sealed class PopoverWindow : Window, IWindowsPopoverView
 {
     private readonly PopoverWindowController _controller;
 
@@ -48,6 +49,14 @@ public sealed class PopoverWindow : Window
         _controller.Show();
         if (!IsVisible) Show(); else Activate();
     }
+
+    void IWindowsPopoverView.SetSelectionInput(string input) =>
+        Dispatcher.UIThread.Post(() => ViewModel.SetSession(input, TextAction.Translate, ViewModel.TargetLanguage));
+
+    void IWindowsPopoverView.SetPosition(double x, double y) =>
+        Dispatcher.UIThread.Post(() => Position = new PixelPoint((int)Math.Round(x), (int)Math.Round(y)));
+
+    void IWindowsPopoverView.ShowPersistent() => Dispatcher.UIThread.Post(ShowPersistent);
 
     public void HidePersistent()
     {

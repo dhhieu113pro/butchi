@@ -8,9 +8,13 @@ using Butchi.App.Screenshots;
 using Butchi.App.Settings;
 using Butchi.App.Styling;
 using Butchi.App.Tray;
+using Butchi.App.Windows;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
 using Butchi.Infrastructure;
+using Butchi.Platform.Windows.Pointer;
+using Butchi.Platform.Windows.Selection;
+using Butchi.Platform.Windows.Triggers;
 
 namespace Butchi.App.Startup;
 
@@ -23,7 +27,19 @@ public sealed class ButchiRuntimeFactory(
     {
         ButchiTheme.Apply(application, config.Theme);
         var management = await CreateManagementAsync(services.HistoryStore, cancellationToken);
-        return new ButchiRuntime(application, management, new PopoverWindow(new PopoverViewModel()), shutdown);
+        var popover = new PopoverWindow(new PopoverViewModel());
+        var selectionReader = new WindowsSelectionReader(
+            new WindowsUiAutomationSelectionSource(),
+            new WindowsClipboardSelectionSource());
+        var activation = new WindowsActivationCoordinator(
+            selectionReader,
+            new WindowsPointerContext(new Win32PointerSource()),
+            popover);
+        var trigger = new WindowsTriggerService(
+            new WindowsKeyboardHookSource(),
+            TimeSpan.FromMilliseconds(350));
+        var interaction = new WindowsInteractionRuntime(trigger, activation);
+        return new ButchiRuntime(application, management, popover, interaction, shutdown);
     }
 
     public async ValueTask<ManagementWindow> CreateManagementScreenshotAsync(
