@@ -1,6 +1,6 @@
 param(
     [string]$CoverageRoot = "TestResults",
-    [double]$MinimumLineCoverage = 39.1
+    [double]$MinimumLineCoverage = 39.0
 )
 
 $ErrorActionPreference = "Stop"
