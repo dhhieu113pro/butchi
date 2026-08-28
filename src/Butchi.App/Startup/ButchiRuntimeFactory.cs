@@ -49,7 +49,8 @@ public sealed class ButchiRuntimeFactory(
         ButchiTheme.Apply(application, request.Theme);
         return await CreateManagementAsync(
             new ScreenshotHistoryStore(request.Fixture != "empty"),
-            cancellationToken);
+            cancellationToken,
+            autoPrepareModel: false);
     }
 
     public PopoverWindow CreatePopoverScreenshot(string fixture, AppThemePreference theme)
@@ -60,7 +61,8 @@ public sealed class ButchiRuntimeFactory(
 
     private async ValueTask<ManagementWindow> CreateManagementAsync(
         IHistoryStore historyStore,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool autoPrepareModel = true)
     {
         var general = await GeneralSettingsViewModel.CreateAsync(services.ConfigStore, cancellationToken);
         var prompts = await PromptsViewModel.CreateAsync(services.ConfigStore, cancellationToken);
@@ -82,7 +84,8 @@ public sealed class ButchiRuntimeFactory(
             new AboutRuntimeStatus(status.IsLoaded, status.ActualBackend, status.ActualDevice));
         management = new ManagementWindow(
             new ManagementShellViewModel(), general, prompts, models, history, about,
-            preference => ButchiTheme.Apply(application, preference));
+            preference => ButchiTheme.Apply(application, preference),
+            autoPrepareModel);
         return management;
     }
 
