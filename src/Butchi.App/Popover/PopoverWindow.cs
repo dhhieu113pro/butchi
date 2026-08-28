@@ -35,6 +35,7 @@ public sealed class PopoverWindow : Window
 
         RefreshContent();
         ViewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RefreshContent);
+        ActualThemeVariantChanged += (_, _) => RefreshContent();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
     }
@@ -76,7 +77,18 @@ public sealed class PopoverWindow : Window
         title.Children.Add(new TextBlock { Text = "Local AI", FontSize = 10, Opacity = 0.6 });
         title.SetValue(Grid.ColumnProperty, 1);
         brand.Children.Add(title);
-        var privatePill = new Border { Padding = new Thickness(9, 4), CornerRadius = new CornerRadius(999), Background = ButchiTheme.CobaltSoftBrush, Child = new TextBlock { Text = "On device", FontSize = 10, Foreground = ButchiTheme.CobaltDarkBrush } };
+        var privatePill = new Border
+        {
+            Padding = new Thickness(9, 4),
+            CornerRadius = new CornerRadius(999),
+            Background = ButchiTheme.LocalStatusSurfaceBrush(ActualThemeVariant),
+            Child = new TextBlock
+            {
+                Text = "On device",
+                FontSize = 10,
+                Foreground = ButchiTheme.LocalStatusForegroundBrush(ActualThemeVariant)
+            }
+        };
         privatePill.SetValue(Grid.ColumnProperty, 2);
         brand.Children.Add(privatePill);
         root.Children.Add(brand);
@@ -161,18 +173,18 @@ public sealed class PopoverWindow : Window
             Padding = new Thickness(12, 8),
             CornerRadius = new CornerRadius(9),
             FontWeight = FontWeight.SemiBold,
-            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.SubtleSurfaceBrush
+            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.CardSurfaceBrush(ActualThemeVariant)
         };
         if (selected) button.Foreground = ButchiTheme.WhiteBrush;
         button.Click += (_, _) => ViewModel.SelectAction(action);
         return button;
     }
 
-    private static Border Card(Control child) => new()
+    private Border Card(Control child) => new()
     {
         Padding = new Thickness(13),
         CornerRadius = new CornerRadius(11),
-        Background = ButchiTheme.SubtleSurfaceBrush,
+        Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
         BorderThickness = new Thickness(1),
         BorderBrush = ButchiTheme.DividerBrush,
         Child = child
