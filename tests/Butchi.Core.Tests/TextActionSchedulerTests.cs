@@ -9,6 +9,70 @@ namespace Butchi.Core.Tests;
 public sealed class TextActionSchedulerTests
 {
     [Fact]
+    public async Task Run_callbacks_publish_scheduler_run_id_and_chunks_in_order()
+    {
+        var engine = new ChunkEngine("a", "b");
+        var sink = new RecordingResultSink();
+        await using var scheduler = new TextActionScheduler(engine, sink);
+        var events = new List<string>();
+
+        var result = await scheduler.RunAsync(
+            TextAction.Translate,
+            "hello",
+            AppConfig.Default,
+            InputOrigin.Selection,
+            CancellationToken.None,
+            new TextActionRunCallbacks(
+                Started: runId => events.Add($"started:{runId}"),
+                Chunk: (runId, chunk) => events.Add($"chunk:{runId}:{chunk}")));
+
+        Assert.Equal(1, result.RunId);
+        Assert.Equal(["started:1", "chunk:1:a", "chunk:1:b"], events);
+        Assert.Equal("ab", result.Output);
+    }
+
+    [Fact]
+    public async Task Obsolete_run_stops_publishing_chunks_after_replacement()
+    {
+        var engine = new CallbackControllableEngine();
+        var sink = new RecordingResultSink();
+        await using var scheduler = new TextActionScheduler(engine, sink);
+        var firstEvents = new ConcurrentQueue<string>();
+        var secondEvents = new ConcurrentQueue<string>();
+
+        var first = scheduler.RunAsync(
+            TextAction.Translate,
+            "first",
+            AppConfig.Default,
+            InputOrigin.Selection,
+            CancellationToken.None,
+            new TextActionRunCallbacks(
+                Started: runId => firstEvents.Enqueue($"started:{runId}"),
+                Chunk: (runId, chunk) => firstEvents.Enqueue($"chunk:{runId}:{chunk}")));
+        await engine.FirstGenerationStarted.Task;
+
+        var second = scheduler.RunAsync(
+            TextAction.Translate,
+            "second",
+            AppConfig.Default,
+            InputOrigin.Selection,
+            CancellationToken.None,
+            new TextActionRunCallbacks(
+                Started: runId => secondEvents.Enqueue($"started:{runId}"),
+                Chunk: (runId, chunk) => secondEvents.Enqueue($"chunk:{runId}:{chunk}")));
+
+        engine.Release.SetResult();
+        var firstResult = await first;
+        var secondResult = await second;
+
+        Assert.True(firstResult.IsObsolete);
+        Assert.DoesNotContain(firstEvents, x => x.Contains("first-result", StringComparison.Ordinal));
+        Assert.False(secondResult.IsObsolete);
+        Assert.Contains("started:2", secondEvents);
+        Assert.Contains("chunk:2:second-result", secondEvents);
+    }
+
+    [Fact]
     public async Task Translate_and_rewrite_share_one_serial_inference_lane()
     {
         var engine = new RecordingEngine(TimeSpan.FromMilliseconds(40));
@@ -135,6 +199,23 @@ public sealed class TextActionSchedulerTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    private sealed class ChunkEngine(params string[] chunks) : IInferenceEngine
+    {
+        public Task LoadAsync(AppConfig config, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UnloadAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public async IAsyncEnumerable<string> GenerateAsync(InferenceRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            foreach (var chunk in chunks)
+            {
+                await Task.Yield();
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return chunk;
+            }
+        }
+        public InferenceStatus GetStatus() => new(false);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     private sealed class RecordingEngine(TimeSpan delay) : IInferenceEngine
     {
         private int _active;
@@ -166,6 +247,29 @@ public sealed class TextActionSchedulerTests
             var number = Interlocked.Increment(ref _count);
             if (number == 1) FirstGenerationStarted.SetResult();
             await Release.Task.WaitAsync(cancellationToken);
+            yield return number == 1 ? "first-result" : "second-result";
+        }
+        public InferenceStatus GetStatus() => new(false);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class CallbackControllableEngine : IInferenceEngine
+    {
+        private int _count;
+        public TaskCompletionSource FirstGenerationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task LoadAsync(AppConfig config, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task UnloadAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public async IAsyncEnumerable<string> GenerateAsync(InferenceRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var number = Interlocked.Increment(ref _count);
+            if (number == 1)
+            {
+                FirstGenerationStarted.SetResult();
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             yield return number == 1 ? "first-result" : "second-result";
         }
         public InferenceStatus GetStatus() => new(false);
