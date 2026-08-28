@@ -15,6 +15,7 @@ public sealed class PopoverActionController : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _tasksLock = new();
     private readonly HashSet<Task> _tasks = [];
+    private long _presentationErrorRunId;
     private int _disposed;
 
     public PopoverActionController(
@@ -36,16 +37,56 @@ public sealed class PopoverActionController : IAsyncDisposable
         _dispatch = dispatch ?? DispatchToUiThread;
 
         _viewModel.ActionRequested += OnActionRequested;
+        _viewModel.RerunRequested += OnRerunRequested;
+        _viewModel.TranslateLanguageRequested += OnTranslateLanguageRequested;
     }
 
     private void OnActionRequested(object? sender, TextAction action) =>
         Track(RunAsync(action));
 
-    private async Task RunAsync(TextAction action)
+    private void OnRerunRequested(object? sender, TextAction action) =>
+        Track(RunAsync(action));
+
+    private void OnTranslateLanguageRequested(object? sender, string language) =>
+        Track(ChangeLanguageAsync(language));
+
+    private async Task ChangeLanguageAsync(string language)
     {
-        if (_lifetime.IsCancellationRequested || string.IsNullOrWhiteSpace(_viewModel.SourceText))
+        if (_lifetime.IsCancellationRequested)
             return;
 
+        try
+        {
+            var normalized = AppConfig.NormalizeTargetLanguage(language);
+            var config = await _configStore.LoadAsync(_lifetime.Token).ConfigureAwait(false);
+            await _configStore.SaveAsync(
+                config with { TargetLanguage = normalized },
+                _lifetime.Token).ConfigureAwait(false);
+
+            if (_viewModel.SelectedAction == TextAction.Translate)
+                await RunAsync(TextAction.Translate).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            PresentError(_viewModel.SelectedAction, FriendlyMessage(ex));
+        }
+    }
+
+    private async Task RunAsync(TextAction action)
+    {
+        if (_lifetime.IsCancellationRequested)
+            return;
+
+        if (string.IsNullOrWhiteSpace(_viewModel.SourceText))
+        {
+            PresentError(action, "No selected text is available. Select text and try again.");
+            return;
+        }
+
+        long startedRunId = 0;
         try
         {
             var config = await _configStore.LoadAsync(_lifetime.Token).ConfigureAwait(false);
@@ -62,7 +103,11 @@ public sealed class PopoverActionController : IAsyncDisposable
                 InputOrigin.Selection,
                 _lifetime.Token,
                 new TextActionRunCallbacks(
-                    Started: runId => _dispatch(() => _viewModel.Begin(action, runId)),
+                    Started: runId =>
+                    {
+                        startedRunId = runId;
+                        _dispatch(() => _viewModel.Begin(action, runId));
+                    },
                     Chunk: (runId, chunk) => _dispatch(() =>
                     {
                         if (_viewModel.Append(action, runId, chunk))
@@ -75,6 +120,36 @@ public sealed class PopoverActionController : IAsyncDisposable
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
         }
+        catch (Exception ex)
+        {
+            var message = FriendlyMessage(ex);
+            if (startedRunId != 0)
+                _dispatch(() => _viewModel.Fail(action, startedRunId, message));
+            else
+                PresentError(action, message);
+        }
+    }
+
+    private void PresentError(TextAction action, string message)
+    {
+        var runId = Interlocked.Decrement(ref _presentationErrorRunId);
+        _dispatch(() =>
+        {
+            _viewModel.Begin(action, runId);
+            _viewModel.Fail(action, runId, message);
+        });
+    }
+
+    private static string FriendlyMessage(Exception exception)
+    {
+        if (exception is InvalidOperationException &&
+            exception.Message.Contains("model", StringComparison.OrdinalIgnoreCase) &&
+            exception.Message.Contains("loaded", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Local model is not loaded. Open Model settings to continue.";
+        }
+
+        return $"Local inference failed: {exception.Message}";
     }
 
     private void Track(Task task)
@@ -85,6 +160,7 @@ public sealed class PopoverActionController : IAsyncDisposable
         _ = task.ContinueWith(
             completed =>
             {
+                _ = completed.Exception;
                 lock (_tasksLock)
                     _tasks.Remove(completed);
             },
@@ -107,6 +183,8 @@ public sealed class PopoverActionController : IAsyncDisposable
             return;
 
         _viewModel.ActionRequested -= OnActionRequested;
+        _viewModel.RerunRequested -= OnRerunRequested;
+        _viewModel.TranslateLanguageRequested -= OnTranslateLanguageRequested;
         _lifetime.Cancel();
 
         Task[] pending;
