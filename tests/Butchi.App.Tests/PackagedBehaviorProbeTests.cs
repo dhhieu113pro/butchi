@@ -7,6 +7,24 @@ namespace Butchi.App.Tests;
 public sealed class PackagedBehaviorProbeTests
 {
     [Fact]
+    public async Task Startup_behavior_probe_reaches_tray_through_first_run_setup()
+    {
+        var result = await StartupBehaviorProbe.RunAsync(CancellationToken.None);
+
+        Assert.True(result.FirstRunCompositionReady);
+        Assert.True(result.TrayReady);
+    }
+
+    [Fact]
+    public void Program_entry_point_is_async()
+    {
+        var program = typeof(App).Assembly.GetType("Butchi.App.Program", throwOnError: true)!;
+        var main = program.GetMethod("Main", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)!;
+
+        Assert.Equal(typeof(Task<int>), main.ReturnType);
+    }
+
+    [Fact]
     public void Release_probe_exposes_packaged_behavior_readiness_without_user_content()
     {
         var properties = typeof(ReleaseProbeResult)

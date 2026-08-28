@@ -8,16 +8,13 @@ internal static class Program
     public static string[] StartupArgs { get; private set; } = [];
 
     [STAThread]
-    public static void Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
         StartupArgs = args;
         if (ReleaseProbe.TryParse(args, out var outputPath))
-        {
-            Environment.ExitCode = ReleaseProbe.RunAsync(outputPath!).GetAwaiter().GetResult();
-            return;
-        }
+            return await ReleaseProbe.RunAsync(outputPath!);
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect();

@@ -31,6 +31,17 @@ public sealed class ProductionCutoverContractTests
         Assert.Contains("rollback", procedure, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Cutover_procedure_documents_startup_readiness_behavior()
+    {
+        var root = FindRepositoryRoot();
+        var procedure = File.ReadAllText(Path.Combine(root, "docs", "production-cutover.md"));
+
+        Assert.Contains("startup readiness", procedure, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Welcome Setup", procedure, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("tray-only", procedure, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
