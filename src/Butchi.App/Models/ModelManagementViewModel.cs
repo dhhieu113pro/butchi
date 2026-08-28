@@ -23,6 +23,10 @@ public sealed class ModelManagementViewModel : INotifyPropertyChanged, IDisposab
     private AppConfig _config;
     private CancellationTokenSource? _modelOperationCts;
     private bool _disposed;
+    private bool _isSetupRequired;
+    private bool _isLoaded;
+    private string? _actualBackend;
+    private string? _actualDevice;
 
     private ModelManagementViewModel(IModelManager manager, IAppConfigStore configStore, AppConfig config)
     {
@@ -36,10 +40,10 @@ public sealed class ModelManagementViewModel : INotifyPropertyChanged, IDisposab
 
     public IReadOnlyList<ModelOption> Catalog => _manager.Catalog;
     public ModelOption? SelectedModel { get; private set; }
-    public bool IsSetupRequired { get; private set; }
-    public bool IsLoaded { get; private set; }
-    public string? ActualBackend { get; private set; }
-    public string? ActualDevice { get; private set; }
+    public bool IsSetupRequired => _isSetupRequired;
+    public bool IsLoaded => _isLoaded;
+    public string? ActualBackend => _actualBackend;
+    public string? ActualDevice => _actualDevice;
     public ModelDownloadProgress? DownloadProgress { get; private set; }
     public ModelLifecycleState LifecycleState { get; private set; } = ModelLifecycleState.Idle;
     public string? LifecycleError { get; private set; }
@@ -68,10 +72,10 @@ public sealed class ModelManagementViewModel : INotifyPropertyChanged, IDisposab
     {
         cancellationToken.ThrowIfCancellationRequested();
         var status = _manager.GetStatus();
-        SetValue(ref IsLoaded, status.IsLoaded, nameof(IsLoaded));
-        SetValue(ref ActualBackend, status.ActualBackend, nameof(ActualBackend));
-        SetValue(ref ActualDevice, status.ActualDevice, nameof(ActualDevice));
-        SetValue(ref IsSetupRequired, !status.IsLoaded && !_manager.Catalog.Any(_manager.IsDownloaded), nameof(IsSetupRequired));
+        SetValue(ref _isLoaded, status.IsLoaded, nameof(IsLoaded));
+        SetValue(ref _actualBackend, status.ActualBackend, nameof(ActualBackend));
+        SetValue(ref _actualDevice, status.ActualDevice, nameof(ActualDevice));
+        SetValue(ref _isSetupRequired, !status.IsLoaded && !_manager.Catalog.Any(_manager.IsDownloaded), nameof(IsSetupRequired));
 
         if (SelectedModel is null)
         {
