@@ -1,12 +1,16 @@
 <Solution>
-  <Project Path="src/Butchi.Core/Butchi.Core.csproj" />
-  <Project Path="src/Butchi.Inference/Butchi.Inference.csproj" />
-  <Project Path="src/Butchi.Infrastructure/Butchi.Infrastructure.csproj" />
-  <Project Path="src/Butchi.Platform.Windows/Butchi.Platform.Windows.csproj" />
+  <Folder Name="/Core/">
+    <Project Path="src/Butchi.Core/Butchi.Core.csproj" />
+    <Project Path="src/Butchi.Inference/Butchi.Inference.csproj" />
+    <Project Path="src/Butchi.Infrastructure/Butchi.Infrastructure.csproj" />
+    <Project Path="src/Butchi.Platform.Windows/Butchi.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Butchi.App.Tests/Butchi.App.Tests.csproj" />
+    <Project Path="tests/Butchi.Core.Tests/Butchi.Core.Tests.csproj" />
+    <Project Path="tests/Butchi.Inference.Tests/Butchi.Inference.Tests.csproj" />
+    <Project Path="tests/Butchi.Infrastructure.Tests/Butchi.Infrastructure.Tests.csproj" />
+    <Project Path="tests/Butchi.Platform.Windows.Tests/Butchi.Platform.Windows.Tests.csproj" />
+  </Folder>
   <Project Path="src/Butchi.App/Butchi.App.csproj" />
-  <Project Path="tests/Butchi.Core.Tests/Butchi.Core.Tests.csproj" />
-  <Project Path="tests/Butchi.Inference.Tests/Butchi.Inference.Tests.csproj" />
-  <Project Path="tests/Butchi.Infrastructure.Tests/Butchi.Infrastructure.Tests.csproj" />
-  <Project Path="tests/Butchi.Platform.Windows.Tests/Butchi.Platform.Windows.Tests.csproj" />
-  <Project Path="tests/Butchi.App.Tests/Butchi.App.Tests.csproj" />
 </Solution>
