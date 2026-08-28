@@ -64,6 +64,31 @@ public sealed class AutomaticModelLifecycleTests
         Assert.Contains("DownloadProgress", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Screenshot_management_disables_automatic_model_preparation()
+    {
+        var root = FindRepositoryRoot();
+        var factoryPath = Path.Combine(root, "src", "Butchi.App", "Startup", "ButchiRuntimeFactory.cs");
+        var viewPath = Path.Combine(root, "src", "Butchi.App", "Models", "ModelManagementView.cs");
+        var factorySource = File.ReadAllText(factoryPath);
+        var viewSource = File.ReadAllText(viewPath);
+
+        Assert.Contains("autoPrepareModel: false", factorySource, StringComparison.Ordinal);
+        Assert.Contains("bool autoPrepareModel = true", viewSource, StringComparison.Ordinal);
+        Assert.Contains("if (autoPrepareModel)", viewSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Model_error_state_exposes_retry_for_current_selection()
+    {
+        var root = FindRepositoryRoot();
+        var viewPath = Path.Combine(root, "src", "Butchi.App", "Models", "ModelManagementView.cs");
+        var source = File.ReadAllText(viewPath);
+
+        Assert.Contains("Retry", source, StringComparison.Ordinal);
+        Assert.Contains("EnsureSelectedModelReady", source, StringComparison.Ordinal);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
