@@ -162,6 +162,51 @@ public sealed class PopoverActionControllerTests
         Assert.Null(vm.Translate.ErrorMessage);
     }
 
+    [Fact]
+    public async Task Explicit_copy_and_replace_forward_completed_output_to_sink()
+    {
+        var store = new FakeConfigStore(AppConfig.Default with { ResultAction = ResultAction.None });
+        var engine = new RecordingEngine("finished-result");
+        var sink = new RecordingSink();
+        await using var scheduler = new TextActionScheduler(engine, sink);
+        var vm = new PopoverViewModel();
+        vm.SetSession("hello", TextAction.Translate, "Vietnamese");
+        await using var controller = new PopoverActionController(vm, scheduler, store, sink, action => action());
+
+        vm.SelectAction(TextAction.Translate);
+        await WaitUntilAsync(() => !vm.Translate.IsRunning && vm.Translate.Output == "finished-result");
+
+        vm.RequestCopy();
+        vm.RequestReplace();
+        await WaitUntilAsync(() => sink.Copied.Count == 1 && sink.Replaced.Count == 1);
+
+        Assert.Equal("finished-result", Assert.Single(sink.Copied));
+        Assert.Equal("finished-result", Assert.Single(sink.Replaced));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Explicit_result_action_failure_preserves_completed_output(bool replace)
+    {
+        var store = new FakeConfigStore(AppConfig.Default with { ResultAction = ResultAction.None });
+        var engine = new RecordingEngine("keep-this");
+        var sink = new RecordingSink { ThrowOnCopy = !replace, ThrowOnReplace = replace };
+        await using var scheduler = new TextActionScheduler(engine, sink);
+        var vm = new PopoverViewModel();
+        vm.SetSession("hello", TextAction.Translate, "Vietnamese");
+        await using var controller = new PopoverActionController(vm, scheduler, store, sink, action => action());
+
+        vm.SelectAction(TextAction.Translate);
+        await WaitUntilAsync(() => !vm.Translate.IsRunning && vm.Translate.Output == "keep-this");
+
+        if (replace) vm.RequestReplace(); else vm.RequestCopy();
+        await WaitUntilAsync(() => vm.Translate.ErrorMessage is not null);
+
+        Assert.Equal("keep-this", vm.Translate.Output);
+        Assert.Contains(replace ? "replace" : "copy", vm.Translate.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
@@ -259,7 +304,23 @@ public sealed class PopoverActionControllerTests
 
     private sealed class RecordingSink : IResultActionSink
     {
-        public Task CopyAsync(string text, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ReplaceAsync(string text, CancellationToken cancellationToken) => Task.CompletedTask;
+        public ConcurrentQueue<string> Copied { get; } = new();
+        public ConcurrentQueue<string> Replaced { get; } = new();
+        public bool ThrowOnCopy { get; init; }
+        public bool ThrowOnReplace { get; init; }
+
+        public Task CopyAsync(string text, CancellationToken cancellationToken)
+        {
+            if (ThrowOnCopy) throw new InvalidOperationException("copy failed");
+            Copied.Enqueue(text);
+            return Task.CompletedTask;
+        }
+
+        public Task ReplaceAsync(string text, CancellationToken cancellationToken)
+        {
+            if (ThrowOnReplace) throw new InvalidOperationException("replace failed");
+            Replaced.Enqueue(text);
+            return Task.CompletedTask;
+        }
     }
 }
