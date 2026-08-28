@@ -26,7 +26,8 @@ public sealed class TextActionScheduler : IAsyncDisposable
         string input,
         AppConfig config,
         InputOrigin origin,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TextActionRunCallbacks? callbacks = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -58,6 +59,8 @@ public sealed class TextActionScheduler : IAsyncDisposable
                     return new TextActionRunResult(action, runId, string.Empty, true);
                 }
 
+                callbacks?.Started?.Invoke(runId);
+
                 var prompt = PromptBuilder.Build(action, input, config);
                 var request = new InferenceRequest(prompt, config.MaxTokens, config.Temperature, 0);
                 var output = new StringBuilder();
@@ -71,6 +74,7 @@ public sealed class TextActionScheduler : IAsyncDisposable
                             return new TextActionRunResult(action, runId, output.ToString(), true);
                         }
 
+                        callbacks?.Chunk?.Invoke(runId, chunk);
                         output.Append(chunk);
                     }
                 }
