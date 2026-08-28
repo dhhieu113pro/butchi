@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Butchi.App.Styling;
 using Butchi.Core.Configuration;
 using Butchi.Inference;
@@ -13,8 +14,6 @@ public sealed class ModelManagementView : UserControl
     private readonly ModelManagementViewModel _viewModel;
     private readonly StackPanel _statusPanel;
     private readonly TextBlock _saveStatus;
-    private readonly Button _downloadButton;
-    private readonly Button _loadButton;
     private readonly ComboBox _modelPicker;
 
     public ModelManagementView(ModelManagementViewModel viewModel)
@@ -24,8 +23,6 @@ public sealed class ModelManagementView : UserControl
 
         _statusPanel = new StackPanel { Spacing = 8 };
         _saveStatus = new TextBlock { FontSize = 11, Opacity = 0.68 };
-        _downloadButton = PrimaryButton("Download model");
-        _loadButton = SecondaryButton("Load model");
         _modelPicker = new ComboBox
         {
             ItemsSource = viewModel.Catalog,
@@ -38,9 +35,6 @@ public sealed class ModelManagementView : UserControl
             if (_modelPicker.SelectedItem is ModelOption model)
                 _viewModel.SelectModel(model);
         };
-
-        _downloadButton.Click += async (_, _) => await RunAsync(_viewModel.DownloadAsync);
-        _loadButton.Click += async (_, _) => await RunAsync(_viewModel.LoadAsync);
 
         var content = new StackPanel
         {
@@ -66,7 +60,7 @@ public sealed class ModelManagementView : UserControl
         });
         content.Children.Add(new TextBlock
         {
-            Text = "Download and run a GGUF model locally. Your text stays on this device.",
+            Text = "Butchi keeps the selected GGUF model ready automatically. Your text stays on this device.",
             FontSize = 14,
             Opacity = 0.72,
             TextWrapping = TextWrapping.Wrap
@@ -78,7 +72,9 @@ public sealed class ModelManagementView : UserControl
         content.Children.Add(_saveStatus);
 
         Content = new ScrollViewer { Content = content };
+        _viewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
+        _viewModel.EnsureSelectedModelReady();
     }
 
     private Control BuildModelSection()
@@ -106,11 +102,6 @@ public sealed class ModelManagementView : UserControl
             TextWrapping = TextWrapping.Wrap
         });
         panel.Children.Add(_modelPicker);
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        actions.Children.Add(_downloadButton);
-        actions.Children.Add(_loadButton);
-        panel.Children.Add(actions);
         panel.Children.Add(_statusPanel);
         return panel;
     }
@@ -195,58 +186,113 @@ public sealed class ModelManagementView : UserControl
         return grid;
     }
 
-    private async Task RunAsync(Func<CancellationToken, ValueTask> operation)
-    {
-        _downloadButton.IsEnabled = false;
-        _loadButton.IsEnabled = false;
-        try
-        {
-            await operation(CancellationToken.None);
-        }
-        finally
-        {
-            _downloadButton.IsEnabled = true;
-            _loadButton.IsEnabled = true;
-            Refresh();
-        }
-    }
-
     private void Refresh()
     {
         _statusPanel.Children.Clear();
-        if (_viewModel.IsSetupRequired)
-        {
-            _statusPanel.Children.Add(StatePill("Setup required", ButchiTheme.Warning));
-            _statusPanel.Children.Add(new TextBlock
-            {
-                Text = "Download the recommended model, then load it to start using Butchi.",
-                FontSize = 12,
-                Opacity = 0.72,
-                TextWrapping = TextWrapping.Wrap
-            });
-        }
-        else if (_viewModel.IsLoaded)
-        {
-            _statusPanel.Children.Add(StatePill("Ready", ButchiTheme.Success));
-            _statusPanel.Children.Add(new TextBlock
-            {
-                Text = $"Active backend: {_viewModel.ActualBackend ?? "Auto"} · Device: {_viewModel.ActualDevice ?? "Local device"}",
-                FontSize = 12,
-                Opacity = 0.76
-            });
-        }
-        else
-        {
-            _statusPanel.Children.Add(StatePill("Downloaded · not loaded", ButchiTheme.Cobalt));
-        }
 
-        if (_viewModel.DownloadProgress is { } progress)
+        switch (_viewModel.LifecycleState)
         {
-            var percent = progress.Fraction is { } fraction ? $" {fraction:P0}" : string.Empty;
-            _statusPanel.Children.Add(new TextBlock { Text = $"Downloading{percent}", FontSize = 12 });
+            case ModelLifecycleState.Checking:
+                AddStatus("Checking model", ButchiTheme.Cobalt, "Checking the selected model on this device…");
+                break;
+            case ModelLifecycleState.Downloading:
+                AddDownloadStatus();
+                break;
+            case ModelLifecycleState.Loading:
+                AddStatus("Loading model", ButchiTheme.Cobalt, "Preparing the selected model for local inference…");
+                break;
+            case ModelLifecycleState.Error:
+                AddStatus(
+                    "Model error",
+                    ButchiTheme.Warning,
+                    string.IsNullOrWhiteSpace(_viewModel.LifecycleError)
+                        ? "The selected model could not be prepared. Select it again to retry."
+                        : $"{_viewModel.LifecycleError} Select the model again to retry.");
+                break;
+            default:
+                if (_viewModel.IsLoaded)
+                {
+                    _statusPanel.Children.Add(StatePill("Ready", ButchiTheme.Success));
+                    _statusPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"Active backend: {_viewModel.ActualBackend ?? "Auto"} · Device: {_viewModel.ActualDevice ?? "Local device"}",
+                        FontSize = 12,
+                        Opacity = 0.76,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                }
+                else
+                {
+                    AddStatus("Preparing model", ButchiTheme.Cobalt, "The selected model will be fetched if needed and prepared automatically.");
+                }
+                break;
         }
 
         _saveStatus.Text = _viewModel.SaveStatus;
+    }
+
+    private void AddDownloadStatus()
+    {
+        _statusPanel.Children.Add(StatePill("Downloading", ButchiTheme.Cobalt));
+        var progress = _viewModel.DownloadProgress;
+        var fraction = progress?.Fraction;
+        _statusPanel.Children.Add(new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 1,
+            Value = fraction ?? 0,
+            IsIndeterminate = fraction is null,
+            Height = 6,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        });
+
+        var text = progress is null
+            ? "Starting background transfer…"
+            : FormatDownloadProgress(progress);
+        _statusPanel.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            Opacity = 0.76,
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
+    private void AddStatus(string title, Color color, string description)
+    {
+        _statusPanel.Children.Add(StatePill(title, color));
+        _statusPanel.Children.Add(new TextBlock
+        {
+            Text = description,
+            FontSize = 12,
+            Opacity = 0.72,
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
+    private static string FormatDownloadProgress(ModelDownloadProgress progress)
+    {
+        var downloaded = FormatBytes(progress.BytesDownloaded);
+        if (progress.TotalBytes is not > 0)
+            return $"Downloading · {downloaded}";
+
+        var percent = progress.Fraction is { } fraction ? $"{fraction:P0}" : "—";
+        return $"Downloading {percent} · {downloaded} / {FormatBytes(progress.TotalBytes.Value)}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = Math.Max(0, bytes);
+        var unit = 0;
+        double display = value;
+        while (display >= 1024 && unit < units.Length - 1)
+        {
+            display /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{display:0} {units[unit]}" : $"{display:0.0} {units[unit]}";
     }
 
     private static Border StatePill(string text, Color color) => new()
@@ -279,21 +325,5 @@ public sealed class ModelManagementView : UserControl
         BorderBrush = ButchiTheme.DividerBrush,
         Background = ButchiTheme.SubtleSurfaceBrush,
         Child = child
-    };
-
-    private static Button PrimaryButton(string text) => new()
-    {
-        Content = text,
-        Background = ButchiTheme.CobaltBrush,
-        Foreground = ButchiTheme.WhiteBrush,
-        Padding = new Thickness(16, 9),
-        CornerRadius = new CornerRadius(8)
-    };
-
-    private static Button SecondaryButton(string text) => new()
-    {
-        Content = text,
-        Padding = new Thickness(16, 9),
-        CornerRadius = new CornerRadius(8)
     };
 }
