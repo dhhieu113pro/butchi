@@ -39,6 +39,8 @@ public sealed class PopoverActionController : IAsyncDisposable
         _viewModel.ActionRequested += OnActionRequested;
         _viewModel.RerunRequested += OnRerunRequested;
         _viewModel.TranslateLanguageRequested += OnTranslateLanguageRequested;
+        _viewModel.CopyRequested += OnCopyRequested;
+        _viewModel.ReplaceRequested += OnReplaceRequested;
     }
 
     private void OnActionRequested(object? sender, TextAction action) =>
@@ -49,6 +51,37 @@ public sealed class PopoverActionController : IAsyncDisposable
 
     private void OnTranslateLanguageRequested(object? sender, string language) =>
         Track(ChangeLanguageAsync(language));
+
+    private void OnCopyRequested(object? sender, string text) =>
+        Track(ApplyExplicitResultAsync(_viewModel.SelectedAction, text, replace: false));
+
+    private void OnReplaceRequested(object? sender, string text) =>
+        Track(ApplyExplicitResultAsync(_viewModel.SelectedAction, text, replace: true));
+
+    private async Task ApplyExplicitResultAsync(TextAction action, string text, bool replace)
+    {
+        if (_lifetime.IsCancellationRequested)
+            return;
+
+        var state = action == TextAction.Translate ? _viewModel.Translate : _viewModel.Rewrite;
+        var runId = state.RunId;
+
+        try
+        {
+            if (replace)
+                await _resultSink.ReplaceAsync(text, _lifetime.Token).ConfigureAwait(false);
+            else
+                await _resultSink.CopyAsync(text, _lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            var operation = replace ? "replace" : "copy";
+            _dispatch(() => _viewModel.Fail(action, runId, $"Could not {operation} result: {ex.Message}"));
+        }
+    }
 
     private async Task ChangeLanguageAsync(string language)
     {
@@ -185,6 +218,8 @@ public sealed class PopoverActionController : IAsyncDisposable
         _viewModel.ActionRequested -= OnActionRequested;
         _viewModel.RerunRequested -= OnRerunRequested;
         _viewModel.TranslateLanguageRequested -= OnTranslateLanguageRequested;
+        _viewModel.CopyRequested -= OnCopyRequested;
+        _viewModel.ReplaceRequested -= OnReplaceRequested;
         _lifetime.Cancel();
 
         Task[] pending;
