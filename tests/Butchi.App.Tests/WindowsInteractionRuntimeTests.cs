@@ -50,6 +50,29 @@ public sealed class WindowsInteractionRuntimeTests
         Assert.Throws<ObjectDisposedException>(runtime.Start);
     }
 
+    [Fact]
+    public async Task Failed_hook_start_can_be_retried_without_duplicate_activation()
+    {
+        var hook = new FakeKeyboardHook { FailNextStart = true };
+        var trigger = new WindowsTriggerService(hook, TimeSpan.FromMilliseconds(350));
+        var view = new FakePopoverView();
+        var coordinator = new WindowsActivationCoordinator(
+            new FakeSelection("retry selection"),
+            new FakePointer(new PointerContextSnapshot(250, 300, new NativeRect(0, 0, 1920, 1080))),
+            view);
+        using var runtime = new WindowsInteractionRuntime(trigger, coordinator);
+
+        Assert.Throws<InvalidOperationException>(runtime.Start);
+        runtime.Start();
+        hook.RaiseCtrl(DateTimeOffset.UnixEpoch);
+        hook.RaiseCtrl(DateTimeOffset.UnixEpoch.AddMilliseconds(100));
+
+        await WaitUntilAsync(() => view.ShowCalled);
+        Assert.Equal(2, hook.StartCalls);
+        Assert.Equal(1, view.ShowCalls);
+        Assert.Equal("retry selection", view.Input);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var timeout = DateTime.UtcNow.AddSeconds(2);
@@ -63,7 +86,18 @@ public sealed class WindowsInteractionRuntimeTests
         public event EventHandler<CtrlPressEventArgs>? CtrlPressed;
         public int StartCalls { get; private set; }
         public int StopCalls { get; private set; }
-        public void Start() => StartCalls++;
+        public bool FailNextStart { get; set; }
+
+        public void Start()
+        {
+            StartCalls++;
+            if (!FailNextStart)
+                return;
+
+            FailNextStart = false;
+            throw new InvalidOperationException("hook install failed");
+        }
+
         public void Stop() => StopCalls++;
         public void Dispose() { }
         public void RaiseCtrl(DateTimeOffset timestamp) =>
@@ -84,9 +118,10 @@ public sealed class WindowsInteractionRuntimeTests
     private sealed class FakePopoverView : IWindowsPopoverView
     {
         public string? Input { get; private set; }
-        public bool ShowCalled { get; private set; }
+        public bool ShowCalled => ShowCalls > 0;
+        public int ShowCalls { get; private set; }
         public void SetSelectionInput(string input) => Input = input;
         public void SetPosition(double x, double y) { }
-        public void ShowPersistent() => ShowCalled = true;
+        public void ShowPersistent() => ShowCalls++;
     }
 }
