@@ -61,6 +61,17 @@ public sealed class WindowsResultActionSinkTests
         Assert.Equal(new[] { "get", "set:rewritten", "set:before" }, clipboard.Events);
     }
 
+    [Fact]
+    public async Task Windows_paste_sender_honors_cancellation_before_sending_keys()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var sender = new WindowsPasteSender();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            sender.SendPasteAsync(cancellation.Token));
+    }
+
     private sealed class FakeClipboard(string? initial) : IClipboardSelectionSource
     {
         public string? CurrentText { get; private set; } = initial;
