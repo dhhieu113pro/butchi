@@ -22,7 +22,8 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private readonly HistoryView _historyView;
     private readonly AboutPrivacyView _aboutPrivacyView;
     private readonly Border _contentHost;
-    private readonly Dictionary<ManagementPage, Button> _navigationButtons = [];
+    private readonly Border _navigationHost = new();
+    private readonly Dictionary<ManagementPage, NavigationEntry> _navigationButtons = [];
 
     public ManagementWindow(
         ManagementShellViewModel viewModel,
@@ -51,11 +52,13 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         _contentHost = new Border { Padding = new Thickness(0), Child = _generalView };
 
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("248,*") };
-        root.Children.Add(BuildNavigation());
+        root.Children.Add(_navigationHost);
         _contentHost.SetValue(Grid.ColumnProperty, 1);
         root.Children.Add(_contentHost);
         Content = root;
-        RefreshNavigation();
+
+        RebuildNavigation();
+        ActualThemeVariantChanged += (_, _) => RebuildNavigation();
         Closing += (_, e) => { e.Cancel = true; Hide(); };
     }
 
@@ -65,13 +68,22 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         if (IsVisible) Activate(); else base.Show();
     }
 
-    private Control BuildNavigation()
+    private void RebuildNavigation()
     {
+        _navigationButtons.Clear();
+        _navigationHost.Background = ButchiTheme.NavigationSurfaceBrush(ActualThemeVariant);
+        _navigationHost.Child = BuildNavigationContent();
+        RefreshNavigation();
+    }
+
+    private Control BuildNavigationContent()
+    {
+        var foreground = ButchiTheme.NavigationForegroundBrush(ActualThemeVariant);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(18, 22, 18, 26) };
         brand.Children.Add(new Image { Source = BrandAssets.CreateBitmap(), Width = 34, Height = 34, Stretch = Stretch.Uniform });
         var brandText = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Center };
-        brandText.Children.Add(new TextBlock { Text = "Butchi", FontSize = 20, FontWeight = FontWeight.Bold, Foreground = ButchiTheme.WhiteBrush });
-        brandText.Children.Add(new TextBlock { Text = "Local AI for Windows", FontSize = 10, Opacity = 0.72, Foreground = ButchiTheme.WhiteBrush });
+        brandText.Children.Add(new TextBlock { Text = "Butchi", FontSize = 20, FontWeight = FontWeight.Bold, Foreground = foreground });
+        brandText.Children.Add(new TextBlock { Text = "Local AI for Windows", FontSize = 10, Opacity = 0.72, Foreground = foreground });
         brand.Children.Add(brandText);
 
         var nav = new StackPanel { Spacing = 6, Margin = new Thickness(12, 0, 12, 0) };
@@ -81,22 +93,55 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         nav.Children.Add(NavButton("History", "Private local results", ManagementPage.History));
         nav.Children.Add(NavButton("About & Privacy", "Status and local data", ManagementPage.AboutPrivacy));
 
-        var footer = new TextBlock { Text = "Private by default\nYour text stays on this device.", FontSize = 11, Opacity = 0.7, Foreground = ButchiTheme.WhiteBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(18, 18, 18, 22), VerticalAlignment = VerticalAlignment.Bottom };
+        var footer = new TextBlock
+        {
+            Text = "Private by default\nYour text stays on this device.",
+            FontSize = 11,
+            Opacity = 0.7,
+            Foreground = foreground,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(18, 18, 18, 22),
+            VerticalAlignment = VerticalAlignment.Bottom
+        };
         var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         grid.Children.Add(brand);
-        nav.SetValue(Grid.RowProperty, 1); grid.Children.Add(nav);
-        footer.SetValue(Grid.RowProperty, 2); grid.Children.Add(footer);
-        return new Border { Background = ButchiTheme.CobaltDarkBrush, Child = grid };
+        nav.SetValue(Grid.RowProperty, 1);
+        grid.Children.Add(nav);
+        footer.SetValue(Grid.RowProperty, 2);
+        grid.Children.Add(footer);
+        return grid;
     }
 
     private Button NavButton(string title, string subtitle, ManagementPage page)
     {
+        var indicator = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(999),
+            Margin = new Thickness(0, 2, 10, 2),
+            Background = Brushes.Transparent
+        };
         var text = new StackPanel { Spacing = 1 };
         text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, FontSize = 13 });
         text.Children.Add(new TextBlock { Text = subtitle, FontSize = 10, Opacity = 0.68 });
-        var button = new Button { Content = text, HorizontalContentAlignment = HorizontalAlignment.Left, HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(14, 10), CornerRadius = new CornerRadius(9), Background = Brushes.Transparent, Foreground = ButchiTheme.WhiteBrush };
+
+        var content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+        content.Children.Add(indicator);
+        text.SetValue(Grid.ColumnProperty, 1);
+        content.Children.Add(text);
+
+        var button = new Button
+        {
+            Content = content,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(11, 10),
+            CornerRadius = new CornerRadius(9),
+            Background = Brushes.Transparent,
+            Foreground = ButchiTheme.NavigationForegroundBrush(ActualThemeVariant)
+        };
         button.Click += (_, _) => Select(page);
-        _navigationButtons[page] = button;
+        _navigationButtons[page] = new NavigationEntry(button, indicator);
         return button;
     }
 
@@ -119,11 +164,20 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
 
     private void RefreshNavigation()
     {
-        foreach (var (page, button) in _navigationButtons)
+        foreach (var (page, entry) in _navigationButtons)
         {
             var selected = page == _viewModel.SelectedPage;
-            button.Background = selected ? ButchiTheme.WhiteBrush : Brushes.Transparent;
-            button.Foreground = selected ? ButchiTheme.CobaltDarkBrush : ButchiTheme.WhiteBrush;
+            entry.Button.Background = selected
+                ? ButchiTheme.SelectedNavigationSurfaceBrush(ActualThemeVariant)
+                : Brushes.Transparent;
+            entry.Button.Foreground = selected
+                ? ButchiTheme.SelectedNavigationForegroundBrush(ActualThemeVariant)
+                : ButchiTheme.NavigationForegroundBrush(ActualThemeVariant);
+            entry.Indicator.Background = selected
+                ? ButchiTheme.SelectedNavigationIndicatorBrush(ActualThemeVariant)
+                : Brushes.Transparent;
         }
     }
+
+    private sealed record NavigationEntry(Button Button, Border Indicator);
 }

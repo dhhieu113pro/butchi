@@ -1,3 +1,4 @@
+# Final composite gate: .github/workflows/release-readiness.yml
 name: Release
 
 on:
@@ -7,12 +8,13 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
