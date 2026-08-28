@@ -1,4 +1,5 @@
 using Butchi.App.Popover;
+using Butchi.Platform.Windows.Actions;
 using Butchi.Platform.Windows.Pointer;
 using Butchi.Platform.Windows.Selection;
 
@@ -14,13 +15,16 @@ public interface IWindowsPopoverView
 public sealed class WindowsActivationCoordinator(
     IWindowsSelectionReader selectionReader,
     IWindowsPointerContext pointerContext,
-    IWindowsPopoverView popoverView)
+    IWindowsPopoverView popoverView,
+    IWindowsPasteTarget pasteTarget)
 {
     private const double PopoverWidth = 420;
     private const double PopoverHeight = 360;
 
     public async ValueTask<bool> ActivateAsync(CancellationToken cancellationToken)
     {
+        pasteTarget.CaptureForegroundWindow();
+
         var selected = await selectionReader.ReadSelectedTextAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(selected))
             return false;
