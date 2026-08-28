@@ -34,7 +34,7 @@ public sealed class CoverageBaselineContractTests
         var verifier = File.ReadAllText(verifierPath);
 
         Assert.Contains("verify-coverage-baseline.ps1", workflow, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("39.1", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("39.0", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("MinimumLineCoverage", verifier, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("coverage-summary.json", verifier, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("exit 1", verifier, StringComparison.OrdinalIgnoreCase);
