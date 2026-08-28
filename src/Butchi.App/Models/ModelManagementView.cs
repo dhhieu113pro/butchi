@@ -16,7 +16,7 @@ public sealed class ModelManagementView : UserControl
     private readonly TextBlock _saveStatus;
     private readonly ComboBox _modelPicker;
 
-    public ModelManagementView(ModelManagementViewModel viewModel)
+    public ModelManagementView(ModelManagementViewModel viewModel, bool autoPrepareModel = true)
     {
         _viewModel = viewModel;
         DataContext = viewModel;
@@ -74,7 +74,8 @@ public sealed class ModelManagementView : UserControl
         Content = new ScrollViewer { Content = content };
         _viewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(Refresh);
         Refresh();
-        _viewModel.EnsureSelectedModelReady();
+        if (autoPrepareModel)
+            _viewModel.EnsureSelectedModelReady();
     }
 
     private Control BuildModelSection()
@@ -206,8 +207,17 @@ public sealed class ModelManagementView : UserControl
                     "Model error",
                     ButchiTheme.Warning,
                     string.IsNullOrWhiteSpace(_viewModel.LifecycleError)
-                        ? "The selected model could not be prepared. Select it again to retry."
-                        : $"{_viewModel.LifecycleError} Select the model again to retry.");
+                        ? "The selected model could not be prepared."
+                        : _viewModel.LifecycleError);
+                var retry = new Button
+                {
+                    Content = "Retry",
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Padding = new Thickness(14, 7),
+                    CornerRadius = new CornerRadius(8)
+                };
+                retry.Click += (_, _) => _viewModel.EnsureSelectedModelReady();
+                _statusPanel.Children.Add(retry);
                 break;
             default:
                 if (_viewModel.IsLoaded)
