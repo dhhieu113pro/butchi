@@ -30,9 +30,10 @@ public sealed class ButchiRuntimeFactory(
         var management = await CreateManagementAsync(services.HistoryStore, cancellationToken);
 
         var clipboard = new WindowsClipboardSelectionSource();
+        var pasteSender = new WindowsPasteSender();
         var resultSink = new WindowsResultActionSink(
             clipboard,
-            new WindowsPasteSender(),
+            pasteSender,
             TimeSpan.FromMilliseconds(80));
         var scheduler = new TextActionScheduler(services.InferenceEngine, resultSink);
         var popoverViewModel = new PopoverViewModel();
@@ -49,7 +50,8 @@ public sealed class ButchiRuntimeFactory(
         var activation = new WindowsActivationCoordinator(
             selectionReader,
             new WindowsPointerContext(new Win32PointerSource()),
-            popover);
+            popover,
+            pasteSender);
         var trigger = new WindowsTriggerService(
             new WindowsKeyboardHookSource(),
             TimeSpan.FromMilliseconds(350));
