@@ -22,6 +22,28 @@ public sealed class PopoverViewModelTests
     }
 
     [Fact]
+    public void New_selection_session_clears_previous_results_and_invalidates_old_runs()
+    {
+        var vm = new PopoverViewModel();
+        vm.Begin(TextAction.Translate, 7);
+        vm.Append(TextAction.Translate, 7, "old translation");
+        vm.FlushPendingUpdates();
+        vm.Complete(TextAction.Translate, 7);
+        vm.Begin(TextAction.Rewrite, 3);
+        vm.Append(TextAction.Rewrite, 3, "old rewrite");
+        vm.FlushPendingUpdates();
+
+        vm.SetSession("new source", TextAction.Translate, "English");
+
+        Assert.Equal(string.Empty, vm.Translate.Output);
+        Assert.Equal(string.Empty, vm.Rewrite.Output);
+        Assert.False(vm.Translate.IsRunning);
+        Assert.False(vm.Rewrite.IsRunning);
+        Assert.False(vm.Append(TextAction.Translate, 7, "stale"));
+        Assert.False(vm.Append(TextAction.Rewrite, 3, "stale"));
+    }
+
+    [Fact]
     public void Translate_and_rewrite_keep_independent_state()
     {
         var vm = new PopoverViewModel();
