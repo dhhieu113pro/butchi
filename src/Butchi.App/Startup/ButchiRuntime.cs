@@ -5,6 +5,7 @@ using Butchi.App.Management;
 using Butchi.App.Popover;
 using Butchi.App.Tray;
 using Butchi.App.Windows;
+using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
 
 namespace Butchi.App.Startup;
@@ -25,6 +26,8 @@ public sealed class ButchiRuntime(
     ManagementWindow managementWindow,
     PopoverWindow popoverWindow,
     WindowsInteractionRuntime interaction,
+    PopoverActionController popoverActionController,
+    TextActionScheduler scheduler,
     IApplicationShutdown shutdown) : IButchiRuntime
 {
     private TrayIcons? _trayIcons;
@@ -62,9 +65,9 @@ public sealed class ButchiRuntime(
         IsTrayStarted = true;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return ValueTask.CompletedTask;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         interaction.Dispose();
         _trayIcon?.Dispose();
         _trayIcon = null;
@@ -72,7 +75,8 @@ public sealed class ButchiRuntime(
         IsTrayStarted = false;
         PopoverWindow.Destroy();
         ManagementWindow.Hide();
-        return ValueTask.CompletedTask;
+        await popoverActionController.DisposeAsync();
+        await scheduler.DisposeAsync();
     }
 
     private NativeMenuItem Item(string header, TrayCommand command)
