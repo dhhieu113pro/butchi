@@ -29,7 +29,7 @@ public sealed class WindowsClipboardSelectionSource : IClipboardSelectionSource
             return ValueTask.FromResult<string?>(null);
 
         if (!OpenClipboardWithRetry())
-            return ValueTask.FromResult<string?>(null);
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open the clipboard for reading.");
 
         try
         {
@@ -66,7 +66,7 @@ public sealed class WindowsClipboardSelectionSource : IClipboardSelectionSource
             return ValueTask.CompletedTask;
 
         if (!OpenClipboardWithRetry())
-            return ValueTask.CompletedTask;
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Unable to open the clipboard for writing.");
 
         try
         {
