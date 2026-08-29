@@ -21,7 +21,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private readonly ModelManagementView _modelView;
     private readonly HistoryView _historyView;
     private readonly AboutPrivacyView _aboutPrivacyView;
-    private readonly ScrollViewer _contentScroll;
+    private readonly ManagementContentScroll _contentScroll;
     private readonly Border _contentHost;
     private readonly Border _navigationHost = new();
     private readonly Dictionary<ManagementPage, NavigationEntry> _navigationButtons = [];
@@ -50,12 +50,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         _modelView = new ModelManagementView(models);
         _historyView = new HistoryView(history);
         _aboutPrivacyView = new AboutPrivacyView(aboutPrivacy);
-        _contentScroll = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = _generalView
-        };
+        _contentScroll = new ManagementContentScroll(_generalView);
         _contentHost = new Border { Padding = new Thickness(0), Child = _contentScroll };
 
         var root = new Grid { ColumnDefinitions = new ColumnDefinitions("248,*") };
@@ -155,8 +150,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     private void Select(ManagementPage page)
     {
         _viewModel.Select(page);
-        _contentScroll.Content = BuildPage(page);
-        _contentScroll.Offset = Vector.Zero;
+        _contentScroll.Show(BuildPage(page));
         RefreshNavigation();
     }
 
@@ -188,4 +182,20 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
     }
 
     private sealed record NavigationEntry(Button Button, Border Indicator);
+}
+
+public sealed class ManagementContentScroll : ScrollViewer
+{
+    public ManagementContentScroll(Control content)
+    {
+        HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+        VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+        Content = content;
+    }
+
+    public void Show(Control content)
+    {
+        Content = content;
+        Offset = Vector.Zero;
+    }
 }
