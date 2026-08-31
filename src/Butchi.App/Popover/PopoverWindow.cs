@@ -9,6 +9,7 @@ using Butchi.App.Branding;
 using Butchi.App.Styling;
 using Butchi.App.Windows;
 using Butchi.Core.Actions;
+using Butchi.Core.Configuration;
 
 namespace Butchi.App.Popover;
 
@@ -52,8 +53,13 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         if (!IsVisible) Show(); else Activate();
     }
 
-    void IWindowsPopoverView.SetSelectionInput(string input) =>
-        Dispatcher.UIThread.Post(() => ViewModel.SetSession(input, TextAction.Translate, ViewModel.TargetLanguage));
+    void IWindowsPopoverView.SetSelectionInput(string input, AppConfig config) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var automaticAction = ViewModel.SetSession(input, config);
+            if (automaticAction is { } action)
+                ViewModel.SelectAction(action);
+        });
 
     void IWindowsPopoverView.SetPosition(double x, double y) =>
         Dispatcher.UIThread.Post(() => Position = new PixelPoint((int)Math.Round(x), (int)Math.Round(y)));
@@ -104,13 +110,27 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         brand.Children.Add(privatePill);
         root.Children.Add(brand);
 
-        var selector = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
-        var translate = ActionButton("Translate", TextAction.Translate);
-        var rewrite = ActionButton("Rewrite", TextAction.Rewrite);
-        rewrite.SetValue(Grid.ColumnProperty, 1);
-        selector.Children.Add(translate);
-        selector.Children.Add(rewrite);
-        root.Children.Add(selector);
+        var bothActionsEnabled = ViewModel.TranslateEnabled && ViewModel.RewriteEnabled;
+        if (ViewModel.TranslateEnabled || ViewModel.RewriteEnabled)
+        {
+            var selector = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions(bothActionsEnabled ? "*,*" : "*")
+            };
+
+            if (ViewModel.TranslateEnabled)
+                selector.Children.Add(ActionButton("Translate", TextAction.Translate, bothActionsEnabled));
+
+            if (ViewModel.RewriteEnabled)
+            {
+                var rewrite = ActionButton("Rewrite", TextAction.Rewrite, bothActionsEnabled);
+                if (bothActionsEnabled)
+                    rewrite.SetValue(Grid.ColumnProperty, 1);
+                selector.Children.Add(rewrite);
+            }
+
+            root.Children.Add(selector);
+        }
 
         if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
         {
@@ -120,7 +140,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             root.Children.Add(Card(source));
         }
 
-        if (ViewModel.SelectedAction == TextAction.Translate)
+        if (ViewModel.TranslateEnabled && ViewModel.SelectedAction == TextAction.Translate)
         {
             var language = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
             language.Children.Add(new TextBlock { Text = "To", FontSize = 11, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
@@ -147,7 +167,15 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         else if (!string.IsNullOrWhiteSpace(selected.Output))
             result.Children.Add(new TextBlock { Text = selected.Output, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
         else
-            result.Children.Add(new TextBlock { Text = "Select Translate or Rewrite to run on the selected text.", FontSize = 12, Opacity = 0.62, TextWrapping = TextWrapping.Wrap });
+            result.Children.Add(new TextBlock
+            {
+                Text = bothActionsEnabled
+                    ? "Select Translate or Rewrite to run on the selected text."
+                    : $"Starting {ViewModel.SelectedAction.ToString().ToLowerInvariant()} locally…",
+                FontSize = 12,
+                Opacity = 0.62,
+                TextWrapping = TextWrapping.Wrap
+            });
         root.Children.Add(Card(result));
 
         if (!selected.IsRunning && (!string.IsNullOrWhiteSpace(selected.Output) || selected.ErrorMessage is not null))
@@ -172,7 +200,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
     }
 
-    private Button ActionButton(string text, TextAction action)
+    private Button ActionButton(string text, TextAction action, bool split)
     {
         var selected = ViewModel.SelectedAction == action;
         var button = new Button
@@ -180,7 +208,9 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             Content = text,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Center,
-            Margin = action == TextAction.Translate ? new Thickness(0, 0, 4, 0) : new Thickness(4, 0, 0, 0),
+            Margin = split
+                ? action == TextAction.Translate ? new Thickness(0, 0, 4, 0) : new Thickness(4, 0, 0, 0)
+                : new Thickness(0),
             Padding = new Thickness(12, 8),
             CornerRadius = new CornerRadius(9),
             FontWeight = FontWeight.SemiBold,

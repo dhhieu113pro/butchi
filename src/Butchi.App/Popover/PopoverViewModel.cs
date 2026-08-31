@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Butchi.Core.Actions;
+using Butchi.Core.Configuration;
 
 namespace Butchi.App.Popover;
 
@@ -25,6 +26,8 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     public string SourceText { get; private set; } = string.Empty;
     public TextAction SelectedAction { get; private set; } = TextAction.Translate;
     public string? TargetLanguage { get; private set; }
+    public bool TranslateEnabled { get; private set; } = true;
+    public bool RewriteEnabled { get; private set; } = true;
     public TimeSpan AutoHideDelay { get; set; } = TimeSpan.FromSeconds(6);
     public bool IsAutoHideArmed { get; private set; }
 
@@ -32,23 +35,30 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
 
     public void SetSession(string sourceText, TextAction action, string? targetLanguage)
     {
-        _pending[TextAction.Translate].Clear();
-        _pending[TextAction.Rewrite].Clear();
-        Translate = ActionPresentationState.Empty;
-        Rewrite = ActionPresentationState.Empty;
-        SourceText = sourceText ?? string.Empty;
-        SelectedAction = action;
-        TargetLanguage = string.IsNullOrWhiteSpace(targetLanguage) ? null : targetLanguage.Trim();
-        OnPropertyChanged(nameof(Translate));
-        OnPropertyChanged(nameof(Rewrite));
-        OnPropertyChanged(nameof(SourceText));
-        OnPropertyChanged(nameof(SelectedAction));
-        OnPropertyChanged(nameof(TargetLanguage));
-        OnPropertyChanged(nameof(SelectedState));
+        SetSessionCore(sourceText, action, targetLanguage, translateEnabled: true, rewriteEnabled: true);
+    }
+
+    public TextAction? SetSession(string sourceText, AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var enabledActions = AutomationRules.GetEnabledActions(config);
+        var initialAction = enabledActions.Count > 0 ? enabledActions[0] : TextAction.Translate;
+        SetSessionCore(
+            sourceText,
+            initialAction,
+            config.TargetLanguage,
+            config.TranslateEnabled,
+            config.RewriteEnabled);
+
+        return enabledActions.Count == 1 ? enabledActions[0] : null;
     }
 
     public void SelectAction(TextAction action)
     {
+        if (!IsActionEnabled(action))
+            return;
+
         SelectedAction = action;
         OnPropertyChanged(nameof(SelectedAction));
         OnPropertyChanged(nameof(SelectedState));
@@ -99,12 +109,19 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
 
     public void RequestFavoriteLanguage(string language)
     {
+        if (!TranslateEnabled)
+            return;
+
         TargetLanguage = language;
         OnPropertyChanged(nameof(TargetLanguage));
         TranslateLanguageRequested?.Invoke(this, language);
     }
 
-    public void RequestRerun() => RerunRequested?.Invoke(this, SelectedAction);
+    public void RequestRerun()
+    {
+        if (IsActionEnabled(SelectedAction))
+            RerunRequested?.Invoke(this, SelectedAction);
+    }
 
     public void RequestCopy()
     {
@@ -129,6 +146,35 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         IsAutoHideArmed = false;
         OnPropertyChanged(nameof(IsAutoHideArmed));
     }
+
+    private void SetSessionCore(
+        string sourceText,
+        TextAction action,
+        string? targetLanguage,
+        bool translateEnabled,
+        bool rewriteEnabled)
+    {
+        _pending[TextAction.Translate].Clear();
+        _pending[TextAction.Rewrite].Clear();
+        Translate = ActionPresentationState.Empty;
+        Rewrite = ActionPresentationState.Empty;
+        SourceText = sourceText ?? string.Empty;
+        SelectedAction = action;
+        TargetLanguage = string.IsNullOrWhiteSpace(targetLanguage) ? null : targetLanguage.Trim();
+        TranslateEnabled = translateEnabled;
+        RewriteEnabled = rewriteEnabled;
+        OnPropertyChanged(nameof(Translate));
+        OnPropertyChanged(nameof(Rewrite));
+        OnPropertyChanged(nameof(SourceText));
+        OnPropertyChanged(nameof(SelectedAction));
+        OnPropertyChanged(nameof(TargetLanguage));
+        OnPropertyChanged(nameof(TranslateEnabled));
+        OnPropertyChanged(nameof(RewriteEnabled));
+        OnPropertyChanged(nameof(SelectedState));
+    }
+
+    private bool IsActionEnabled(TextAction action) =>
+        action == TextAction.Translate ? TranslateEnabled : RewriteEnabled;
 
     private void Flush(TextAction action)
     {

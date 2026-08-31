@@ -1,4 +1,6 @@
 using Butchi.App.Popover;
+using Butchi.Core.Actions;
+using Butchi.Core.Configuration;
 using Butchi.Platform.Windows.Actions;
 using Butchi.Platform.Windows.Pointer;
 using Butchi.Platform.Windows.Selection;
@@ -7,7 +9,7 @@ namespace Butchi.App.Windows;
 
 public interface IWindowsPopoverView
 {
-    void SetSelectionInput(string input);
+    void SetSelectionInput(string input, AppConfig config);
     void SetPosition(double x, double y);
     void ShowPersistent();
 }
@@ -20,6 +22,7 @@ public sealed class WindowsActivationCoordinator
     private readonly IWindowsPointerContext _pointerContext;
     private readonly IWindowsPopoverView _popoverView;
     private readonly IWindowsPasteTarget _pasteTarget;
+    private readonly Func<CancellationToken, ValueTask<AppConfig>> _loadConfig;
 
     public WindowsActivationCoordinator(
         IWindowsSelectionReader selectionReader,
@@ -34,18 +37,44 @@ public sealed class WindowsActivationCoordinator
         IWindowsPointerContext pointerContext,
         IWindowsPopoverView popoverView,
         IWindowsPasteTarget pasteTarget)
+        : this(
+            selectionReader,
+            pointerContext,
+            popoverView,
+            pasteTarget,
+            _ => ValueTask.FromResult(AppConfig.Default))
     {
+    }
+
+    public WindowsActivationCoordinator(
+        IWindowsSelectionReader selectionReader,
+        IWindowsPointerContext pointerContext,
+        IWindowsPopoverView popoverView,
+        IWindowsPasteTarget pasteTarget,
+        Func<CancellationToken, ValueTask<AppConfig>> loadConfig)
+    {
+        ArgumentNullException.ThrowIfNull(selectionReader);
+        ArgumentNullException.ThrowIfNull(pointerContext);
+        ArgumentNullException.ThrowIfNull(popoverView);
+        ArgumentNullException.ThrowIfNull(pasteTarget);
+        ArgumentNullException.ThrowIfNull(loadConfig);
+
         _selectionReader = selectionReader;
         _pointerContext = pointerContext;
         _popoverView = popoverView;
         _pasteTarget = pasteTarget;
+        _loadConfig = loadConfig;
     }
 
     public async ValueTask<bool> ActivateAsync(CancellationToken cancellationToken)
     {
+        var config = await _loadConfig(cancellationToken).ConfigureAwait(false);
+        if (AutomationRules.GetEnabledActions(config).Count == 0)
+            return false;
+
         _pasteTarget.CaptureForegroundWindow();
 
-        var selected = await _selectionReader.ReadSelectedTextAsync(cancellationToken);
+        var selected = await _selectionReader.ReadSelectedTextAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(selected))
             return false;
 
@@ -61,7 +90,7 @@ public sealed class WindowsActivationCoordinator
                 pointer.WorkingArea.Width,
                 pointer.WorkingArea.Height));
 
-        _popoverView.SetSelectionInput(selected);
+        _popoverView.SetSelectionInput(selected, config);
         _popoverView.SetPosition(position.X, position.Y);
         _popoverView.ShowPersistent();
         return true;
