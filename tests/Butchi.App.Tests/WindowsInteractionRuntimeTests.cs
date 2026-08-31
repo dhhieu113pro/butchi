@@ -1,5 +1,6 @@
 using Butchi.App.Popover;
 using Butchi.App.Windows;
+using Butchi.Core.Configuration;
 using Butchi.Platform.Windows.Pointer;
 using Butchi.Platform.Windows.Selection;
 using Butchi.Platform.Windows.Triggers;
@@ -120,7 +121,7 @@ public sealed class WindowsInteractionRuntimeTests
         public string? Input { get; private set; }
         public bool ShowCalled => ShowCalls > 0;
         public int ShowCalls { get; private set; }
-        public void SetSelectionInput(string input) => Input = input;
+        public void SetSelectionInput(string input, AppConfig config) => Input = input;
         public void SetPosition(double x, double y) { }
         public void ShowPersistent() => ShowCalls++;
     }
