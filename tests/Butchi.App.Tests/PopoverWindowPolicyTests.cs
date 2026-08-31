@@ -48,11 +48,8 @@ public sealed class PopoverWindowPolicyTests
     {
         var controller = new PopoverWindowController();
         controller.Show();
-        var exitMethod = typeof(PopoverWindowController).GetMethod("HandlePointerExitedAsync");
 
-        Assert.NotNull(exitMethod);
-        var hideTask = Assert.IsAssignableFrom<Task<bool>>(
-            exitMethod.Invoke(controller, [TimeSpan.FromMilliseconds(25)]));
+        var hideTask = controller.HandlePointerExitedAsync(TimeSpan.FromMilliseconds(25));
 
         Assert.True(controller.IsVisible);
         Assert.True(await hideTask);
@@ -64,16 +61,10 @@ public sealed class PopoverWindowPolicyTests
     {
         var controller = new PopoverWindowController();
         controller.Show();
-        var exitMethod = typeof(PopoverWindowController).GetMethod("HandlePointerExitedAsync");
-        var enterMethod = typeof(PopoverWindowController).GetMethod("HandlePointerEntered");
-
-        Assert.NotNull(exitMethod);
-        Assert.NotNull(enterMethod);
-        var hideTask = Assert.IsAssignableFrom<Task<bool>>(
-            exitMethod.Invoke(controller, [TimeSpan.FromMilliseconds(100)]));
+        var hideTask = controller.HandlePointerExitedAsync(TimeSpan.FromSeconds(1));
 
         await Task.Delay(15);
-        enterMethod.Invoke(controller, null);
+        controller.HandlePointerEntered();
 
         Assert.False(await hideTask);
         Assert.True(controller.IsVisible);
