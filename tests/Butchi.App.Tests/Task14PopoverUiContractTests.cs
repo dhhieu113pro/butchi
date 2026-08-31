@@ -15,6 +15,19 @@ public sealed class Task14PopoverUiContractTests
         Assert.Contains("if (selected) button.Foreground = ButchiTheme.WhiteBrush;", popover, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Popover_wires_pointer_hover_close_handlers()
+    {
+        var root = FindRepositoryRoot();
+        var popoverPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var popover = File.ReadAllText(popoverPath);
+
+        Assert.Contains("PointerEntered += OnPointerEntered;", popover, StringComparison.Ordinal);
+        Assert.Contains("PointerExited += OnPointerExited;", popover, StringComparison.Ordinal);
+        Assert.Contains("_controller.HandlePointerEntered();", popover, StringComparison.Ordinal);
+        Assert.Contains("await _controller.HandlePointerExitedAsync()", popover, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

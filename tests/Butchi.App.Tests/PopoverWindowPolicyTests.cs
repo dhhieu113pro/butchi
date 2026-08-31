@@ -43,6 +43,33 @@ public sealed class PopoverWindowPolicyTests
         Assert.True(controller.IsVisible);
     }
 
+    [Fact]
+    public async Task Pointer_exit_hides_after_the_grace_period()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+
+        var hideTask = controller.HandlePointerExitedAsync(TimeSpan.FromMilliseconds(25));
+
+        Assert.True(controller.IsVisible);
+        Assert.True(await hideTask);
+        Assert.False(controller.IsVisible);
+    }
+
+    [Fact]
+    public async Task Pointer_reentry_cancels_the_pending_hide()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var hideTask = controller.HandlePointerExitedAsync(TimeSpan.FromSeconds(1));
+
+        await Task.Delay(15);
+        controller.HandlePointerEntered();
+
+        Assert.False(await hideTask);
+        Assert.True(controller.IsVisible);
+    }
+
     [Theory]
     [InlineData(PopoverTheme.System, "Default")]
     [InlineData(PopoverTheme.Light, "Light")]
