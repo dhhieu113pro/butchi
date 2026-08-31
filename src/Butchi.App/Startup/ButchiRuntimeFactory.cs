@@ -51,7 +51,8 @@ public sealed class ButchiRuntimeFactory(
             selectionReader,
             new WindowsPointerContext(new Win32PointerSource()),
             popover,
-            pasteSender);
+            pasteSender,
+            services.ConfigStore.LoadAsync);
         var trigger = new WindowsTriggerService(
             new WindowsKeyboardHookSource(),
             TimeSpan.FromMilliseconds(350));
