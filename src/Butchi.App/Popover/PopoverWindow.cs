@@ -37,6 +37,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         RefreshContent();
         ViewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RefreshContent);
         ActualThemeVariantChanged += (_, _) => RefreshContent();
+        PointerEntered += OnPointerEntered;
+        PointerExited += OnPointerExited;
         KeyDown += OnKeyDown;
         Closing += OnClosing;
     }
@@ -200,6 +202,17 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
     };
 
     private static Button SmallButton(string text) => new() { Content = text, Padding = new Thickness(10, 6), CornerRadius = new CornerRadius(8), FontSize = 11 };
+
+    private void OnPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _controller.HandlePointerEntered();
+    }
+
+    private async void OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (await _controller.HandlePointerExitedAsync())
+            Dispatcher.UIThread.Post(Hide);
+    }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
