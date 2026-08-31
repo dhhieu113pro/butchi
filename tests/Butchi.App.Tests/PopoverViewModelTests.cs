@@ -1,5 +1,6 @@
 using Butchi.App.Popover;
 using Butchi.Core.Actions;
+using Butchi.Core.Configuration;
 using Xunit;
 
 namespace Butchi.App.Tests;
@@ -124,5 +125,60 @@ public sealed class PopoverViewModelTests
 
         vm.CancelAutoHide();
         Assert.False(vm.IsAutoHideArmed);
+    }
+
+    [Fact]
+    public void Single_translate_session_selects_translate_and_requests_auto_run()
+    {
+        var vm = new PopoverViewModel();
+        var config = AppConfig.Default with { TranslateEnabled = true, RewriteEnabled = false };
+
+        var autoAction = vm.SetSession("hello", config);
+
+        Assert.True(vm.TranslateEnabled);
+        Assert.False(vm.RewriteEnabled);
+        Assert.Equal(TextAction.Translate, vm.SelectedAction);
+        Assert.Equal(TextAction.Translate, autoAction);
+    }
+
+    [Fact]
+    public void Single_rewrite_session_selects_rewrite_and_requests_auto_run()
+    {
+        var vm = new PopoverViewModel();
+        var config = AppConfig.Default with { TranslateEnabled = false, RewriteEnabled = true };
+
+        var autoAction = vm.SetSession("hello", config);
+
+        Assert.False(vm.TranslateEnabled);
+        Assert.True(vm.RewriteEnabled);
+        Assert.Equal(TextAction.Rewrite, vm.SelectedAction);
+        Assert.Equal(TextAction.Rewrite, autoAction);
+    }
+
+    [Fact]
+    public void Two_enabled_actions_wait_for_explicit_choice()
+    {
+        var vm = new PopoverViewModel();
+
+        var autoAction = vm.SetSession("hello", AppConfig.Default);
+
+        Assert.True(vm.TranslateEnabled);
+        Assert.True(vm.RewriteEnabled);
+        Assert.Equal(TextAction.Translate, vm.SelectedAction);
+        Assert.Null(autoAction);
+    }
+
+    [Fact]
+    public void Disabled_action_cannot_be_selected_or_requested()
+    {
+        var vm = new PopoverViewModel();
+        vm.SetSession("hello", AppConfig.Default with { TranslateEnabled = false, RewriteEnabled = true });
+        TextAction? requested = null;
+        vm.ActionRequested += (_, action) => requested = action;
+
+        vm.SelectAction(TextAction.Translate);
+
+        Assert.Equal(TextAction.Rewrite, vm.SelectedAction);
+        Assert.Null(requested);
     }
 }
