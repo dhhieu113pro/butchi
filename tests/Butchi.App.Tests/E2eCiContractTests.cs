@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace Butchi.App.Tests;
 
 public sealed class E2eCiContractTests
