@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -143,6 +144,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
             Background = Brushes.Transparent,
             Foreground = ButchiTheme.NavigationForegroundBrush(ActualThemeVariant)
         };
+        AutomationProperties.SetAutomationId(button, $"Nav{page}");
         button.Click += (_, _) => Select(page);
         _navigationButtons[page] = new NavigationEntry(button, indicator);
         return button;

@@ -1,4 +1,6 @@
+using Butchi.App.Management;
 using Butchi.App.Screenshots;
+using Butchi.Core.Configuration;
 
 namespace Butchi.App.Startup;
 
@@ -6,6 +8,21 @@ public sealed class ScreenshotStartup(ButchiRuntimeFactory runtimeFactory)
 {
     public async Task<bool> TryRunAsync(string[] args, CancellationToken cancellationToken)
     {
+        if (Array.IndexOf(args, "--e2e") >= 0)
+        {
+            var e2eRequest = new ScreenshotRequest(
+                Path.Combine(Path.GetTempPath(), "butchi-e2e-unused.png"),
+                ManagementPage.General,
+                1120,
+                760,
+                "empty",
+                AppThemePreference.System);
+            var window = await runtimeFactory.CreateManagementScreenshotAsync(e2eRequest, cancellationToken);
+            window.Show(ManagementPage.General);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return true;
+        }
+
         var hasManagementScreenshot = ScreenshotRequest.TryParse(args, out var request);
         var popoverIndex = Array.IndexOf(args, "--screenshot-popover");
         if (!hasManagementScreenshot && popoverIndex < 0) return false;
