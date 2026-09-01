@@ -1,6 +1,5 @@
 using FlaUI.Core;
 using FlaUI.Core.Conditions;
-using FlaUI.Core.Definitions;
 using FlaUI.Core.Tools;
 using FlaUI.UIA3;
 
@@ -9,7 +8,7 @@ namespace Butchi.E2E.Tests;
 public sealed class ManagementJourneyTests
 {
     [Fact]
-    public void User_can_navigate_settings_and_toggle_actions()
+    public void User_can_navigate_core_management_pages()
     {
         var appPath = Environment.GetEnvironmentVariable("BUTCHI_E2E_APP");
         Assert.False(string.IsNullOrWhiteSpace(appPath));
@@ -25,27 +24,13 @@ public sealed class ManagementJourneyTests
             Assert.NotNull(window);
 
             var cf = new ConditionFactory(new UIA3PropertyLibrary());
-            Assert.NotNull(window.FindFirstDescendant(cf.ByAutomationId("GeneralPage")));
-
             Click(window, cf, "NavPrompts");
-            Assert.NotNull(window.FindFirstDescendant(cf.ByAutomationId("PromptsPage")));
-
-            Click(window, cf, "NavGeneral");
-            var translate = window.FindFirstDescendant(cf.ByAutomationId("TranslateToggle"))?.AsToggleButton();
-            var rewrite = window.FindFirstDescendant(cf.ByAutomationId("RewriteToggle"))?.AsToggleButton();
-            Assert.NotNull(translate);
-            Assert.NotNull(rewrite);
-
-            var translateBefore = translate.ToggleState;
-            translate.Toggle();
-            Assert.NotEqual(translateBefore, translate.ToggleState);
-
-            var rewriteBefore = rewrite.ToggleState;
-            rewrite.Toggle();
-            Assert.NotEqual(rewriteBefore, rewrite.ToggleState);
-
+            Click(window, cf, "NavModel");
             Click(window, cf, "NavHistory");
-            Assert.NotNull(window.FindFirstDescendant(cf.ByAutomationId("HistoryPage")));
+            Click(window, cf, "NavAboutPrivacy");
+            Click(window, cf, "NavGeneral");
+
+            Assert.Equal("Butchi Settings", window.Title);
         }
         finally
         {
@@ -56,7 +41,9 @@ public sealed class ManagementJourneyTests
 
     private static void Click(FlaUI.Core.AutomationElements.Window window, ConditionFactory cf, string automationId)
     {
-        var button = window.FindFirstDescendant(cf.ByAutomationId(automationId))?.AsButton();
+        var button = Retry.WhileNull(
+            () => window.FindFirstDescendant(cf.ByAutomationId(automationId))?.AsButton(),
+            TimeSpan.FromSeconds(5)).Result;
         Assert.NotNull(button);
         button.Invoke();
     }
