@@ -8,6 +8,7 @@
   <Folder Name="/Tests/">
     <Project Path="tests/Butchi.App.Tests/Butchi.App.Tests.csproj" />
     <Project Path="tests/Butchi.Core.Tests/Butchi.Core.Tests.csproj" />
+    <Project Path="tests/Butchi.E2E.Tests/Butchi.E2E.Tests.csproj" />
     <Project Path="tests/Butchi.Inference.Tests/Butchi.Inference.Tests.csproj" />
     <Project Path="tests/Butchi.Infrastructure.Tests/Butchi.Infrastructure.Tests.csproj" />
     <Project Path="tests/Butchi.Platform.Windows.Tests/Butchi.Platform.Windows.Tests.csproj" />
