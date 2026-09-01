@@ -16,7 +16,7 @@ public sealed class ManagementJourneyTests
 
         Assert.True(File.Exists(appPath), $"Butchi executable missing: {appPath}");
 
-        using var app = Application.Launch($"\"{appPath}\" --e2e");
+        using var app = Application.Launch(appPath, "--e2e");
         using var automation = new UIA3Automation();
         try
         {
