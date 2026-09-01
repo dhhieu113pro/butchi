@@ -39,6 +39,32 @@ jobs:
             artifacts/coverage/coverage-summary.json
           if-no-files-found: error
 
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore Butchi.slnx
+      - name: Publish desktop app
+        run: dotnet publish src/Butchi.App/Butchi.App.csproj -c Release -r win-x64 --self-contained true -o artifacts/e2e/app
+      - name: Run desktop E2E
+        shell: pwsh
+        env:
+          BUTCHI_E2E_APP: ${{ github.workspace }}\artifacts\e2e\app\Butchi.App.exe
+        run: |
+          dotnet test tests/Butchi.E2E.Tests/Butchi.E2E.Tests.csproj -c Release --logger "trx;LogFileName=butchi-e2e.trx" --results-directory TestResults/E2E
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: butchi-e2e-results
+          path: TestResults/E2E/**
+          if-no-files-found: warn
+
   screenshot-smoke:
     runs-on: windows-latest
     steps:
