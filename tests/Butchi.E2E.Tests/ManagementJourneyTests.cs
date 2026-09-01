@@ -1,4 +1,5 @@
 using FlaUI.Core;
+using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Conditions;
 using FlaUI.Core.Tools;
 using FlaUI.UIA3;
