@@ -10,14 +10,14 @@ public sealed class ScreenshotStartup(ButchiRuntimeFactory runtimeFactory)
     {
         if (Array.IndexOf(args, "--e2e") >= 0)
         {
-            var request = new ScreenshotRequest(
+            var e2eRequest = new ScreenshotRequest(
                 Path.Combine(Path.GetTempPath(), "butchi-e2e-unused.png"),
                 ManagementPage.General,
                 1120,
                 760,
                 "empty",
                 AppThemePreference.System);
-            var window = await runtimeFactory.CreateManagementScreenshotAsync(request, cancellationToken);
+            var window = await runtimeFactory.CreateManagementScreenshotAsync(e2eRequest, cancellationToken);
             window.Show(ManagementPage.General);
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return true;
