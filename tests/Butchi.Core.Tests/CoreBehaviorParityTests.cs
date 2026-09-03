@@ -55,7 +55,7 @@ public sealed class CoreBehaviorParityTests
         Assert.Equal(expected, BackendPreferenceParser.ParseOrAuto(value));
 
     [Fact]
-    public void Prompt_builder_preserves_Qwen_chat_framing_and_translate_target()
+    public void Prompt_builder_preserves_Qwen_chat_framing_and_strict_translate_contract()
     {
         var config = AppConfig.Default with { TargetLanguage = "Japanese" };
         var prompt = PromptBuilder.Build(TextAction.Translate, "hello", config);
@@ -63,7 +63,9 @@ public sealed class CoreBehaviorParityTests
         Assert.Contains("<|im_start|>system\n", prompt);
         Assert.Contains(config.TranslateSystemPrompt, prompt);
         Assert.Contains("Target language: Japanese.", prompt);
-        Assert.Contains("<|im_start|>user\nhello<|im_end|>", prompt);
+        Assert.Contains("<|im_start|>user\nTARGET LANGUAGE: Japanese", prompt);
+        Assert.Contains("<source>\nhello\n</source>", prompt);
+        Assert.Contains("Translate SOURCE now. Output only the translation.<|im_end|>", prompt);
         Assert.EndsWith("<|im_start|>assistant\n", prompt);
     }
 
