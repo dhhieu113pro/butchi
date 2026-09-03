@@ -51,7 +51,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
             config.TranslateEnabled,
             config.RewriteEnabled);
 
-        return enabledActions.Count == 1 ? enabledActions[0] : null;
+        return enabledActions.Count > 0 ? initialAction : null;
     }
 
     public void SelectAction(TextAction action)
