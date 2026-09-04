@@ -11,13 +11,31 @@ public sealed class DynamicIslandPopoverContractTests
         var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
         var source = File.ReadAllText(windowPath);
 
-        Assert.Contains("Width = 420", source, StringComparison.Ordinal);
-        Assert.Contains("MinHeight = 0", source, StringComparison.Ordinal);
+        Assert.Contains("CompactWidth = 420", source, StringComparison.Ordinal);
+        Assert.Contains("ExpandedWidth = 760", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.IsCompact", source, StringComparison.Ordinal);
         Assert.Contains("BuildCompactIsland", source, StringComparison.Ordinal);
         Assert.Contains("BuildExpandedIsland", source, StringComparison.Ordinal);
         Assert.Contains("Translating…", source, StringComparison.Ordinal);
         Assert.Contains("Rewriting…", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Expanded_popover_matches_the_approved_wide_result_first_design()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("BuildCenteredLogo", source, StringComparison.Ordinal);
+        Assert.Contains("ModeIconButton", source, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming.CharacterEllipsis", source, StringComparison.Ordinal);
+        Assert.Contains("BuildThinkingDisclosure", source, StringComparison.Ordinal);
+        Assert.Contains("BuildResultPanel", source, StringComparison.Ordinal);
+        Assert.Contains("ResultScrollMaxHeight = 340", source, StringComparison.Ordinal);
+        Assert.Contains("VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = \"Local AI\"", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = \"On device\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
