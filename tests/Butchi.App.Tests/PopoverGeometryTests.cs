@@ -43,4 +43,18 @@ public sealed class PopoverGeometryTests
         Assert.Equal(-1170, point.X);
         Assert.Equal(56, point.Y);
     }
+
+    [Fact]
+    public void Compact_and_expanded_widths_keep_the_same_horizontal_center()
+    {
+        var center = 960d;
+
+        var compactX = PopoverGeometry.CenteredX(center, 420);
+        var expandedX = PopoverGeometry.CenteredX(center, 760);
+
+        Assert.Equal(750, compactX);
+        Assert.Equal(580, expandedX);
+        Assert.Equal(center, compactX + 210);
+        Assert.Equal(center, expandedX + 380);
+    }
 }
