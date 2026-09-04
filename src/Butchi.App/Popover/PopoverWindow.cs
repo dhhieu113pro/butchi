@@ -29,8 +29,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         ShowInTaskbar = profile.ShowInTaskbar;
         CanResize = profile.CanResize;
         Icon = BrandAssets.CreateWindowIcon();
-        Width = 460;
-        MinHeight = 260;
+        Width = 420;
+        MinHeight = 0;
         MaxHeight = 720;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.Manual;
@@ -84,12 +84,100 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
     private void RefreshContent()
     {
+        Content = ViewModel.IsCompact
+            ? BuildCompactIsland()
+            : BuildExpandedIsland();
+    }
+
+    private Control BuildCompactIsland()
+    {
+        var status = ViewModel.SelectedAction == TextAction.Translate
+            ? "Translating…"
+            : "Rewriting…";
+
+        var island = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto")
+        };
+
+        island.Children.Add(new Image
+        {
+            Source = BrandAssets.CreateBitmap(),
+            Width = 24,
+            Height = 24,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var activity = new StackPanel
+        {
+            Spacing = 1,
+            Margin = new Thickness(10, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        activity.Children.Add(new TextBlock
+        {
+            Text = "Butchi",
+            FontSize = 12,
+            FontWeight = FontWeight.Bold
+        });
+        activity.Children.Add(new TextBlock
+        {
+            Text = status,
+            FontSize = 11,
+            Opacity = 0.72
+        });
+        activity.SetValue(Grid.ColumnProperty, 1);
+        island.Children.Add(activity);
+
+        var local = new Border
+        {
+            Padding = new Thickness(8, 4),
+            CornerRadius = new CornerRadius(999),
+            Background = ButchiTheme.LocalStatusSurfaceBrush(ActualThemeVariant),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = "Local",
+                FontSize = 10,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = ButchiTheme.LocalStatusForegroundBrush(ActualThemeVariant)
+            }
+        };
+        local.SetValue(Grid.ColumnProperty, 2);
+        island.Children.Add(local);
+
+        return new Border
+        {
+            Padding = new Thickness(14, 10),
+            CornerRadius = new CornerRadius(999),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            Child = island
+        };
+    }
+
+    private Control BuildExpandedIsland()
+    {
         var selected = ViewModel.SelectedState;
         var root = new StackPanel { Spacing = 12 };
 
         var brand = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        brand.Children.Add(new Image { Source = BrandAssets.CreateBitmap(), Width = 28, Height = 28, Stretch = Stretch.Uniform, VerticalAlignment = VerticalAlignment.Center });
-        var title = new StackPanel { Spacing = 0, Margin = new Thickness(9, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        brand.Children.Add(new Image
+        {
+            Source = BrandAssets.CreateBitmap(),
+            Width = 28,
+            Height = 28,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var title = new StackPanel
+        {
+            Spacing = 0,
+            Margin = new Thickness(9, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
         title.Children.Add(new TextBlock { Text = "Butchi", FontSize = 16, FontWeight = FontWeight.Bold });
         title.Children.Add(new TextBlock { Text = "Local AI", FontSize = 10, Opacity = 0.6 });
         title.SetValue(Grid.ColumnProperty, 1);
@@ -135,18 +223,43 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
         {
             var source = new StackPanel { Spacing = 5 };
-            source.Children.Add(new TextBlock { Text = "SOURCE", FontSize = 10, FontWeight = FontWeight.Bold, Opacity = 0.55, LetterSpacing = 1 });
-            source.Children.Add(new TextBlock { Text = ViewModel.SourceText, FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxHeight = 72 });
+            source.Children.Add(new TextBlock
+            {
+                Text = "SOURCE",
+                FontSize = 10,
+                FontWeight = FontWeight.Bold,
+                Opacity = 0.55,
+                LetterSpacing = 1
+            });
+            source.Children.Add(new TextBlock
+            {
+                Text = ViewModel.SourceText,
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                MaxHeight = 72
+            });
             root.Children.Add(Card(source));
         }
 
         if (ViewModel.TranslateEnabled && ViewModel.SelectedAction == TextAction.Translate)
         {
             var language = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
-            language.Children.Add(new TextBlock { Text = "To", FontSize = 11, Opacity = 0.6, VerticalAlignment = VerticalAlignment.Center });
+            language.Children.Add(new TextBlock
+            {
+                Text = "To",
+                FontSize = 11,
+                Opacity = 0.6,
+                VerticalAlignment = VerticalAlignment.Center
+            });
             foreach (var item in new[] { "Vietnamese", "English", "Japanese" })
             {
-                var button = new Button { Content = item, Padding = new Thickness(9, 5), CornerRadius = new CornerRadius(8), FontSize = 11 };
+                var button = new Button
+                {
+                    Content = item,
+                    Padding = new Thickness(9, 5),
+                    CornerRadius = new CornerRadius(8),
+                    FontSize = 11
+                };
                 if (string.Equals(ViewModel.TargetLanguage, item, StringComparison.OrdinalIgnoreCase))
                 {
                     button.Background = ButchiTheme.CobaltBrush;
@@ -159,13 +272,39 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         }
 
         var result = new StackPanel { Spacing = 7 };
-        result.Children.Add(new TextBlock { Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR", FontSize = 10, FontWeight = FontWeight.Bold, Foreground = selected.ErrorMessage is null ? ButchiTheme.CobaltBrush : new SolidColorBrush(ButchiTheme.Error), LetterSpacing = 1 });
+        result.Children.Add(new TextBlock
+        {
+            Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR",
+            FontSize = 10,
+            FontWeight = FontWeight.Bold,
+            Foreground = selected.ErrorMessage is null
+                ? ButchiTheme.CobaltBrush
+                : new SolidColorBrush(ButchiTheme.Error),
+            LetterSpacing = 1
+        });
         if (selected.IsRunning)
-            result.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(selected.Output) ? "Running locally…" : selected.Output + " ▍", FontSize = 14, TextWrapping = TextWrapping.Wrap });
+            result.Children.Add(new TextBlock
+            {
+                Text = selected.Output + " ▍",
+                FontSize = 14,
+                TextWrapping = TextWrapping.Wrap
+            });
         else if (selected.ErrorMessage is { } error)
-            result.Children.Add(new TextBlock { Text = error, FontSize = 13, Foreground = new SolidColorBrush(ButchiTheme.Error), TextWrapping = TextWrapping.Wrap });
+            result.Children.Add(new TextBlock
+            {
+                Text = error,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(ButchiTheme.Error),
+                TextWrapping = TextWrapping.Wrap
+            });
         else if (!string.IsNullOrWhiteSpace(selected.Output))
-            result.Children.Add(new TextBlock { Text = selected.Output, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+            result.Children.Add(new TextBlock
+            {
+                Text = selected.Output,
+                FontSize = 14,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            });
         else
             result.Children.Add(new TextBlock
             {
@@ -181,22 +320,32 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         if (!selected.IsRunning && (!string.IsNullOrWhiteSpace(selected.Output) || selected.ErrorMessage is not null))
         {
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var rerun = SmallButton("Run again"); rerun.Click += (_, _) => ViewModel.RequestRerun(); actions.Children.Add(rerun);
+            var rerun = SmallButton("Run again");
+            rerun.Click += (_, _) => ViewModel.RequestRerun();
+            actions.Children.Add(rerun);
             if (!string.IsNullOrWhiteSpace(selected.Output))
             {
-                var copy = SmallButton("Copy"); copy.Click += (_, _) => ViewModel.RequestCopy(); actions.Children.Add(copy);
-                var replace = SmallButton("Replace selection"); replace.Click += (_, _) => ViewModel.RequestReplace(); actions.Children.Add(replace);
+                var copy = SmallButton("Copy");
+                copy.Click += (_, _) => ViewModel.RequestCopy();
+                actions.Children.Add(copy);
+                var replace = SmallButton("Replace selection");
+                replace.Click += (_, _) => ViewModel.RequestReplace();
+                actions.Children.Add(replace);
             }
             root.Children.Add(actions);
         }
 
-        Content = new Border
+        return new Border
         {
             Padding = new Thickness(16),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(22),
             BorderThickness = new Thickness(1),
             BorderBrush = ButchiTheme.DividerBrush,
-            Child = new ScrollViewer { Content = root, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto }
+            Child = new ScrollViewer
+            {
+                Content = root,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            }
         };
     }
 
@@ -231,7 +380,13 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         Child = child
     };
 
-    private static Button SmallButton(string text) => new() { Content = text, Padding = new Thickness(10, 6), CornerRadius = new CornerRadius(8), FontSize = 11 };
+    private static Button SmallButton(string text) => new()
+    {
+        Content = text,
+        Padding = new Thickness(10, 6),
+        CornerRadius = new CornerRadius(8),
+        FontSize = 11
+    };
 
     private void OnPointerEntered(object? sender, PointerEventArgs e)
     {
