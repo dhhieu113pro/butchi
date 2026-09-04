@@ -22,6 +22,8 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<TextAction>? ActionRequested;
+    public event EventHandler<TextAction>? ActionStarted;
+    public event EventHandler<TextAction>? ActionFinished;
     public event EventHandler<string>? TranslateLanguageRequested;
     public event EventHandler<TextAction>? RerunRequested;
     public event EventHandler<string>? CopyRequested;
@@ -82,6 +84,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         _pending[action].Clear();
         _pendingReasoning[action].Clear();
         SetState(action, new ActionPresentationState(runId, string.Empty, true));
+        ActionStarted?.Invoke(this, action);
     }
 
     public bool Append(TextAction action, long runId, string chunk)
@@ -122,6 +125,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         if (state.RunId != runId)
             return false;
         SetState(action, state with { IsRunning = false, ErrorMessage = null, IsThinkingExpanded = false });
+        ActionFinished?.Invoke(this, action);
         return true;
     }
 
@@ -133,6 +137,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         _pending[action].Clear();
         _pendingReasoning[action].Clear();
         SetState(action, state with { IsRunning = false, ErrorMessage = message, IsThinkingExpanded = false });
+        ActionFinished?.Invoke(this, action);
         return true;
     }
 
