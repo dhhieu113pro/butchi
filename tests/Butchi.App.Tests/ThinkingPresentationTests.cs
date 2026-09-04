@@ -37,6 +37,25 @@ public sealed class ThinkingPresentationTests
     }
 
     [Fact]
+    public void Reasoning_leaves_compact_island_so_thinking_can_be_seen()
+    {
+        var compactProperty = typeof(PopoverViewModel).GetProperty("IsCompact");
+        var appendReasoning = typeof(PopoverViewModel).GetMethod("AppendReasoning");
+
+        Assert.NotNull(compactProperty);
+        Assert.NotNull(appendReasoning);
+
+        var vm = new PopoverViewModel();
+        vm.Begin(TextAction.Translate, 1);
+
+        Assert.True((bool)compactProperty.GetValue(vm)!);
+        Assert.Equal(true, appendReasoning.Invoke(vm, [TextAction.Translate, 1L, "checking context"]));
+        vm.FlushPendingUpdates();
+
+        Assert.False((bool)compactProperty.GetValue(vm)!);
+    }
+
+    [Fact]
     public void Popover_renders_muted_collapsible_thinking_separately_from_result()
     {
         var root = FindRepositoryRoot();
