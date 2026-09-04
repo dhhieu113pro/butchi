@@ -1,3 +1,4 @@
+using System.Reflection;
 using Butchi.App.Popover;
 using Xunit;
 
@@ -65,6 +66,112 @@ public sealed class PopoverWindowPolicyTests
 
         await Task.Delay(15);
         controller.HandlePointerEntered();
+
+        Assert.False(await hideTask);
+        Assert.True(controller.IsVisible);
+    }
+
+    [Fact]
+    public void Default_inactivity_delays_match_the_approved_behavior()
+    {
+        var pointerDelay = typeof(PopoverWindowController).GetField(
+            "DefaultPointerExitDelay",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        var resultDelay = typeof(PopoverWindowController).GetField(
+            "DefaultResultIdleDelay",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(pointerDelay);
+        Assert.NotNull(resultDelay);
+        Assert.Equal(TimeSpan.FromSeconds(3), pointerDelay.GetValue(null));
+        Assert.Equal(TimeSpan.FromSeconds(8), resultDelay.GetValue(null));
+    }
+
+    [Fact]
+    public async Task Completed_result_hides_after_idle_period_when_untouched()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var method = typeof(PopoverWindowController).GetMethod("HandleResultCompletedAsync");
+
+        Assert.NotNull(method);
+        var hideTask = (Task<bool>)method.Invoke(
+            controller,
+            new object?[] { TimeSpan.FromMilliseconds(25) })!;
+
+        Assert.True(controller.IsVisible);
+        Assert.True(await hideTask);
+        Assert.False(controller.IsVisible);
+    }
+
+    [Fact]
+    public async Task Pointer_enter_cancels_result_idle_hide()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var method = typeof(PopoverWindowController).GetMethod("HandleResultCompletedAsync");
+
+        Assert.NotNull(method);
+        var hideTask = (Task<bool>)method.Invoke(
+            controller,
+            new object?[] { TimeSpan.FromSeconds(1) })!;
+
+        await Task.Delay(15);
+        controller.HandlePointerEntered();
+
+        Assert.False(await hideTask);
+        Assert.True(controller.IsVisible);
+    }
+
+    [Fact]
+    public async Task Result_does_not_auto_hide_while_pointer_is_inside()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        controller.HandlePointerEntered();
+        var method = typeof(PopoverWindowController).GetMethod("HandleResultCompletedAsync");
+
+        Assert.NotNull(method);
+        var hideTask = (Task<bool>)method.Invoke(
+            controller,
+            new object?[] { TimeSpan.FromMilliseconds(25) })!;
+
+        Assert.False(await hideTask);
+        Assert.True(controller.IsVisible);
+    }
+
+    [Fact]
+    public async Task Popover_never_hides_from_pointer_exit_while_work_is_running()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var method = typeof(PopoverWindowController).GetMethod("HandleWorkStarted");
+
+        Assert.NotNull(method);
+        method.Invoke(controller, null);
+
+        var hidden = await controller.HandlePointerExitedAsync(TimeSpan.FromMilliseconds(25));
+
+        Assert.False(hidden);
+        Assert.True(controller.IsVisible);
+    }
+
+    [Fact]
+    public async Task Starting_new_work_cancels_a_pending_result_idle_hide()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var completeMethod = typeof(PopoverWindowController).GetMethod("HandleResultCompletedAsync");
+        var startMethod = typeof(PopoverWindowController).GetMethod("HandleWorkStarted");
+
+        Assert.NotNull(completeMethod);
+        Assert.NotNull(startMethod);
+        var hideTask = (Task<bool>)completeMethod.Invoke(
+            controller,
+            new object?[] { TimeSpan.FromSeconds(1) })!;
+
+        await Task.Delay(15);
+        startMethod.Invoke(controller, null);
 
         Assert.False(await hideTask);
         Assert.True(controller.IsVisible);
