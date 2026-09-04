@@ -32,6 +32,10 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     public bool IsAutoHideArmed { get; private set; }
 
     public ActionPresentationState SelectedState => GetState(SelectedAction);
+    public bool IsCompact =>
+        SelectedState.IsRunning &&
+        string.IsNullOrWhiteSpace(SelectedState.Output) &&
+        SelectedState.ErrorMessage is null;
 
     public void SetSession(string sourceText, TextAction action, string? targetLanguage)
     {
@@ -62,6 +66,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         SelectedAction = action;
         OnPropertyChanged(nameof(SelectedAction));
         OnPropertyChanged(nameof(SelectedState));
+        OnPropertyChanged(nameof(IsCompact));
         ActionRequested?.Invoke(this, action);
     }
 
@@ -171,6 +176,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TranslateEnabled));
         OnPropertyChanged(nameof(RewriteEnabled));
         OnPropertyChanged(nameof(SelectedState));
+        OnPropertyChanged(nameof(IsCompact));
     }
 
     private bool IsActionEnabled(TextAction action) =>
@@ -202,7 +208,12 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
             Rewrite = state;
             OnPropertyChanged(nameof(Rewrite));
         }
-        if (SelectedAction == action) OnPropertyChanged(nameof(SelectedState));
+
+        if (SelectedAction == action)
+        {
+            OnPropertyChanged(nameof(SelectedState));
+            OnPropertyChanged(nameof(IsCompact));
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

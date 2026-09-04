@@ -37,6 +37,30 @@ public sealed class PopoverParityViewModelTests
     }
 
     [Fact]
+    public void Compact_presentation_is_used_only_while_initial_inference_has_no_output()
+    {
+        var property = typeof(PopoverViewModel).GetProperty("IsCompact");
+        Assert.NotNull(property);
+
+        var vm = new PopoverViewModel();
+        vm.SetSession("source", TextAction.Translate, "Vietnamese");
+
+        Assert.False((bool)property.GetValue(vm)!);
+
+        vm.Begin(TextAction.Translate, 10);
+        Assert.True((bool)property.GetValue(vm)!);
+
+        vm.Append(TextAction.Translate, 10, "Xin");
+        vm.FlushPendingUpdates();
+        Assert.False((bool)property.GetValue(vm)!);
+
+        vm.Begin(TextAction.Translate, 11);
+        Assert.True((bool)property.GetValue(vm)!);
+        vm.Fail(TextAction.Translate, 11, "Model unavailable");
+        Assert.False((bool)property.GetValue(vm)!);
+    }
+
+    [Fact]
     public void Rerun_copy_and_replace_actions_delegate_current_result()
     {
         var vm = new PopoverViewModel();
