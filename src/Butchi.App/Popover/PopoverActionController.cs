@@ -145,6 +145,11 @@ public sealed class PopoverActionController : IAsyncDisposable
                     {
                         if (_viewModel.Append(action, runId, chunk))
                             _viewModel.FlushPendingUpdates();
+                    }),
+                    ReasoningChunk: (runId, chunk) => _dispatch(() =>
+                    {
+                        if (_viewModel.AppendReasoning(action, runId, chunk))
+                            _viewModel.FlushPendingUpdates();
                     }))).ConfigureAwait(false);
 
             if (!result.IsObsolete)

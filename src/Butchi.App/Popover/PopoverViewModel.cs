@@ -14,6 +14,12 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         [TextAction.Rewrite] = new StringBuilder()
     };
 
+    private readonly Dictionary<TextAction, StringBuilder> _pendingReasoning = new()
+    {
+        [TextAction.Translate] = new StringBuilder(),
+        [TextAction.Rewrite] = new StringBuilder()
+    };
+
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<TextAction>? ActionRequested;
     public event EventHandler<string>? TranslateLanguageRequested;
@@ -35,6 +41,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     public bool IsCompact =>
         SelectedState.IsRunning &&
         string.IsNullOrWhiteSpace(SelectedState.Output) &&
+        string.IsNullOrWhiteSpace(SelectedState.Reasoning) &&
         SelectedState.ErrorMessage is null;
 
     public void SetSession(string sourceText, TextAction action, string? targetLanguage)
@@ -73,6 +80,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     public void Begin(TextAction action, long runId)
     {
         _pending[action].Clear();
+        _pendingReasoning[action].Clear();
         SetState(action, new ActionPresentationState(runId, string.Empty, true));
     }
 
@@ -82,7 +90,28 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         if (state.RunId != runId)
             return false;
 
+        if (state.IsThinkingExpanded &&
+            (!string.IsNullOrWhiteSpace(state.Reasoning) || _pendingReasoning[action].Length > 0))
+        {
+            SetState(action, state with { IsThinkingExpanded = false });
+        }
+
         _pending[action].Append(chunk);
+        return true;
+    }
+
+    public bool AppendReasoning(TextAction action, long runId, string chunk)
+    {
+        var state = GetState(action);
+        if (state.RunId != runId)
+            return false;
+
+        _pendingReasoning[action].Append(chunk);
+        if (!state.IsThinkingExpanded && string.IsNullOrEmpty(state.Output) && _pending[action].Length == 0)
+        {
+            SetState(action, state with { IsThinkingExpanded = true });
+        }
+
         return true;
     }
 
@@ -92,7 +121,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         var state = GetState(action);
         if (state.RunId != runId)
             return false;
-        SetState(action, state with { IsRunning = false, ErrorMessage = null });
+        SetState(action, state with { IsRunning = false, ErrorMessage = null, IsThinkingExpanded = false });
         return true;
     }
 
@@ -102,7 +131,8 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         if (state.RunId != runId)
             return false;
         _pending[action].Clear();
-        SetState(action, state with { IsRunning = false, ErrorMessage = message });
+        _pendingReasoning[action].Clear();
+        SetState(action, state with { IsRunning = false, ErrorMessage = message, IsThinkingExpanded = false });
         return true;
     }
 
@@ -140,6 +170,15 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         if (!string.IsNullOrWhiteSpace(output)) ReplaceRequested?.Invoke(this, output);
     }
 
+    public void RequestToggleThinking()
+    {
+        var state = SelectedState;
+        if (string.IsNullOrWhiteSpace(state.Reasoning))
+            return;
+
+        SetState(SelectedAction, state with { IsThinkingExpanded = !state.IsThinkingExpanded });
+    }
+
     public void ArmAutoHide()
     {
         IsAutoHideArmed = true;
@@ -161,6 +200,8 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     {
         _pending[TextAction.Translate].Clear();
         _pending[TextAction.Rewrite].Clear();
+        _pendingReasoning[TextAction.Translate].Clear();
+        _pendingReasoning[TextAction.Rewrite].Clear();
         Translate = ActionPresentationState.Empty;
         Rewrite = ActionPresentationState.Empty;
         SourceText = sourceText ?? string.Empty;
@@ -185,12 +226,18 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     private void Flush(TextAction action)
     {
         var pending = _pending[action];
-        if (pending.Length == 0)
+        var pendingReasoning = _pendingReasoning[action];
+        if (pending.Length == 0 && pendingReasoning.Length == 0)
             return;
 
         var state = GetState(action);
-        SetState(action, state with { Output = state.Output + pending.ToString() });
+        SetState(action, state with
+        {
+            Output = pending.Length == 0 ? state.Output : state.Output + pending,
+            Reasoning = pendingReasoning.Length == 0 ? state.Reasoning : state.Reasoning + pendingReasoning
+        });
         pending.Clear();
+        pendingReasoning.Clear();
     }
 
     private ActionPresentationState GetState(TextAction action) =>

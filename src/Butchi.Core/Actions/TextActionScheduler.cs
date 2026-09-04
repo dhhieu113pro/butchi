@@ -67,15 +67,21 @@ public sealed class TextActionScheduler : IAsyncDisposable
 
                 try
                 {
-                    await foreach (var chunk in _engine.GenerateAsync(request, linkedCts.Token).ConfigureAwait(false))
+                    await foreach (var chunk in _engine.GenerateDetailedAsync(request, linkedCts.Token).ConfigureAwait(false))
                     {
                         if (IsObsolete(action, runId))
                         {
                             return new TextActionRunResult(action, runId, output.ToString(), true);
                         }
 
-                        callbacks?.Chunk?.Invoke(runId, chunk);
-                        output.Append(chunk);
+                        if (chunk.Kind == InferenceStreamChunkKind.Reasoning)
+                        {
+                            callbacks?.ReasoningChunk?.Invoke(runId, chunk.Text);
+                            continue;
+                        }
+
+                        callbacks?.Chunk?.Invoke(runId, chunk.Text);
+                        output.Append(chunk.Text);
                     }
                 }
                 catch (OperationCanceledException) when (IsObsolete(action, runId) && !cancellationToken.IsCancellationRequested)
