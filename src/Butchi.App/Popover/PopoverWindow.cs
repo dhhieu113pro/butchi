@@ -16,10 +16,16 @@ namespace Butchi.App.Popover;
 
 public sealed class PopoverWindow : Window, IWindowsPopoverView
 {
+    public const double CompactWidth = 420;
+    public const double ExpandedWidth = 760;
+    private const double ResultScrollMaxHeight = 340;
+
     private readonly PopoverWindowController _controller;
     private readonly TransitioningContentControl _islandHost = new();
     private readonly ContentControl _expandedHost = new();
     private bool? _lastCompactState;
+    private double? _anchorCenterX;
+    private double _anchorTopY;
 
     public PopoverWindow(PopoverViewModel viewModel, PopoverWindowController? controller = null)
     {
@@ -33,7 +39,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         ShowInTaskbar = profile.ShowInTaskbar;
         CanResize = profile.CanResize;
         Icon = BrandAssets.CreateWindowIcon();
-        Width = 420;
+        Width = ExpandedWidth;
         MinHeight = 0;
         MaxHeight = 720;
         SizeToContent = SizeToContent.Height;
@@ -67,7 +73,12 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         });
 
     void IWindowsPopoverView.SetPosition(double x, double y) =>
-        Dispatcher.UIThread.Post(() => Position = new PixelPoint((int)Math.Round(x), (int)Math.Round(y)));
+        Dispatcher.UIThread.Post(() =>
+        {
+            _anchorCenterX = x + (ExpandedWidth / 2);
+            _anchorTopY = y;
+            ApplyPresentationGeometry();
+        });
 
     void IWindowsPopoverView.ShowPersistent() => Dispatcher.UIThread.Post(ShowPersistent);
 
@@ -95,6 +106,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             ? new CrossFade(TimeSpan.FromMilliseconds(180))
             : null;
 
+        ApplyPresentationGeometry();
+
         if (compact)
         {
             _islandHost.Content = BuildCompactIsland();
@@ -107,6 +120,19 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         }
 
         _lastCompactState = compact;
+    }
+
+    private void ApplyPresentationGeometry()
+    {
+        var targetWidth = ViewModel.IsCompact ? CompactWidth : ExpandedWidth;
+        Width = targetWidth;
+
+        if (_anchorCenterX is not { } centerX)
+            return;
+
+        Position = new PixelPoint(
+            (int)Math.Round(PopoverGeometry.CenteredX(centerX, targetWidth)),
+            (int)Math.Round(_anchorTopY));
     }
 
     private Control BuildCompactIsland()
@@ -181,275 +207,401 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
     private Control BuildExpandedIsland()
     {
         var selected = ViewModel.SelectedState;
+        var bothActionsEnabled = ViewModel.TranslateEnabled && ViewModel.RewriteEnabled;
         var root = new StackPanel { Spacing = 12 };
 
-        var brand = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        brand.Children.Add(new Image
-        {
-            Source = BrandAssets.CreateBitmap(),
-            Width = 28,
-            Height = 28,
-            Stretch = Stretch.Uniform,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        var title = new StackPanel
-        {
-            Spacing = 0,
-            Margin = new Thickness(9, 0, 0, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        title.Children.Add(new TextBlock { Text = "Butchi", FontSize = 16, FontWeight = FontWeight.Bold });
-        title.Children.Add(new TextBlock { Text = "Local AI", FontSize = 10, Opacity = 0.6 });
-        title.SetValue(Grid.ColumnProperty, 1);
-        brand.Children.Add(title);
-        var privatePill = new Border
-        {
-            Padding = new Thickness(9, 4),
-            CornerRadius = new CornerRadius(999),
-            Background = ButchiTheme.LocalStatusSurfaceBrush(ActualThemeVariant),
-            Child = new TextBlock
-            {
-                Text = "On device",
-                FontSize = 10,
-                Foreground = ButchiTheme.LocalStatusForegroundBrush(ActualThemeVariant)
-            }
-        };
-        privatePill.SetValue(Grid.ColumnProperty, 2);
-        brand.Children.Add(privatePill);
-        root.Children.Add(brand);
-
-        var bothActionsEnabled = ViewModel.TranslateEnabled && ViewModel.RewriteEnabled;
-        if (ViewModel.TranslateEnabled || ViewModel.RewriteEnabled)
-        {
-            var selector = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitions(bothActionsEnabled ? "*,*" : "*")
-            };
-
-            if (ViewModel.TranslateEnabled)
-                selector.Children.Add(ActionButton("Translate", TextAction.Translate, bothActionsEnabled));
-
-            if (ViewModel.RewriteEnabled)
-            {
-                var rewrite = ActionButton("Rewrite", TextAction.Rewrite, bothActionsEnabled);
-                if (bothActionsEnabled)
-                    rewrite.SetValue(Grid.ColumnProperty, 1);
-                selector.Children.Add(rewrite);
-            }
-
-            root.Children.Add(selector);
-        }
+        root.Children.Add(BuildCenteredLogo());
+        root.Children.Add(BuildModeSelector());
 
         if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
-        {
-            var source = new StackPanel { Spacing = 5 };
-            source.Children.Add(new TextBlock
-            {
-                Text = "SOURCE",
-                FontSize = 10,
-                FontWeight = FontWeight.Bold,
-                Opacity = 0.55,
-                LetterSpacing = 1
-            });
-            source.Children.Add(new TextBlock
-            {
-                Text = ViewModel.SourceText,
-                FontSize = 12,
-                TextWrapping = TextWrapping.Wrap,
-                MaxHeight = 72
-            });
-            root.Children.Add(Card(source));
-        }
+            root.Children.Add(BuildSourcePreview());
 
         if (ViewModel.TranslateEnabled && ViewModel.SelectedAction == TextAction.Translate)
-        {
-            var language = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 7 };
-            language.Children.Add(new TextBlock
-            {
-                Text = "To",
-                FontSize = 11,
-                Opacity = 0.6,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            foreach (var item in new[] { "Vietnamese", "English", "Japanese" })
-            {
-                var button = new Button
-                {
-                    Content = item,
-                    Padding = new Thickness(9, 5),
-                    CornerRadius = new CornerRadius(8),
-                    FontSize = 11
-                };
-                if (string.Equals(ViewModel.TargetLanguage, item, StringComparison.OrdinalIgnoreCase))
-                {
-                    button.Background = ButchiTheme.CobaltBrush;
-                    button.Foreground = ButchiTheme.WhiteBrush;
-                }
-                button.Click += (_, _) => ViewModel.RequestFavoriteLanguage(item);
-                language.Children.Add(button);
-            }
-            root.Children.Add(language);
-        }
+            root.Children.Add(BuildLanguageSelector());
 
         if (!string.IsNullOrWhiteSpace(selected.Reasoning))
-        {
-            var thinking = new StackPanel { Spacing = 5 };
-            var thinkingLabel = selected.IsRunning && string.IsNullOrEmpty(selected.Output) ? "Thinking…" : "Thinking";
-            var toggle = new Button
-            {
-                Content = new TextBlock
-                {
-                    Text = $"{(selected.IsThinkingExpanded ? "▾" : "▸")} {thinkingLabel}",
-                    FontSize = 11,
-                    Opacity = 0.6
-                },
-                Padding = new Thickness(0),
-                BorderThickness = new Thickness(0),
-                Background = Brushes.Transparent,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                HorizontalContentAlignment = HorizontalAlignment.Left
-            };
-            toggle.Click += (_, _) => ViewModel.RequestToggleThinking();
-            thinking.Children.Add(toggle);
+            root.Children.Add(BuildThinkingDisclosure(selected));
 
-            if (selected.IsThinkingExpanded)
-            {
-                thinking.Children.Add(new TextBlock
-                {
-                    Text = selected.Reasoning,
-                    FontSize = 11,
-                    Opacity = 0.6,
-                    Margin = new Thickness(16, 0, 0, 0),
-                    MaxHeight = 140,
-                    TextWrapping = TextWrapping.Wrap
-                });
-            }
-
-            root.Children.Add(thinking);
-        }
-
-        var showResult = !selected.IsRunning ||
-            !string.IsNullOrEmpty(selected.Output) ||
-            string.IsNullOrWhiteSpace(selected.Reasoning);
-        if (showResult)
-        {
-            var result = new StackPanel { Spacing = 7 };
-            result.Children.Add(new TextBlock
-            {
-                Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR",
-                FontSize = 10,
-                FontWeight = FontWeight.Bold,
-                Foreground = selected.ErrorMessage is null
-                    ? ButchiTheme.CobaltBrush
-                    : new SolidColorBrush(ButchiTheme.Error),
-                LetterSpacing = 1
-            });
-            if (selected.IsRunning)
-                result.Children.Add(new TextBlock
-                {
-                    Text = selected.Output + " ▍",
-                    FontSize = 14,
-                    TextWrapping = TextWrapping.Wrap
-                });
-            else if (selected.ErrorMessage is { } error)
-                result.Children.Add(new TextBlock
-                {
-                    Text = error,
-                    FontSize = 13,
-                    Foreground = new SolidColorBrush(ButchiTheme.Error),
-                    TextWrapping = TextWrapping.Wrap
-                });
-            else if (!string.IsNullOrWhiteSpace(selected.Output))
-                result.Children.Add(new TextBlock
-                {
-                    Text = selected.Output,
-                    FontSize = 14,
-                    FontWeight = FontWeight.SemiBold,
-                    TextWrapping = TextWrapping.Wrap
-                });
-            else
-                result.Children.Add(new TextBlock
-                {
-                    Text = bothActionsEnabled
-                        ? "Select Translate or Rewrite to run on the selected text."
-                        : $"Starting {ViewModel.SelectedAction.ToString().ToLowerInvariant()} locally…",
-                    FontSize = 12,
-                    Opacity = 0.62,
-                    TextWrapping = TextWrapping.Wrap
-                });
-            root.Children.Add(Card(result));
-        }
+        root.Children.Add(BuildResultPanel(selected, bothActionsEnabled));
 
         if (!selected.IsRunning && (!string.IsNullOrWhiteSpace(selected.Output) || selected.ErrorMessage is not null))
-        {
-            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var rerun = SmallButton("Run again");
-            rerun.Click += (_, _) => ViewModel.RequestRerun();
-            actions.Children.Add(rerun);
-            if (!string.IsNullOrWhiteSpace(selected.Output))
-            {
-                var copy = SmallButton("Copy");
-                copy.Click += (_, _) => ViewModel.RequestCopy();
-                actions.Children.Add(copy);
-                var replace = SmallButton("Replace selection");
-                replace.Click += (_, _) => ViewModel.RequestReplace();
-                actions.Children.Add(replace);
-            }
-            root.Children.Add(actions);
-        }
+            root.Children.Add(BuildFooterActions(selected));
 
         return new Border
         {
-            Padding = new Thickness(16),
-            CornerRadius = new CornerRadius(22),
+            Padding = new Thickness(18),
+            CornerRadius = new CornerRadius(24),
             BorderThickness = new Thickness(1),
             BorderBrush = ButchiTheme.DividerBrush,
-            Child = new ScrollViewer
-            {
-                Content = root,
-                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-            }
+            Child = root
         };
     }
 
-    private Button ActionButton(string text, TextAction action, bool split)
+    private Control BuildCenteredLogo() => new Image
+    {
+        Source = BrandAssets.CreateBitmap(),
+        Width = 24,
+        Height = 24,
+        Stretch = Stretch.Uniform,
+        HorizontalAlignment = HorizontalAlignment.Center
+    };
+
+    private Control BuildModeSelector()
+    {
+        var selector = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        if (ViewModel.TranslateEnabled)
+            selector.Children.Add(ModeIconButton("文A", "Translate", TextAction.Translate));
+
+        if (ViewModel.RewriteEnabled)
+            selector.Children.Add(ModeIconButton("✎", "Rewrite", TextAction.Rewrite));
+
+        return new Border
+        {
+            Padding = new Thickness(3),
+            CornerRadius = new CornerRadius(12),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = selector
+        };
+    }
+
+    private Button ModeIconButton(string glyph, string tooltip, TextAction action)
     {
         var selected = ViewModel.SelectedAction == action;
         var button = new Button
         {
-            Content = text,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new TextBlock
+            {
+                Text = glyph,
+                FontSize = action == TextAction.Translate ? 17 : 18,
+                FontWeight = FontWeight.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center
+            },
+            Width = 64,
+            Height = 38,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(10),
             HorizontalContentAlignment = HorizontalAlignment.Center,
-            Margin = split
-                ? action == TextAction.Translate ? new Thickness(0, 0, 4, 0) : new Thickness(4, 0, 0, 0)
-                : new Thickness(0),
-            Padding = new Thickness(12, 8),
-            CornerRadius = new CornerRadius(9),
-            FontWeight = FontWeight.SemiBold,
-            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.CardSurfaceBrush(ActualThemeVariant)
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Background = selected ? ButchiTheme.CobaltBrush : Brushes.Transparent
         };
         if (selected) button.Foreground = ButchiTheme.WhiteBrush;
+        ToolTip.SetTip(button, tooltip);
         button.Click += (_, _) => ViewModel.SelectAction(action);
         return button;
     }
 
-    private Border Card(Control child) => new()
+    private Control BuildSourcePreview()
     {
-        Padding = new Thickness(13),
-        CornerRadius = new CornerRadius(11),
-        Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
-        BorderThickness = new Thickness(1),
-        BorderBrush = ButchiTheme.DividerBrush,
-        Child = child
-    };
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto")
+        };
 
-    private static Button SmallButton(string text) => new()
+        row.Children.Add(new TextBlock
+        {
+            Text = "SOURCE",
+            FontSize = 10,
+            FontWeight = FontWeight.Bold,
+            Opacity = 0.55,
+            LetterSpacing = 1,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var preview = new TextBlock
+        {
+            Text = ViewModel.SourceText,
+            FontSize = 12,
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(16, 0, 12, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        preview.SetValue(Grid.ColumnProperty, 1);
+        row.Children.Add(preview);
+
+        var chevron = new TextBlock
+        {
+            Text = "›",
+            FontSize = 19,
+            Opacity = 0.65,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        chevron.SetValue(Grid.ColumnProperty, 2);
+        row.Children.Add(chevron);
+
+        return new Border
+        {
+            Padding = new Thickness(14, 10),
+            CornerRadius = new CornerRadius(12),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            Child = row
+        };
+    }
+
+    private Control BuildLanguageSelector()
     {
-        Content = text,
-        Padding = new Thickness(10, 6),
-        CornerRadius = new CornerRadius(8),
-        FontSize = 11
-    };
+        var language = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 7
+        };
+        language.Children.Add(new TextBlock
+        {
+            Text = "To",
+            FontSize = 11,
+            Opacity = 0.6,
+            Margin = new Thickness(2, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        foreach (var item in new[] { "Vietnamese", "English", "Japanese" })
+        {
+            var button = new Button
+            {
+                Content = item,
+                Padding = new Thickness(10, 5),
+                CornerRadius = new CornerRadius(9),
+                FontSize = 11
+            };
+            if (string.Equals(ViewModel.TargetLanguage, item, StringComparison.OrdinalIgnoreCase))
+            {
+                button.Background = ButchiTheme.CobaltBrush;
+                button.Foreground = ButchiTheme.WhiteBrush;
+            }
+            button.Click += (_, _) => ViewModel.RequestFavoriteLanguage(item);
+            language.Children.Add(button);
+        }
+
+        return language;
+    }
+
+    private Control BuildThinkingDisclosure(ActionPresentationState selected)
+    {
+        var section = new StackPanel { Spacing = 7 };
+        var thinkingLabel = selected.IsRunning && string.IsNullOrEmpty(selected.Output)
+            ? "Thinking…"
+            : "Thinking";
+
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto")
+        };
+        header.Children.Add(new TextBlock
+        {
+            Text = "✦",
+            FontSize = 14,
+            Foreground = ButchiTheme.CobaltBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var label = new TextBlock
+        {
+            Text = thinkingLabel,
+            FontSize = 11,
+            Opacity = 0.6,
+            Margin = new Thickness(9, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        label.SetValue(Grid.ColumnProperty, 1);
+        header.Children.Add(label);
+
+        var chevron = new TextBlock
+        {
+            Text = selected.IsThinkingExpanded ? "⌃" : "⌄",
+            FontSize = 13,
+            Opacity = 0.6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        chevron.SetValue(Grid.ColumnProperty, 2);
+        header.Children.Add(chevron);
+
+        var toggle = new Button
+        {
+            Content = header,
+            Padding = new Thickness(12, 8),
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
+        };
+        toggle.Click += (_, _) => ViewModel.RequestToggleThinking();
+
+        section.Children.Add(toggle);
+
+        if (selected.IsThinkingExpanded)
+        {
+            section.Children.Add(new ScrollViewer
+            {
+                MaxHeight = 120,
+                Margin = new Thickness(12, 0, 12, 6),
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                Content = new TextBlock
+                {
+                    Text = selected.Reasoning,
+                    FontSize = 11,
+                    Opacity = 0.6,
+                    TextWrapping = TextWrapping.Wrap
+                }
+            });
+        }
+
+        return new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            Child = section
+        };
+    }
+
+    private Control BuildResultPanel(ActionPresentationState selected, bool bothActionsEnabled)
+    {
+        var result = new StackPanel { Spacing = 10 };
+        result.Children.Add(new TextBlock
+        {
+            Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR",
+            FontSize = 10,
+            FontWeight = FontWeight.Bold,
+            Foreground = selected.ErrorMessage is null
+                ? ButchiTheme.CobaltBrush
+                : new SolidColorBrush(ButchiTheme.Error),
+            LetterSpacing = 1
+        });
+
+        Control body;
+        if (selected.IsRunning)
+        {
+            body = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(selected.Output) ? "Running locally…" : selected.Output + " ▍",
+                FontSize = 14,
+                TextWrapping = TextWrapping.Wrap
+            };
+        }
+        else if (selected.ErrorMessage is { } error)
+        {
+            body = new TextBlock
+            {
+                Text = error,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(ButchiTheme.Error),
+                TextWrapping = TextWrapping.Wrap
+            };
+        }
+        else if (!string.IsNullOrWhiteSpace(selected.Output))
+        {
+            body = new TextBlock
+            {
+                Text = selected.Output,
+                FontSize = 14,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.Wrap
+            };
+        }
+        else
+        {
+            body = new TextBlock
+            {
+                Text = bothActionsEnabled
+                    ? "Select Translate or Rewrite to run on the selected text."
+                    : $"Starting {ViewModel.SelectedAction.ToString().ToLowerInvariant()} locally…",
+                FontSize = 12,
+                Opacity = 0.62,
+                TextWrapping = TextWrapping.Wrap
+            };
+        }
+
+        result.Children.Add(new ScrollViewer
+        {
+            MinHeight = 180,
+            MaxHeight = ResultScrollMaxHeight,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = body
+        });
+
+        return new Border
+        {
+            Padding = new Thickness(16),
+            CornerRadius = new CornerRadius(14),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            Child = result
+        };
+    }
+
+    private Control BuildFooterActions(ActionPresentationState selected)
+    {
+        var actions = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions(
+                string.IsNullOrWhiteSpace(selected.Output) ? "*" : "*,*,*")
+        };
+
+        var rerun = FooterButton("↻", "Run again");
+        rerun.Click += (_, _) => ViewModel.RequestRerun();
+        actions.Children.Add(rerun);
+
+        if (!string.IsNullOrWhiteSpace(selected.Output))
+        {
+            var copy = FooterButton("⧉", "Copy");
+            copy.Click += (_, _) => ViewModel.RequestCopy();
+            copy.Margin = new Thickness(8, 0, 4, 0);
+            copy.SetValue(Grid.ColumnProperty, 1);
+            actions.Children.Add(copy);
+
+            var replace = FooterButton("⇄", "Replace selection");
+            replace.Click += (_, _) => ViewModel.RequestReplace();
+            replace.Margin = new Thickness(4, 0, 0, 0);
+            replace.SetValue(Grid.ColumnProperty, 2);
+            actions.Children.Add(replace);
+        }
+
+        return actions;
+    }
+
+    private static Button FooterButton(string glyph, string text)
+    {
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = glyph,
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        return new Button
+        {
+            Content = content,
+            Padding = new Thickness(12, 8),
+            CornerRadius = new CornerRadius(10),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center
+        };
+    }
 
     private void OnPointerEntered(object? sender, PointerEventArgs e)
     {

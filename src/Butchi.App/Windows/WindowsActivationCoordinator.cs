@@ -16,7 +16,7 @@ public interface IWindowsPopoverView
 
 public sealed class WindowsActivationCoordinator
 {
-    private const double PopoverWidth = 420;
+    private const double PopoverWidth = PopoverWindow.ExpandedWidth;
     private const double PopoverHeight = 360;
     private readonly IWindowsSelectionReader _selectionReader;
     private readonly IWindowsPointerContext _pointerContext;
