@@ -83,25 +83,16 @@ public sealed class ReasoningOutputFilteringTests
 
     private static async Task<List<(string Kind, string Text)>> CollectDetailedAsync(object source)
     {
-        dynamic dynamicSource = source;
-        dynamic enumerator = dynamicSource.GetAsyncEnumerator(CancellationToken.None);
+        var typedSource = Assert.IsAssignableFrom<IAsyncEnumerable<object>>(source);
         var result = new List<(string Kind, string Text)>();
-        try
+        await foreach (var current in typedSource)
         {
-            while (await enumerator.MoveNextAsync())
-            {
-                object current = enumerator.Current;
-                var type = current.GetType();
-                var kind = type.GetProperty("Kind")?.GetValue(current)?.ToString();
-                var text = type.GetProperty("Text")?.GetValue(current) as string;
-                Assert.NotNull(kind);
-                Assert.NotNull(text);
-                result.Add((kind, text));
-            }
-        }
-        finally
-        {
-            await enumerator.DisposeAsync();
+            var type = current.GetType();
+            var kind = type.GetProperty("Kind")?.GetValue(current)?.ToString();
+            var text = type.GetProperty("Text")?.GetValue(current) as string;
+            Assert.NotNull(kind);
+            Assert.NotNull(text);
+            result.Add((kind, text));
         }
 
         return result;
