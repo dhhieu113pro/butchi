@@ -17,7 +17,7 @@ public sealed class PopoverGeometryTests
     }
 
     [Fact]
-    public void Placement_prefers_below_and_right_of_cursor()
+    public void Placement_is_centered_near_top_of_working_area()
     {
         var point = PopoverGeometry.PlaceNearCursor(
             cursorX: 500,
@@ -26,21 +26,21 @@ public sealed class PopoverGeometryTests
             height: 360,
             workingArea: new PopoverRect(0, 0, 1920, 1080));
 
-        Assert.True(point.X > 500);
-        Assert.True(point.Y > 300);
+        Assert.Equal(750, point.X);
+        Assert.Equal(16, point.Y);
     }
 
     [Fact]
-    public void Placement_clamps_to_working_area()
+    public void Placement_uses_active_monitor_working_area_origin()
     {
         var point = PopoverGeometry.PlaceNearCursor(
-            cursorX: 1900,
-            cursorY: 1050,
+            cursorX: -900,
+            cursorY: 500,
             width: 420,
             height: 360,
-            workingArea: new PopoverRect(0, 0, 1920, 1080));
+            workingArea: new PopoverRect(-1920, 40, 1920, 1040));
 
-        Assert.InRange(point.X, 0, 1500);
-        Assert.InRange(point.Y, 0, 720);
+        Assert.Equal(-1170, point.X);
+        Assert.Equal(56, point.Y);
     }
 }
