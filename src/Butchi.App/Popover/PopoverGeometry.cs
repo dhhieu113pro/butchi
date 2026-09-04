@@ -6,7 +6,7 @@ public readonly record struct PopoverRect(double X, double Y, double Width, doub
 
 public static class PopoverGeometry
 {
-    private const double CursorOffset = 12;
+    private const double TopOffset = 16;
 
     public static PopoverSize CalculateSize(
         double width,
@@ -25,14 +25,15 @@ public static class PopoverGeometry
         double height,
         PopoverRect workingArea)
     {
-        var x = cursorX + CursorOffset;
-        var y = cursorY + CursorOffset;
+        _ = cursorX;
+        _ = cursorY;
 
         var maxX = workingArea.X + Math.Max(0, workingArea.Width - width);
         var maxY = workingArea.Y + Math.Max(0, workingArea.Height - height);
+        var centeredX = workingArea.X + ((workingArea.Width - width) / 2);
 
-        x = Math.Clamp(x, workingArea.X, maxX);
-        y = Math.Clamp(y, workingArea.Y, maxY);
+        var x = Math.Clamp(centeredX, workingArea.X, maxX);
+        var y = Math.Clamp(workingArea.Y + TopOffset, workingArea.Y, maxY);
 
         return new PopoverPoint(x, y);
     }
