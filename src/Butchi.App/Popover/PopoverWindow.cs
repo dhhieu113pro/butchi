@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -16,6 +17,9 @@ namespace Butchi.App.Popover;
 public sealed class PopoverWindow : Window, IWindowsPopoverView
 {
     private readonly PopoverWindowController _controller;
+    private readonly TransitioningContentControl _islandHost = new();
+    private readonly ContentControl _expandedHost = new();
+    private bool? _lastCompactState;
 
     public PopoverWindow(PopoverViewModel viewModel, PopoverWindowController? controller = null)
     {
@@ -34,6 +38,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         MaxHeight = 720;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.Manual;
+        Content = _islandHost;
 
         RefreshContent();
         ViewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RefreshContent);
@@ -84,9 +89,24 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
     private void RefreshContent()
     {
-        Content = ViewModel.IsCompact
-            ? BuildCompactIsland()
-            : BuildExpandedIsland();
+        var compact = ViewModel.IsCompact;
+        var stateChanged = _lastCompactState.HasValue && compact != _lastCompactState;
+        _islandHost.PageTransition = stateChanged
+            ? new CrossFade(TimeSpan.FromMilliseconds(180))
+            : null;
+
+        if (compact)
+        {
+            _islandHost.Content = BuildCompactIsland();
+        }
+        else
+        {
+            _expandedHost.Content = BuildExpandedIsland();
+            if (!ReferenceEquals(_islandHost.Content, _expandedHost))
+                _islandHost.Content = _expandedHost;
+        }
+
+        _lastCompactState = compact;
     }
 
     private Control BuildCompactIsland()
