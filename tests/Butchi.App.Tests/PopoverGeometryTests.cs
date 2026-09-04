@@ -47,10 +47,12 @@ public sealed class PopoverGeometryTests
     [Fact]
     public void Compact_and_expanded_widths_keep_the_same_horizontal_center()
     {
-        var center = 960d;
+        var method = typeof(PopoverGeometry).GetMethod("CenteredX");
+        Assert.NotNull(method);
 
-        var compactX = PopoverGeometry.CenteredX(center, 420);
-        var expandedX = PopoverGeometry.CenteredX(center, 760);
+        var center = 960d;
+        var compactX = (double)method.Invoke(null, new object[] { center, 420d })!;
+        var expandedX = (double)method.Invoke(null, new object[] { center, 760d })!;
 
         Assert.Equal(750, compactX);
         Assert.Equal(580, expandedX);
