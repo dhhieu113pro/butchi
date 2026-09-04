@@ -51,6 +51,23 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("compact != _lastCompactState", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Popover_wires_result_aware_inactivity_lifecycle()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var viewModelPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverViewModel.cs");
+        var window = File.ReadAllText(windowPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("ActionStarted", viewModel, StringComparison.Ordinal);
+        Assert.Contains("ActionFinished", viewModel, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.ActionStarted += OnActionStarted", window, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.ActionFinished += OnActionFinished", window, StringComparison.Ordinal);
+        Assert.Contains("HandleWorkStarted", window, StringComparison.Ordinal);
+        Assert.Contains("HandleResultCompletedAsync", window, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
