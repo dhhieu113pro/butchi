@@ -156,7 +156,7 @@ public sealed class PopoverViewModelTests
     }
 
     [Fact]
-    public void Two_enabled_actions_wait_for_explicit_choice()
+    public void Two_enabled_actions_auto_run_translate_by_default()
     {
         var vm = new PopoverViewModel();
 
@@ -165,7 +165,7 @@ public sealed class PopoverViewModelTests
         Assert.True(vm.TranslateEnabled);
         Assert.True(vm.RewriteEnabled);
         Assert.Equal(TextAction.Translate, vm.SelectedAction);
-        Assert.Null(autoAction);
+        Assert.Equal(TextAction.Translate, autoAction);
     }
 
     [Fact]
