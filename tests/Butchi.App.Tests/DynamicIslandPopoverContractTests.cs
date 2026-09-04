@@ -20,6 +20,19 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("Rewriting…", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Popover_animates_only_between_compact_and_expanded_states()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("TransitioningContentControl", source, StringComparison.Ordinal);
+        Assert.Contains("CrossFade", source, StringComparison.Ordinal);
+        Assert.Contains("TimeSpan.FromMilliseconds(180)", source, StringComparison.Ordinal);
+        Assert.Contains("compact != _lastCompactState", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
