@@ -18,6 +18,9 @@ public static class PopoverGeometry
         return new PopoverSize(width, height);
     }
 
+    public static double CenteredX(double centerX, double width) =>
+        centerX - (width / 2);
+
     public static PopoverPoint PlaceNearCursor(
         double cursorX,
         double cursorY,
@@ -30,7 +33,9 @@ public static class PopoverGeometry
 
         var maxX = workingArea.X + Math.Max(0, workingArea.Width - width);
         var maxY = workingArea.Y + Math.Max(0, workingArea.Height - height);
-        var centeredX = workingArea.X + ((workingArea.Width - width) / 2);
+        var centeredX = CenteredX(
+            workingArea.X + (workingArea.Width / 2),
+            width);
 
         var x = Math.Clamp(centeredX, workingArea.X, maxX);
         var y = Math.Clamp(workingArea.Y + TopOffset, workingArea.Y, maxY);
