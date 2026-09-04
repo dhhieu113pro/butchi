@@ -34,8 +34,11 @@ public static class PopoverThemePolicy
 
 public sealed class PopoverWindowController
 {
-    private static readonly TimeSpan DefaultPointerExitDelay = TimeSpan.FromSeconds(1);
-    private CancellationTokenSource? _pendingPointerExitHide;
+    private static readonly TimeSpan DefaultPointerExitDelay = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan DefaultResultIdleDelay = TimeSpan.FromSeconds(8);
+    private CancellationTokenSource? _pendingHide;
+    private bool _pointerInside;
+    private bool _isWorkActive;
 
     public Guid InstanceId { get; } = Guid.NewGuid();
     public bool IsVisible { get; private set; }
@@ -44,44 +47,55 @@ public sealed class PopoverWindowController
     public void Show()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        CancelPendingPointerExitHide();
+        CancelPendingHide();
+        _pointerInside = false;
+        _isWorkActive = false;
         IsVisible = true;
     }
 
     public void Hide()
     {
-        CancelPendingPointerExitHide();
+        CancelPendingHide();
+        _pointerInside = false;
+        _isWorkActive = false;
         IsVisible = false;
     }
 
-    public void HandlePointerEntered() => CancelPendingPointerExitHide();
+    public void HandlePointerEntered()
+    {
+        _pointerInside = true;
+        CancelPendingHide();
+    }
 
-    public async Task<bool> HandlePointerExitedAsync(TimeSpan? delay = null)
+    public Task<bool> HandlePointerExitedAsync(TimeSpan? delay = null)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        CancelPendingPointerExitHide();
+        _pointerInside = false;
+        CancelPendingHide();
 
-        using var cancellation = new CancellationTokenSource();
-        _pendingPointerExitHide = cancellation;
+        if (_isWorkActive)
+            return Task.FromResult(false);
 
-        try
-        {
-            await Task.Delay(delay ?? DefaultPointerExitDelay, cancellation.Token);
-            if (!ReferenceEquals(_pendingPointerExitHide, cancellation)) return false;
+        return ScheduleHideAsync(delay ?? DefaultPointerExitDelay);
+    }
 
-            _pendingPointerExitHide = null;
-            IsVisible = false;
-            return true;
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-            return false;
-        }
-        finally
-        {
-            if (ReferenceEquals(_pendingPointerExitHide, cancellation))
-                _pendingPointerExitHide = null;
-        }
+    public void HandleWorkStarted()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        _isWorkActive = true;
+        CancelPendingHide();
+    }
+
+    public Task<bool> HandleResultCompletedAsync(TimeSpan? delay = null)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        _isWorkActive = false;
+        CancelPendingHide();
+
+        if (_pointerInside)
+            return Task.FromResult(false);
+
+        return ScheduleHideAsync(delay ?? DefaultResultIdleDelay);
     }
 
     public bool HandleEscape()
@@ -92,14 +106,41 @@ public sealed class PopoverWindowController
 
     public void Dispose()
     {
-        CancelPendingPointerExitHide();
+        CancelPendingHide();
+        _pointerInside = false;
+        _isWorkActive = false;
         IsVisible = false;
         IsDisposed = true;
     }
 
-    private void CancelPendingPointerExitHide()
+    private async Task<bool> ScheduleHideAsync(TimeSpan delay)
     {
-        var cancellation = Interlocked.Exchange(ref _pendingPointerExitHide, null);
+        using var cancellation = new CancellationTokenSource();
+        _pendingHide = cancellation;
+
+        try
+        {
+            await Task.Delay(delay, cancellation.Token);
+            if (!ReferenceEquals(_pendingHide, cancellation)) return false;
+
+            _pendingHide = null;
+            IsVisible = false;
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            return false;
+        }
+        finally
+        {
+            if (ReferenceEquals(_pendingHide, cancellation))
+                _pendingHide = null;
+        }
+    }
+
+    private void CancelPendingHide()
+    {
+        var cancellation = Interlocked.Exchange(ref _pendingHide, null);
         cancellation?.Cancel();
     }
 }
