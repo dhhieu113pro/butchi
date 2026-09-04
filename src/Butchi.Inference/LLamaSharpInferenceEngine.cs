@@ -66,6 +66,19 @@ public sealed class LLamaSharpInferenceEngine : IInferenceEngine
         InferenceRequest request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        await foreach (var chunk in GenerateDetailedAsync(request, cancellationToken).WithCancellation(cancellationToken))
+        {
+            if (chunk.Kind == InferenceStreamChunkKind.Answer && chunk.Text.Length > 0)
+            {
+                yield return chunk.Text;
+            }
+        }
+    }
+
+    public async IAsyncEnumerable<InferenceStreamChunk> GenerateDetailedAsync(
+        InferenceRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         ILLamaRuntime runtime;
 
         await _gate.WaitAsync(cancellationToken);
@@ -78,20 +91,24 @@ public sealed class LLamaSharpInferenceEngine : IInferenceEngine
             _gate.Release();
         }
 
-        var filter = new LeadingThinkBlockFilter();
+        var parser = new LeadingThinkBlockParser();
         await foreach (var chunk in runtime.GenerateAsync(request, cancellationToken).WithCancellation(cancellationToken))
         {
-            var visible = filter.Push(chunk);
-            if (visible.Length > 0)
+            foreach (var parsed in parser.Push(chunk))
             {
-                yield return visible;
+                if (parsed.Text.Length > 0)
+                {
+                    yield return parsed;
+                }
             }
         }
 
-        var tail = filter.Complete();
-        if (tail.Length > 0)
+        foreach (var parsed in parser.Complete())
         {
-            yield return tail;
+            if (parsed.Text.Length > 0)
+            {
+                yield return parsed;
+            }
         }
     }
 
@@ -105,64 +122,157 @@ public sealed class LLamaSharpInferenceEngine : IInferenceEngine
         _gate.Dispose();
     }
 
-    private sealed class LeadingThinkBlockFilter
+    private sealed class LeadingThinkBlockParser
     {
         private const string OpenTag = "<think>";
         private const string CloseTag = "</think>";
         private readonly StringBuilder _buffer = new();
-        private bool _suppressing;
-        private bool _passThrough;
+        private ParseState _state;
+        private bool _reasoningStarted;
 
-        public string Push(string chunk)
+        public IReadOnlyList<InferenceStreamChunk> Push(string chunk)
         {
-            if (_passThrough)
+            if (_state == ParseState.Answer)
             {
-                return chunk;
+                return chunk.Length == 0
+                    ? []
+                    : [new InferenceStreamChunk(InferenceStreamChunkKind.Answer, chunk)];
             }
 
             _buffer.Append(chunk);
-            var buffered = _buffer.ToString();
+            var output = new List<InferenceStreamChunk>(2);
 
-            if (!_suppressing)
+            if (_state == ParseState.Undetermined)
             {
+                var buffered = _buffer.ToString();
                 var candidate = buffered.TrimStart();
                 if (candidate.Length == 0 || OpenTag.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
                 {
-                    return string.Empty;
+                    return output;
                 }
 
                 if (!candidate.StartsWith(OpenTag, StringComparison.OrdinalIgnoreCase))
                 {
                     _buffer.Clear();
-                    _passThrough = true;
-                    return buffered;
+                    _state = ParseState.Answer;
+                    output.Add(new InferenceStreamChunk(InferenceStreamChunkKind.Answer, buffered));
+                    return output;
                 }
 
-                _suppressing = true;
+                var openIndex = buffered.IndexOf(OpenTag, StringComparison.OrdinalIgnoreCase);
+                _buffer.Remove(0, openIndex + OpenTag.Length);
+                _state = ParseState.Reasoning;
             }
 
-            var closeIndex = buffered.IndexOf(CloseTag, StringComparison.OrdinalIgnoreCase);
-            if (closeIndex < 0)
-            {
-                return string.Empty;
-            }
-
-            var visible = buffered[(closeIndex + CloseTag.Length)..].TrimStart();
-            _buffer.Clear();
-            _passThrough = true;
-            return visible;
+            EmitReasoning(output);
+            return output;
         }
 
-        public string Complete()
+        public IReadOnlyList<InferenceStreamChunk> Complete()
         {
-            if (_passThrough || _suppressing || _buffer.Length == 0)
+            if (_buffer.Length == 0)
             {
-                return string.Empty;
+                return [];
             }
 
             var buffered = _buffer.ToString();
             _buffer.Clear();
-            return buffered;
+
+            return _state switch
+            {
+                ParseState.Undetermined =>
+                    [new InferenceStreamChunk(InferenceStreamChunkKind.Answer, buffered)],
+                ParseState.Reasoning =>
+                    [new InferenceStreamChunk(
+                        InferenceStreamChunkKind.Reasoning,
+                        NormalizeReasoningStart(buffered).TrimEnd('\r', '\n'))],
+                _ => []
+            };
+        }
+
+        private void EmitReasoning(List<InferenceStreamChunk> output)
+        {
+            while (_state == ParseState.Reasoning)
+            {
+                var buffered = _buffer.ToString();
+                var closeIndex = buffered.IndexOf(CloseTag, StringComparison.OrdinalIgnoreCase);
+                if (closeIndex >= 0)
+                {
+                    var reasoning = buffered[..closeIndex].TrimEnd('\r', '\n');
+                    reasoning = NormalizeReasoningStart(reasoning);
+                    if (reasoning.Length > 0)
+                    {
+                        output.Add(new InferenceStreamChunk(InferenceStreamChunkKind.Reasoning, reasoning));
+                    }
+
+                    var answer = buffered[(closeIndex + CloseTag.Length)..].TrimStart();
+                    _buffer.Clear();
+                    _state = ParseState.Answer;
+                    if (answer.Length > 0)
+                    {
+                        output.Add(new InferenceStreamChunk(InferenceStreamChunkKind.Answer, answer));
+                    }
+                    return;
+                }
+
+                var retainedLength = LongestCloseTagPrefixSuffix(buffered);
+                var safeLength = buffered.Length - retainedLength;
+                if (safeLength == 0)
+                {
+                    return;
+                }
+
+                var safe = buffered[..safeLength];
+                _buffer.Remove(0, safeLength);
+                if (retainedLength > 0)
+                {
+                    safe = safe.TrimEnd('\r', '\n');
+                }
+
+                safe = NormalizeReasoningStart(safe);
+                if (safe.Length > 0)
+                {
+                    output.Add(new InferenceStreamChunk(InferenceStreamChunkKind.Reasoning, safe));
+                }
+                return;
+            }
+        }
+
+        private string NormalizeReasoningStart(string text)
+        {
+            if (_reasoningStarted || text.Length == 0)
+            {
+                return text;
+            }
+
+            var normalized = text.TrimStart('\r', '\n');
+            if (normalized.Length > 0)
+            {
+                _reasoningStarted = true;
+            }
+            return normalized;
+        }
+
+        private static int LongestCloseTagPrefixSuffix(string text)
+        {
+            var max = Math.Min(CloseTag.Length - 1, text.Length);
+            for (var length = max; length > 0; length--)
+            {
+                var suffix = text[^length..];
+                if (CloseTag.StartsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return length;
+                }
+            }
+
+            return 0;
+        }
+
+        private enum ParseState
+        {
+            Undetermined,
+            Reasoning,
+            Answer
         }
     }
 }
