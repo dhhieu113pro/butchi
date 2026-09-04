@@ -49,7 +49,6 @@ public sealed class PopoverWindowController
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         CancelPendingHide();
         _pointerInside = false;
-        _isWorkActive = false;
         IsVisible = true;
     }
 
