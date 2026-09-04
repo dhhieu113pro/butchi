@@ -1,3 +1,4 @@
+using System.Text;
 using Butchi.Core.Configuration;
 using Butchi.Core.Inference;
 
@@ -77,9 +78,20 @@ public sealed class LLamaSharpInferenceEngine : IInferenceEngine
             _gate.Release();
         }
 
+        var filter = new LeadingThinkBlockFilter();
         await foreach (var chunk in runtime.GenerateAsync(request, cancellationToken).WithCancellation(cancellationToken))
         {
-            yield return chunk;
+            var visible = filter.Push(chunk);
+            if (visible.Length > 0)
+            {
+                yield return visible;
+            }
+        }
+
+        var tail = filter.Complete();
+        if (tail.Length > 0)
+        {
+            yield return tail;
         }
     }
 
@@ -91,5 +103,66 @@ public sealed class LLamaSharpInferenceEngine : IInferenceEngine
     {
         await UnloadAsync(CancellationToken.None);
         _gate.Dispose();
+    }
+
+    private sealed class LeadingThinkBlockFilter
+    {
+        private const string OpenTag = "<think>";
+        private const string CloseTag = "</think>";
+        private readonly StringBuilder _buffer = new();
+        private bool _suppressing;
+        private bool _passThrough;
+
+        public string Push(string chunk)
+        {
+            if (_passThrough)
+            {
+                return chunk;
+            }
+
+            _buffer.Append(chunk);
+            var buffered = _buffer.ToString();
+
+            if (!_suppressing)
+            {
+                var candidate = buffered.TrimStart();
+                if (candidate.Length == 0 || OpenTag.StartsWith(candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return string.Empty;
+                }
+
+                if (!candidate.StartsWith(OpenTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    _buffer.Clear();
+                    _passThrough = true;
+                    return buffered;
+                }
+
+                _suppressing = true;
+            }
+
+            var closeIndex = buffered.IndexOf(CloseTag, StringComparison.OrdinalIgnoreCase);
+            if (closeIndex < 0)
+            {
+                return string.Empty;
+            }
+
+            var visible = buffered[(closeIndex + CloseTag.Length)..].TrimStart();
+            _buffer.Clear();
+            _passThrough = true;
+            return visible;
+        }
+
+        public string Complete()
+        {
+            if (_passThrough || _suppressing || _buffer.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var buffered = _buffer.ToString();
+            _buffer.Clear();
+            return buffered;
+        }
     }
 }
