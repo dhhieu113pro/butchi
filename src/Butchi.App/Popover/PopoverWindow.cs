@@ -48,6 +48,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         RefreshContent();
         ViewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RefreshContent);
+        ViewModel.ActionStarted += OnActionStarted;
+        ViewModel.ActionFinished += OnActionFinished;
         ActualThemeVariantChanged += (_, _) => RefreshContent();
         PointerEntered += OnPointerEntered;
         PointerExited += OnPointerExited;
@@ -603,6 +605,19 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
     }
 
+    private void OnActionStarted(object? sender, TextAction action)
+    {
+        if (action != ViewModel.SelectedAction) return;
+        _controller.HandleWorkStarted();
+    }
+
+    private async void OnActionFinished(object? sender, TextAction action)
+    {
+        if (action != ViewModel.SelectedAction) return;
+        if (await _controller.HandleResultCompletedAsync())
+            Dispatcher.UIThread.Post(Hide);
+    }
+
     private void OnPointerEntered(object? sender, PointerEventArgs e)
     {
         _controller.HandlePointerEntered();
@@ -632,6 +647,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
     public void Destroy()
     {
         if (_controller.IsDisposed) return;
+        ViewModel.ActionStarted -= OnActionStarted;
+        ViewModel.ActionFinished -= OnActionFinished;
         _controller.Dispose();
         Closing -= OnClosing;
         Close();
