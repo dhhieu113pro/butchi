@@ -158,25 +158,68 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             root.Children.Add(language);
         }
 
-        var result = new StackPanel { Spacing = 7 };
-        result.Children.Add(new TextBlock { Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR", FontSize = 10, FontWeight = FontWeight.Bold, Foreground = selected.ErrorMessage is null ? ButchiTheme.CobaltBrush : new SolidColorBrush(ButchiTheme.Error), LetterSpacing = 1 });
-        if (selected.IsRunning)
-            result.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(selected.Output) ? "Running locally…" : selected.Output + " ▍", FontSize = 14, TextWrapping = TextWrapping.Wrap });
-        else if (selected.ErrorMessage is { } error)
-            result.Children.Add(new TextBlock { Text = error, FontSize = 13, Foreground = new SolidColorBrush(ButchiTheme.Error), TextWrapping = TextWrapping.Wrap });
-        else if (!string.IsNullOrWhiteSpace(selected.Output))
-            result.Children.Add(new TextBlock { Text = selected.Output, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
-        else
-            result.Children.Add(new TextBlock
+        if (!string.IsNullOrWhiteSpace(selected.Reasoning))
+        {
+            var thinking = new StackPanel { Spacing = 5 };
+            var thinkingLabel = selected.IsRunning && string.IsNullOrEmpty(selected.Output) ? "Thinking…" : "Thinking";
+            var toggle = new Button
             {
-                Text = bothActionsEnabled
-                    ? "Select Translate or Rewrite to run on the selected text."
-                    : $"Starting {ViewModel.SelectedAction.ToString().ToLowerInvariant()} locally…",
-                FontSize = 12,
-                Opacity = 0.62,
-                TextWrapping = TextWrapping.Wrap
-            });
-        root.Children.Add(Card(result));
+                Content = new TextBlock
+                {
+                    Text = $"{(selected.IsThinkingExpanded ? "▾" : "▸")} {thinkingLabel}",
+                    FontSize = 11,
+                    Opacity = 0.6
+                },
+                Padding = new Thickness(0),
+                BorderThickness = new Thickness(0),
+                Background = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalContentAlignment = HorizontalAlignment.Left
+            };
+            toggle.Click += (_, _) => ViewModel.RequestToggleThinking();
+            thinking.Children.Add(toggle);
+
+            if (selected.IsThinkingExpanded)
+            {
+                thinking.Children.Add(new TextBlock
+                {
+                    Text = selected.Reasoning,
+                    FontSize = 11,
+                    Opacity = 0.6,
+                    Margin = new Thickness(16, 0, 0, 0),
+                    MaxHeight = 140,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+
+            root.Children.Add(thinking);
+        }
+
+        var showResult = !selected.IsRunning ||
+            !string.IsNullOrEmpty(selected.Output) ||
+            string.IsNullOrWhiteSpace(selected.Reasoning);
+        if (showResult)
+        {
+            var result = new StackPanel { Spacing = 7 };
+            result.Children.Add(new TextBlock { Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR", FontSize = 10, FontWeight = FontWeight.Bold, Foreground = selected.ErrorMessage is null ? ButchiTheme.CobaltBrush : new SolidColorBrush(ButchiTheme.Error), LetterSpacing = 1 });
+            if (selected.IsRunning)
+                result.Children.Add(new TextBlock { Text = string.IsNullOrEmpty(selected.Output) ? "Running locally…" : selected.Output + " ▍", FontSize = 14, TextWrapping = TextWrapping.Wrap });
+            else if (selected.ErrorMessage is { } error)
+                result.Children.Add(new TextBlock { Text = error, FontSize = 13, Foreground = new SolidColorBrush(ButchiTheme.Error), TextWrapping = TextWrapping.Wrap });
+            else if (!string.IsNullOrWhiteSpace(selected.Output))
+                result.Children.Add(new TextBlock { Text = selected.Output, FontSize = 14, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+            else
+                result.Children.Add(new TextBlock
+                {
+                    Text = bothActionsEnabled
+                        ? "Select Translate or Rewrite to run on the selected text."
+                        : $"Starting {ViewModel.SelectedAction.ToString().ToLowerInvariant()} locally…",
+                    FontSize = 12,
+                    Opacity = 0.62,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            root.Children.Add(Card(result));
+        }
 
         if (!selected.IsRunning && (!string.IsNullOrWhiteSpace(selected.Output) || selected.ErrorMessage is not null))
         {
