@@ -57,6 +57,9 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(config);
 
+        AutoHideDelay = TimeSpan.FromMilliseconds(config.PopoverHideMilliseconds);
+        OnPropertyChanged(nameof(AutoHideDelay));
+
         var enabledActions = AutomationRules.GetEnabledActions(config);
         var initialAction = enabledActions.Count > 0 ? enabledActions[0] : TextAction.Translate;
         SetSessionCore(
