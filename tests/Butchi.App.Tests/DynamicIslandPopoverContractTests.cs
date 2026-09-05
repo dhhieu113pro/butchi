@@ -82,6 +82,18 @@ public sealed class DynamicIslandPopoverContractTests
     }
 
     [Fact]
+    public void Popover_deactivation_is_wired_to_immediate_dismissal()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("Deactivated += OnDeactivated", source, StringComparison.Ordinal);
+        Assert.Contains("_controller.HandleDeactivated()", source, StringComparison.Ordinal);
+        Assert.Contains("Hide();", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Source_row_is_collapsed_by_default_and_clickable_to_expand()
     {
         var root = FindRepositoryRoot();
