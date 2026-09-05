@@ -43,6 +43,7 @@ public sealed class PopoverWindowController
     public Guid InstanceId { get; } = Guid.NewGuid();
     public bool IsVisible { get; private set; }
     public bool IsDisposed { get; private set; }
+    public bool IsPinned { get; private set; }
 
     public void Show()
     {
@@ -57,7 +58,16 @@ public sealed class PopoverWindowController
         CancelPendingHide();
         _pointerInside = false;
         _isWorkActive = false;
+        IsPinned = false;
         IsVisible = false;
+    }
+
+    public void TogglePinned()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        IsPinned = !IsPinned;
+        if (IsPinned)
+            CancelPendingHide();
     }
 
     public void HandlePointerEntered()
@@ -72,7 +82,7 @@ public sealed class PopoverWindowController
         _pointerInside = false;
         CancelPendingHide();
 
-        if (_isWorkActive)
+        if (_isWorkActive || IsPinned)
             return Task.FromResult(false);
 
         return ScheduleHideAsync(delay ?? DefaultPointerExitDelay);
@@ -91,7 +101,7 @@ public sealed class PopoverWindowController
         _isWorkActive = false;
         CancelPendingHide();
 
-        if (_pointerInside)
+        if (_pointerInside || IsPinned)
             return Task.FromResult(false);
 
         return ScheduleHideAsync(delay ?? DefaultResultIdleDelay);
@@ -99,13 +109,20 @@ public sealed class PopoverWindowController
 
     public bool HandleEscape() => DismissImmediately();
 
-    public bool HandleDeactivated() => DismissImmediately();
+    public bool HandleDeactivated()
+    {
+        if (IsPinned)
+            return false;
+
+        return DismissImmediately();
+    }
 
     public void Dispose()
     {
         CancelPendingHide();
         _pointerInside = false;
         _isWorkActive = false;
+        IsPinned = false;
         IsVisible = false;
         IsDisposed = true;
     }
