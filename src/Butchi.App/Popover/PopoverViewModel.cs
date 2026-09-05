@@ -74,8 +74,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
 
         SelectedAction = action;
         OnPropertyChanged(nameof(SelectedAction));
-        OnPropertyChanged(nameof(SelectedState));
-        OnPropertyChanged(nameof(IsCompact));
+        PrepareActionRequest(action);
         ActionRequested?.Invoke(this, action);
     }
 
@@ -223,6 +222,13 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(RewriteEnabled));
         OnPropertyChanged(nameof(SelectedState));
         OnPropertyChanged(nameof(IsCompact));
+    }
+
+    private void PrepareActionRequest(TextAction action)
+    {
+        _pending[action].Clear();
+        _pendingReasoning[action].Clear();
+        SetState(action, new ActionPresentationState(0, string.Empty, true));
     }
 
     private bool IsActionEnabled(TextAction action) =>
