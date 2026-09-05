@@ -64,13 +64,12 @@ public sealed class VisionController : IAsyncDisposable
                 new ScreenCaptureBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height),
                 _lifetime.Token).ConfigureAwait(false);
 
-            var captureTask = await Dispatcher.UIThread.InvokeAsync(() =>
+            var image = await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var selector = new VisionCaptureWindow(frame, bounds, screenInfo.Scaling);
                 _activeSelector = selector;
                 return selector.CaptureAsync();
             });
-            var image = await captureTask.ConfigureAwait(false);
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {

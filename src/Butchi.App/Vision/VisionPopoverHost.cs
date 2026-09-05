@@ -43,7 +43,7 @@ public sealed class VisionPopoverHost : IDisposable
         _prompt = new TextBox
         {
             Text = viewModel.Prompt,
-            Watermark = "Ask about this screenshot…",
+            PlaceholderText = "Ask about this screenshot…",
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 66,
