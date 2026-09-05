@@ -622,7 +622,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
     private async void OnActionFinished(object? sender, TextAction action)
     {
         if (action != ViewModel.SelectedAction) return;
-        if (await _controller.HandleResultCompletedAsync())
+        if (await _controller.HandleResultCompletedAsync(ViewModel.AutoHideDelay))
             Dispatcher.UIThread.Post(Hide);
     }
 
@@ -633,7 +633,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
     private async void OnPointerExited(object? sender, PointerEventArgs e)
     {
-        if (await _controller.HandlePointerExitedAsync())
+        if (await _controller.HandlePointerExitedAsync(ViewModel.AutoHideDelay))
             Dispatcher.UIThread.Post(Hide);
     }
 
