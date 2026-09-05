@@ -85,12 +85,11 @@ public sealed class AutoStartFileServiceTests : IDisposable
 
         await File.WriteAllTextAsync(
             path,
-            """[Desktop Entry]
-Type=Application
-Name=Butchi
-Exec="/tmp/other"
-X-GNOME-Autostart-enabled=true
-""");
+            "[Desktop Entry]\n" +
+            "Type=Application\n" +
+            "Name=Butchi\n" +
+            "Exec=\"/tmp/other\"\n" +
+            "X-GNOME-Autostart-enabled=true\n");
         Assert.False(await service.GetEnabledAsync(CancellationToken.None));
 
         await service.EnableAsync(CancellationToken.None);
