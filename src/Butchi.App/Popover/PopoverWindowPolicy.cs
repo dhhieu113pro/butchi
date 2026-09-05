@@ -97,11 +97,9 @@ public sealed class PopoverWindowController
         return ScheduleHideAsync(delay ?? DefaultResultIdleDelay);
     }
 
-    public bool HandleEscape()
-    {
-        Hide();
-        return true;
-    }
+    public bool HandleEscape() => DismissImmediately();
+
+    public bool HandleDeactivated() => DismissImmediately();
 
     public void Dispose()
     {
@@ -110,6 +108,12 @@ public sealed class PopoverWindowController
         _isWorkActive = false;
         IsVisible = false;
         IsDisposed = true;
+    }
+
+    private bool DismissImmediately()
+    {
+        Hide();
+        return true;
     }
 
     private async Task<bool> ScheduleHideAsync(TimeSpan delay)
