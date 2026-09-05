@@ -29,6 +29,9 @@ public sealed class BrandingContractTests
         Assert.Contains("..\\..\\assets\\butchi-logo.svg", project, StringComparison.Ordinal);
         Assert.Contains("--overwrite", project, StringComparison.Ordinal);
 
+        var brandAssets = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Branding", "BrandAssets.cs"));
+        Assert.Contains("avares://Butchi.App/!__AvaloniaDefaultWindowIcon", brandAssets, StringComparison.Ordinal);
+
         var runtime = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Startup", "ButchiRuntime.cs"));
         Assert.Contains("BrandAssets.CreateWindowIcon()", runtime, StringComparison.Ordinal);
 
