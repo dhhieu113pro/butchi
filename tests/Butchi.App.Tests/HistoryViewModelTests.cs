@@ -111,6 +111,12 @@ public sealed class HistoryViewModelTests
         public Exception? SearchError { get; set; }
         public (int Days, long NowMs)? LastRetention { get; private set; }
 
+        public ValueTask AppendAsync(HistoryEntry entry, CancellationToken cancellationToken)
+        {
+            _items.Insert(0, entry);
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask<IReadOnlyList<HistoryEntry>> SearchAsync(string? query, string? action, int? limit, CancellationToken cancellationToken)
         {
             LastQuery = query;
