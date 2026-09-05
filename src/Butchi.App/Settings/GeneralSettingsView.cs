@@ -36,7 +36,12 @@ public sealed class GeneralSettingsView : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        Content = BuildContent();
+        Content = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = BuildContent()
+        };
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(GeneralSettingsViewModel.SaveStatus))
