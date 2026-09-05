@@ -20,7 +20,7 @@ internal interface IStartupTaskAccessor
     ValueTask DisableAsync(CancellationToken cancellationToken);
 }
 
-[SupportedOSPlatform("windows10.0.14393.0")]
+[SupportedOSPlatform("windows10.0.17763.0")]
 internal sealed class WinRtStartupTaskAccessor(string taskId) : IStartupTaskAccessor
 {
     public async ValueTask<WindowsStartupTaskStatus> GetStateAsync(CancellationToken cancellationToken)

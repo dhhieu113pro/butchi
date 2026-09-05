@@ -30,7 +30,7 @@ public sealed class WindowsAutoStartService : IAutoStartService
     public ValueTask DisableAsync(CancellationToken cancellationToken) =>
         Current.DisableAsync(cancellationToken);
 
-    [SupportedOSPlatform("windows10.0.14393.0")]
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public static WindowsAutoStartService CreateDefault(string executablePath) => new(
         new WindowsPackageIdentity(),
         new WindowsStartupTaskAutoStartService(new WinRtStartupTaskAccessor("ButchiStartup")),
