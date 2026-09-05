@@ -18,6 +18,7 @@ public sealed class GeneralSettingsView : UserControl
     private readonly GeneralSettingsViewModel _viewModel;
     private readonly Action<AppThemePreference> _applyTheme;
     private readonly TextBlock _saveStatus;
+    private readonly ToggleSwitch _launchAtLogin;
     private readonly Dictionary<CheckBox, string> _favoriteLanguages = [];
     private bool _ready;
 
@@ -35,6 +36,21 @@ public sealed class GeneralSettingsView : UserControl
             Opacity = 0.72,
             VerticalAlignment = VerticalAlignment.Center
         };
+        _launchAtLogin = new ToggleSwitch
+        {
+            IsChecked = _viewModel.LaunchAtLogin,
+            OnContent = "On",
+            OffContent = "Off"
+        };
+        _launchAtLogin.PropertyChanged += async (_, args) =>
+        {
+            if (_ready && args.Property == ToggleSwitch.IsCheckedProperty)
+            {
+                await RunAsync(() => _viewModel.SetLaunchAtLoginAsync(
+                    _launchAtLogin.IsChecked == true,
+                    CancellationToken.None));
+            }
+        };
 
         Content = new ScrollViewer
         {
@@ -45,7 +61,16 @@ public sealed class GeneralSettingsView : UserControl
         _viewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(GeneralSettingsViewModel.SaveStatus))
+            {
                 _saveStatus.Text = _viewModel.SaveStatus;
+            }
+            else if (args.PropertyName == nameof(GeneralSettingsViewModel.LaunchAtLogin))
+            {
+                var wasReady = _ready;
+                _ready = false;
+                _launchAtLogin.IsChecked = _viewModel.LaunchAtLogin;
+                _ready = wasReady;
+            }
         };
         _ready = true;
     }
@@ -119,6 +144,10 @@ public sealed class GeneralSettingsView : UserControl
         body.Children.Add(SectionHeading("Appearance", "Choose a fixed theme or follow Windows automatically."));
         body.Children.Add(Field("Theme", theme));
         body.Children.Add(Hint("System follows your Windows light/dark preference."));
+        body.Children.Add(RowField(
+            "Launch Butchi at login",
+            "Start Butchi automatically when you sign in.",
+            _launchAtLogin));
         return Card(body);
     }
 
