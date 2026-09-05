@@ -25,7 +25,7 @@ public sealed class Task14PopoverUiContractTests
         Assert.Contains("PointerEntered += OnPointerEntered;", popover, StringComparison.Ordinal);
         Assert.Contains("PointerExited += OnPointerExited;", popover, StringComparison.Ordinal);
         Assert.Contains("_controller.HandlePointerEntered();", popover, StringComparison.Ordinal);
-        Assert.Contains("await _controller.HandlePointerExitedAsync()", popover, StringComparison.Ordinal);
+        Assert.Contains("await _controller.HandlePointerExitedAsync(ViewModel.AutoHideDelay)", popover, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
