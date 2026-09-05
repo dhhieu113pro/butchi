@@ -27,7 +27,8 @@ public sealed class DynamicIslandPopoverContractTests
         var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
         var source = File.ReadAllText(windowPath);
 
-        Assert.Contains("BuildPrimaryHeader", source, StringComparison.Ordinal);
+        Assert.Contains("BuildSourceOverlay", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPrimaryHeader", source, StringComparison.Ordinal);
         Assert.DoesNotContain("BuildCenteredLogo", source, StringComparison.Ordinal);
         Assert.Contains("ModeIconButton", source, StringComparison.Ordinal);
         Assert.Contains("TextTrimming.CharacterEllipsis", source, StringComparison.Ordinal);
@@ -43,6 +44,42 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Text = \"Local AI\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Text = \"On device\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Expanded_popover_overlays_logo_and_icon_only_modes_on_the_source_card()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("BuildSourceOverlay", source, StringComparison.Ordinal);
+        Assert.Contains("BuildOverlayModeControls", source, StringComparison.Ordinal);
+        Assert.Contains("Margin = new Thickness(0, 18, 0, 0)", source, StringComparison.Ordinal);
+        Assert.Contains("Width = 46", source, StringComparison.Ordinal);
+        Assert.Contains("Height = 46", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text = tooltip", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("MinWidth = action == TextAction.Translate ? 112 : 104", source, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.SetTip(button, tooltip)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Expanded_popover_header_keeps_pin_and_close_actions_visible()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("BuildHeaderActions", source, StringComparison.Ordinal);
+        Assert.Contains("HeaderIconButton", source, StringComparison.Ordinal);
+        Assert.Contains("Pin popover", source, StringComparison.Ordinal);
+        Assert.Contains("Unpin popover", source, StringComparison.Ordinal);
+        Assert.Contains("Close popover", source, StringComparison.Ordinal);
+        Assert.Contains("Segoe MDL2 Assets", source, StringComparison.Ordinal);
+        Assert.Contains("\\uE718", source, StringComparison.Ordinal);
+        Assert.Contains("\\uE77A", source, StringComparison.Ordinal);
+        Assert.Contains("HeaderIconButton(\"×\", \"Close popover\")", source, StringComparison.Ordinal);
+        Assert.Contains("_controller.TogglePinned()", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -89,14 +126,14 @@ public sealed class DynamicIslandPopoverContractTests
     }
 
     [Fact]
-    public void Runtime_popover_deactivation_is_wired_to_immediate_dismissal()
+    public void Runtime_popover_deactivation_respects_the_pin_guard()
     {
         var root = FindRepositoryRoot();
         var factoryPath = Path.Combine(root, "src", "Butchi.App", "Startup", "ButchiRuntimeFactory.cs");
         var source = File.ReadAllText(factoryPath);
 
         Assert.Contains("popover.Deactivated +=", source, StringComparison.Ordinal);
-        Assert.Contains("popoverWindowController.HandleDeactivated()", source, StringComparison.Ordinal);
+        Assert.Contains("if (popoverWindowController.HandleDeactivated())", source, StringComparison.Ordinal);
         Assert.Contains("popover.Hide()", source, StringComparison.Ordinal);
     }
 

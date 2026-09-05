@@ -44,6 +44,49 @@ public sealed class PopoverWindowPolicyTests
     }
 
     [Fact]
+    public async Task Pinned_popover_ignores_deactivation_and_inactivity_until_unpinned()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var type = typeof(PopoverWindowController);
+        var togglePinned = type.GetMethod("TogglePinned");
+        var isPinned = type.GetProperty("IsPinned");
+
+        Assert.NotNull(togglePinned);
+        Assert.NotNull(isPinned);
+
+        togglePinned.Invoke(controller, null);
+
+        Assert.True((bool)isPinned.GetValue(controller)!);
+        Assert.False(controller.HandleDeactivated());
+        Assert.True(controller.IsVisible);
+        Assert.False(await controller.HandlePointerExitedAsync(TimeSpan.FromMilliseconds(10)));
+        Assert.True(controller.IsVisible);
+        Assert.False(await controller.HandleResultCompletedAsync(TimeSpan.FromMilliseconds(10)));
+        Assert.True(controller.IsVisible);
+
+        togglePinned.Invoke(controller, null);
+
+        Assert.False((bool)isPinned.GetValue(controller)!);
+        Assert.True(controller.HandleDeactivated());
+        Assert.False(controller.IsVisible);
+    }
+
+    [Fact]
+    public void Escape_still_closes_a_pinned_popover()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        var togglePinned = typeof(PopoverWindowController).GetMethod("TogglePinned");
+
+        Assert.NotNull(togglePinned);
+        togglePinned.Invoke(controller, null);
+
+        Assert.True(controller.HandleEscape());
+        Assert.False(controller.IsVisible);
+    }
+
+    [Fact]
     public void Same_controller_instance_is_reused_across_show_hide_cycles()
     {
         var controller = new PopoverWindowController();

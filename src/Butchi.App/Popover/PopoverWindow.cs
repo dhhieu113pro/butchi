@@ -214,10 +214,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         var bothActionsEnabled = ViewModel.TranslateEnabled && ViewModel.RewriteEnabled;
         var root = new StackPanel { Spacing = 12 };
 
-        root.Children.Add(BuildPrimaryHeader());
-
-        if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
-            root.Children.Add(BuildSourcePreview());
+        root.Children.Add(BuildSourceOverlay());
 
         if (ViewModel.TranslateEnabled && ViewModel.SelectedAction == TextAction.Translate)
             root.Children.Add(BuildLanguageSelector());
@@ -238,76 +235,174 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
     }
 
-    private Control BuildPrimaryHeader()
+    private Control BuildSourceOverlay()
     {
-        var header = new StackPanel
+        var overlay = new Grid();
+
+        if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
+        {
+            var source = BuildSourcePreview();
+            source.Margin = new Thickness(0, 18, 0, 0);
+            overlay.Children.Add(source);
+        }
+
+        var chrome = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,*"),
+            Margin = new Thickness(14, 0, 14, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+
+        var modes = BuildOverlayModeControls();
+        modes.SetValue(Grid.ColumnProperty, 1);
+        chrome.Children.Add(modes);
+
+        var actions = BuildHeaderActions();
+        actions.SetValue(Grid.ColumnProperty, 2);
+        chrome.Children.Add(actions);
+
+        overlay.Children.Add(chrome);
+        return overlay;
+    }
+
+    private Control BuildOverlayModeControls()
+    {
+        var controls = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
+            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        header.Children.Add(new Image
+        controls.Children.Add(new Image
         {
             Source = BrandAssets.CreateBitmap(),
             Width = 30,
             Height = 30,
             Stretch = Stretch.Uniform,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 2, 0)
+            Margin = new Thickness(3, 0, 5, 0)
         });
 
         if (ViewModel.TranslateEnabled)
-            header.Children.Add(ModeIconButton("文A", "Translate", TextAction.Translate));
+            controls.Children.Add(ModeIconButton("文A", "Translate", TextAction.Translate));
 
         if (ViewModel.RewriteEnabled)
-            header.Children.Add(ModeIconButton("✎", "Rewrite", TextAction.Rewrite));
+            controls.Children.Add(ModeIconButton("✎", "Rewrite", TextAction.Rewrite));
 
-        return header;
+        return new Border
+        {
+            Padding = new Thickness(5),
+            CornerRadius = new CornerRadius(28),
+            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Child = controls
+        };
     }
 
     private Button ModeIconButton(string glyph, string tooltip, TextAction action)
     {
         var selected = ViewModel.SelectedAction == action;
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 7,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        content.Children.Add(new TextBlock
-        {
-            Text = glyph,
-            FontSize = action == TextAction.Translate ? 17 : 18,
-            FontWeight = FontWeight.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = tooltip,
-            FontSize = 12,
-            FontWeight = FontWeight.SemiBold,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
         var button = new Button
         {
-            Content = content,
-            MinWidth = action == TextAction.Translate ? 112 : 104,
-            Height = 42,
-            Padding = new Thickness(14, 0),
-            CornerRadius = new CornerRadius(14),
+            Content = new TextBlock
+            {
+                Text = glyph,
+                FontSize = action == TextAction.Translate ? 18 : 20,
+                FontWeight = FontWeight.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            Width = 46,
+            Height = 46,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(16),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
-            BorderThickness = new Thickness(1),
-            BorderBrush = ButchiTheme.DividerBrush
+            Background = selected ? ButchiTheme.CobaltBrush : Brushes.Transparent,
+            BorderThickness = new Thickness(0)
         };
         if (selected) button.Foreground = ButchiTheme.WhiteBrush;
         ToolTip.SetTip(button, tooltip);
         button.Click += (_, _) => ViewModel.SelectAction(action);
+        return button;
+    }
+
+    private Control BuildHeaderActions()
+    {
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 7,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 7, 0, 0)
+        };
+
+        var pinTooltip = _controller.IsPinned ? "Unpin popover" : "Pin popover";
+        var pinGlyph = _controller.IsPinned ? "\uE77A" : "\uE718";
+        var pin = HeaderIconButton(
+            pinGlyph,
+            pinTooltip,
+            _controller.IsPinned,
+            new FontFamily("Segoe MDL2 Assets"));
+        pin.Click += (_, _) =>
+        {
+            _controller.TogglePinned();
+            RefreshContent();
+        };
+        actions.Children.Add(pin);
+
+        actions.Children.Add(new Border
+        {
+            Width = 1,
+            Height = 24,
+            Margin = new Thickness(2, 0),
+            Background = ButchiTheme.DividerBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var close = HeaderIconButton("×", "Close popover");
+        close.Click += (_, _) => HidePersistent();
+        actions.Children.Add(close);
+
+        return actions;
+    }
+
+    private Button HeaderIconButton(
+        string glyph,
+        string tooltip,
+        bool selected = false,
+        FontFamily? fontFamily = null)
+    {
+        var icon = new TextBlock
+        {
+            Text = glyph,
+            FontSize = fontFamily is null ? glyph == "×" ? 22 : 17 : 16,
+            FontWeight = FontWeight.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        if (fontFamily is not null)
+            icon.FontFamily = fontFamily;
+
+        var button = new Button
+        {
+            Content = icon,
+            Width = 34,
+            Height = 34,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(17),
+            Background = selected ? ButchiTheme.CobaltBrush : Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        if (selected) button.Foreground = ButchiTheme.WhiteBrush;
+        ToolTip.SetTip(button, tooltip);
         return button;
     }
 
@@ -350,8 +445,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         var toggle = new Button
         {
             Content = content,
-            Padding = new Thickness(14, 11),
-            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(14, 30, 14, 11),
+            CornerRadius = new CornerRadius(16),
             Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
             BorderThickness = new Thickness(1),
             BorderBrush = ButchiTheme.DividerBrush,
