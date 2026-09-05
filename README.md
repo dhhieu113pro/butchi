@@ -1,7 +1,7 @@
 # Butchi
 
 <p align="center">
-  <img src="assets/butchi-logo.svg" alt="Butchi logo" width="128" height="128" />
+  <img src="src/Butchi.App/Assets/ButchiLogo.png" alt="Butchi logo" width="128" height="128" />
 </p>
 
 Windows-first local Translate & Rewrite utility built with .NET 10, Avalonia, and LLamaSharp.
