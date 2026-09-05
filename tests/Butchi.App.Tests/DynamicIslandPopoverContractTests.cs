@@ -46,6 +46,22 @@ public sealed class DynamicIslandPopoverContractTests
     }
 
     [Fact]
+    public void Expanded_popover_header_keeps_pin_and_close_actions_visible()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("BuildHeaderActions", source, StringComparison.Ordinal);
+        Assert.Contains("HeaderIconButton", source, StringComparison.Ordinal);
+        Assert.Contains("ColumnDefinitions = new ColumnDefinitions(\"*,Auto,*\")", source, StringComparison.Ordinal);
+        Assert.Contains("Pin popover", source, StringComparison.Ordinal);
+        Assert.Contains("Unpin popover", source, StringComparison.Ordinal);
+        Assert.Contains("Close popover", source, StringComparison.Ordinal);
+        Assert.Contains("_controller.TogglePinned()", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Popover_window_uses_a_transparent_host_so_the_rounded_surface_defines_its_visible_shape()
     {
         var root = FindRepositoryRoot();
