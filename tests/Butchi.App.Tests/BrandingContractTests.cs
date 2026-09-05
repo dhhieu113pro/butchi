@@ -9,12 +9,14 @@ public sealed class BrandingContractTests
     {
         var repoRoot = FindRepositoryRoot();
         var sourceArtworkPath = Path.Combine(repoRoot, "assets", "butchi-logo.svg");
+        var appIconPath = Path.Combine(repoRoot, "src", "Butchi.App", "Assets", "Butchi.ico");
         var appLogoPath = Path.Combine(repoRoot, "src", "Butchi.App", "Assets", "ButchiLogo.png");
         var storeLogoPath = Path.Combine(repoRoot, "store", "Assets", "StoreLogo.png");
         var square44Path = Path.Combine(repoRoot, "store", "Assets", "Square44x44Logo.png");
         var square150Path = Path.Combine(repoRoot, "store", "Assets", "Square150x150Logo.png");
 
         Assert.True(File.Exists(sourceArtworkPath), $"Missing canonical Butchi source artwork: {sourceArtworkPath}");
+        Assert.True(File.Exists(appIconPath), $"Missing committed Windows application icon: {appIconPath}");
         Assert.True(File.Exists(appLogoPath), $"Missing Avalonia logo asset: {appLogoPath}");
         Assert.True(File.Exists(storeLogoPath), $"Missing Store logo asset: {storeLogoPath}");
         Assert.True(File.Exists(square44Path), $"Missing Store square 44 logo: {square44Path}");
@@ -22,12 +24,9 @@ public sealed class BrandingContractTests
 
         var project = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Butchi.App.csproj"));
         Assert.Contains("Assets\\ButchiLogo.png", project, StringComparison.Ordinal);
-        Assert.Contains("<ApplicationIcon>$(BaseIntermediateOutputPath)Butchi.ico</ApplicationIcon>", project, StringComparison.Ordinal);
-        Assert.Contains("GenerateWindowsApplicationIcon", project, StringComparison.Ordinal);
-        Assert.Contains("BeforeTargets=\"PrepareForBuild\"", project, StringComparison.Ordinal);
-        Assert.Contains("dnx ImageToIco.Dnx@0.0.4 --yes --", project, StringComparison.Ordinal);
-        Assert.Contains("..\\..\\assets\\butchi-logo.svg", project, StringComparison.Ordinal);
-        Assert.Contains("--overwrite", project, StringComparison.Ordinal);
+        Assert.Contains("<ApplicationIcon>Assets\\Butchi.ico</ApplicationIcon>", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("GenerateWindowsApplicationIcon", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImageToIco.Dnx", project, StringComparison.Ordinal);
 
         var brandAssets = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Branding", "BrandAssets.cs"));
         Assert.Contains("avares://Butchi.App/!__AvaloniaDefaultWindowIcon", brandAssets, StringComparison.Ordinal);
