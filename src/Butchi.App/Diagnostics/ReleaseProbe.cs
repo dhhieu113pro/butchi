@@ -2,6 +2,7 @@ using System.Text.Json;
 using Butchi.App.Models;
 using Butchi.App.Settings;
 using Butchi.App.Startup;
+using Butchi.Core.Platform;
 using Butchi.Inference;
 using Butchi.Infrastructure;
 
@@ -32,7 +33,10 @@ public static class ReleaseProbe
             paths.EnsureDirectories();
             var configStore = new JsonAppConfigStoreAdapter(new JsonConfigStore(paths));
             _ = await configStore.LoadAsync(cancellationToken);
-            var generalSettings = await GeneralSettingsViewModel.CreateAsync(configStore, cancellationToken);
+            var generalSettings = await GeneralSettingsViewModel.CreateAsync(
+                configStore,
+                ReleaseProbeAutoStartService.Instance,
+                cancellationToken);
             var prompts = await PromptsViewModel.CreateAsync(configStore, cancellationToken);
             var settingsReady = generalSettings is not null && prompts is not null;
 
@@ -83,6 +87,23 @@ public static class ReleaseProbe
             JsonSerializer.Serialize(result, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
             cancellationToken);
         return result.Success ? 0 : 1;
+    }
+
+    private sealed class ReleaseProbeAutoStartService : IAutoStartService
+    {
+        public static ReleaseProbeAutoStartService Instance { get; } = new();
+
+        public ValueTask<bool> GetEnabledAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(false);
+        }
+
+        public ValueTask EnableAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Release probes do not mutate login startup state.");
+
+        public ValueTask DisableAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Release probes do not mutate login startup state.");
     }
 }
 
