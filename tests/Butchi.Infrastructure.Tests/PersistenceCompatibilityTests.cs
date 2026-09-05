@@ -42,6 +42,32 @@ public sealed class PersistenceCompatibilityTests : IDisposable
     }
 
     [Fact]
+    public async Task Config_store_defaults_launch_at_login_to_false_for_legacy_json()
+    {
+        Directory.CreateDirectory(_root);
+        await File.WriteAllTextAsync(
+            Path.Combine(_root, "config.json"),
+            """{"targetLanguage":"English"}""");
+
+        var config = await new JsonConfigStore(new AppPaths(_root)).LoadAsync();
+
+        Assert.False(config.LaunchAtLogin);
+    }
+
+    [Fact]
+    public async Task Config_store_round_trips_launch_at_login()
+    {
+        var store = new JsonConfigStore(new AppPaths(_root));
+        await store.SaveAsync(AppConfig.Default with { LaunchAtLogin = true });
+
+        using var document = JsonDocument.Parse(
+            await File.ReadAllTextAsync(Path.Combine(_root, "config.json")));
+
+        Assert.True(document.RootElement.GetProperty("launchAtLogin").GetBoolean());
+        Assert.True((await store.LoadAsync()).LaunchAtLogin);
+    }
+
+    [Fact]
     public async Task Config_store_round_trips_reference_property_names_and_string_values()
     {
         var store = new JsonConfigStore(new AppPaths(_root));
