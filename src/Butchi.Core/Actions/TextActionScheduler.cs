@@ -85,6 +85,17 @@ public sealed class TextActionScheduler : IAsyncDisposable
                             continue;
                         }
 
+                        // The parser can emit the separator after </think> as an Answer
+                        // chunk before any real answer text. Do not publish/store that
+                        // first-pass whitespace or it leaks into fallback output/copy.
+                        if (publishReasoning
+                            && sawReasoning
+                            && output.Length == 0
+                            && string.IsNullOrWhiteSpace(chunk.Text))
+                        {
+                            continue;
+                        }
+
                         callbacks?.Chunk?.Invoke(runId, chunk.Text);
                         output.Append(chunk.Text);
                     }
