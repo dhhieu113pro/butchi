@@ -9,6 +9,7 @@ namespace Butchi.App.History;
 
 public interface IHistoryStore
 {
+    ValueTask AppendAsync(HistoryEntry entry, CancellationToken cancellationToken);
     ValueTask<IReadOnlyList<HistoryEntry>> SearchAsync(string? query, string? action, int? limit, CancellationToken cancellationToken);
     ValueTask DeleteAsync(string id, CancellationToken cancellationToken);
     ValueTask ClearAsync(CancellationToken cancellationToken);
@@ -22,6 +23,9 @@ public interface IHistoryClipboard
 
 public sealed class SqliteHistoryStoreAdapter(SqliteHistoryStore inner) : IHistoryStore
 {
+    public async ValueTask AppendAsync(HistoryEntry entry, CancellationToken cancellationToken) =>
+        await inner.AppendAsync(entry, cancellationToken);
+
     public async ValueTask<IReadOnlyList<HistoryEntry>> SearchAsync(string? query, string? action, int? limit, CancellationToken cancellationToken) =>
         await inner.SearchAsync(query, action, limit, cancellationToken);
 

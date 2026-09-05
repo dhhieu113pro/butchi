@@ -1,7 +1,9 @@
 using Avalonia.Threading;
+using Butchi.App.History;
 using Butchi.App.Settings;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
+using Butchi.Core.History;
 
 namespace Butchi.App.Popover;
 
@@ -11,6 +13,7 @@ public sealed class PopoverActionController : IAsyncDisposable
     private readonly TextActionScheduler _scheduler;
     private readonly IAppConfigStore _configStore;
     private readonly IResultActionSink _resultSink;
+    private readonly IHistoryStore? _historyStore;
     private readonly Action<Action> _dispatch;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _tasksLock = new();
@@ -23,7 +26,8 @@ public sealed class PopoverActionController : IAsyncDisposable
         TextActionScheduler scheduler,
         IAppConfigStore configStore,
         IResultActionSink resultSink,
-        Action<Action>? dispatch = null)
+        Action<Action>? dispatch = null,
+        IHistoryStore? historyStore = null)
     {
         ArgumentNullException.ThrowIfNull(viewModel);
         ArgumentNullException.ThrowIfNull(scheduler);
@@ -34,6 +38,7 @@ public sealed class PopoverActionController : IAsyncDisposable
         _scheduler = scheduler;
         _configStore = configStore;
         _resultSink = resultSink;
+        _historyStore = historyStore;
         _dispatch = dispatch ?? DispatchToUiThread;
 
         _viewModel.ActionRequested += OnActionRequested;
@@ -113,7 +118,8 @@ public sealed class PopoverActionController : IAsyncDisposable
         if (_lifetime.IsCancellationRequested)
             return;
 
-        if (string.IsNullOrWhiteSpace(_viewModel.SourceText))
+        var sourceText = _viewModel.SourceText;
+        if (string.IsNullOrWhiteSpace(sourceText))
         {
             PresentError(action, "No selected text is available. Select text and try again.");
             return;
@@ -131,7 +137,7 @@ public sealed class PopoverActionController : IAsyncDisposable
 
             var result = await _scheduler.RunAsync(
                 action,
-                _viewModel.SourceText,
+                sourceText,
                 config,
                 InputOrigin.Selection,
                 _lifetime.Token,
@@ -153,7 +159,10 @@ public sealed class PopoverActionController : IAsyncDisposable
                     }))).ConfigureAwait(false);
 
             if (!result.IsObsolete)
+            {
                 _dispatch(() => _viewModel.Complete(action, result.RunId));
+                await RecordHistoryAsync(action, sourceText, result.Output, config).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -165,6 +174,51 @@ public sealed class PopoverActionController : IAsyncDisposable
                 _dispatch(() => _viewModel.Fail(action, startedRunId, message));
             else
                 PresentError(action, message);
+        }
+    }
+
+    private async Task RecordHistoryAsync(TextAction action, string source, string result, AppConfig config)
+    {
+        if (_historyStore is null || config.HistoryRetentionDays == 0)
+            return;
+
+        var timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var actionName = action == TextAction.Translate ? "translate" : "rewrite";
+        var entry = new HistoryEntry(
+            $"{timestampMs}-{actionName}-{Guid.NewGuid():N}",
+            timestampMs,
+            actionName,
+            source,
+            result,
+            "Completed locally",
+            action == TextAction.Translate ? config.TargetLanguage : null);
+
+        try
+        {
+            await _historyStore.ApplyRetentionAsync(
+                config.HistoryRetentionDays,
+                timestampMs,
+                _lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch
+        {
+            // History is best-effort and must never turn a successful action into an error.
+        }
+
+        try
+        {
+            await _historyStore.AppendAsync(entry, _lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // History is best-effort and must never turn a successful action into an error.
         }
     }
 

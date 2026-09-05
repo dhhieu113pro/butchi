@@ -12,6 +12,13 @@ internal sealed class ScreenshotHistoryStore(bool populated) : IHistoryStore
         ]
         : [];
 
+    public ValueTask AppendAsync(HistoryEntry entry, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _entries.Insert(0, entry);
+        return ValueTask.CompletedTask;
+    }
+
     public ValueTask<IReadOnlyList<HistoryEntry>> SearchAsync(string? query, string? action, int? limit, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
