@@ -1,6 +1,7 @@
 using Butchi.App.History;
 using Butchi.App.Models;
 using Butchi.App.Settings;
+using Butchi.Core.Platform;
 using Butchi.Inference;
 using Butchi.Infrastructure;
 
@@ -21,6 +22,14 @@ public sealed class StartupApplicationServices : IAsyncDisposable
         var downloader = new ModelDownloader(new HuggingFaceModelDownloadSource(HttpClient));
         ModelManager = new FileModelManager(Paths, downloader, InferenceEngine, ConfigStore);
         HistoryStore = new SqliteHistoryStoreAdapter(new SqliteHistoryStore(Paths));
+
+        var executablePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Could not determine the Butchi executable path.");
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        AutoStartService = AutoStartServiceFactory.Create(
+            executablePath,
+            userProfile,
+            Environment.GetEnvironmentVariable("XDG_CONFIG_HOME"));
     }
 
     public AppPaths Paths { get; }
@@ -29,6 +38,7 @@ public sealed class StartupApplicationServices : IAsyncDisposable
     public LLamaSharpInferenceEngine InferenceEngine { get; }
     public FileModelManager ModelManager { get; }
     public IHistoryStore HistoryStore { get; }
+    public IAutoStartService AutoStartService { get; }
 
     public async ValueTask DisposeAsync()
     {
