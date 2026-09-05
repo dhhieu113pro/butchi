@@ -95,7 +95,10 @@ public sealed class ButchiRuntimeFactory(
         CancellationToken cancellationToken,
         bool autoPrepareModel = true)
     {
-        var general = await GeneralSettingsViewModel.CreateAsync(services.ConfigStore, cancellationToken);
+        var general = await GeneralSettingsViewModel.CreateAsync(
+            services.ConfigStore,
+            services.AutoStartService,
+            cancellationToken);
         var prompts = await PromptsViewModel.CreateAsync(services.ConfigStore, cancellationToken);
         var models = await ModelManagementViewModel.CreateAsync(services.ModelManager, services.ConfigStore, cancellationToken);
         ManagementWindow? management = null;
