@@ -43,17 +43,42 @@ The contract represents user-level login startup only. It does not request admin
 
 Add an `AutoStartServiceFactory` or equivalent composition helper that selects the implementation by `OperatingSystem.IsWindows()`, `OperatingSystem.IsMacOS()`, or `OperatingSystem.IsLinux()`.
 
-Unsupported operating systems receive a no-op/unsupported implementation whose operations fail predictably. The UI should not claim success when the platform cannot support the feature.
+Unsupported operating systems receive a no-op/unsupported implementation whose operations fail predictably. The UI must not claim success when the platform cannot support the feature.
 
 ### Windows implementation
 
-Provide a Windows autostart implementation in the Windows platform project.
+Provide a Windows autostart implementation in the Windows platform layer with two explicit registration paths.
 
-For unpackaged builds, use the current-user Run key (`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`) with a stable value name such as `Butchi`. The command points to the current executable and is quoted safely.
+#### Unpackaged Windows
 
-For packaged/MSIX builds, prefer the package-compatible startup path when the package exposes a startup task. If the current package does not yet define such a startup task, fall back only when the registration mechanism is valid for the installed executable. The implementation must not require elevation.
+Use the current-user Run key (`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`) with the stable value name `Butchi`. The command points to the current executable and is quoted safely.
 
 The service determines enabled state by checking the real registration entry and validating that it targets the current Butchi executable rather than merely checking for any value with the same name.
+
+#### Packaged/MSIX Windows
+
+The current Store/MSIX manifest has no startup-task extension, so this feature must add one to `store/Package.appxmanifest.template`. Use the Windows startup-task manifest extension with:
+
+- task id: `ButchiStartup`
+- executable: `butchi.exe`
+- entry point: `Windows.FullTrustApplication`
+- display name: `Butchi`
+- initial enabled state: `false`
+
+The manifest must include the required startup-task XML namespace (for example the supported `uap5` startup-task schema) and add that namespace to `IgnorableNamespaces`.
+
+At runtime, packaged Butchi uses `Windows.ApplicationModel.StartupTask` for task `ButchiStartup`:
+
+- `GetAsync("ButchiStartup")` to inspect the task;
+- `RequestEnableAsync()` to enable it;
+- `Disable()` to disable it;
+- `State` as the source of truth.
+
+If Windows reports `DisabledByUser` or `DisabledByPolicy`, enabling fails and Butchi leaves `LaunchAtLogin` false rather than falling back to the Run key. A user choice in Windows Startup settings must be respected.
+
+`RequestEnableAsync()` is invoked from the UI thread, as required by the Windows startup-task API. Package identity is detected with a reliable Windows package-identity check before choosing the packaged path. The Windows-specific WinRT projection/dependency, if required by the target framework, stays isolated in the Windows platform implementation.
+
+No Windows path requires elevation.
 
 ### macOS implementation
 
@@ -61,7 +86,7 @@ Use a per-user LaunchAgent plist at:
 
 `~/Library/LaunchAgents/io.github.dhhieu113pro.butchi.plist`
 
-The plist launches the current Butchi executable at login and does not keep restarting the app after normal exit. Writes are atomic: create parent directory if needed, write a temporary file, then replace/move into place.
+The plist launches the current Butchi executable at login and does not keep restarting the app after normal exit. Writes are atomic: create the parent directory if needed, write a temporary file, then replace/move it into place.
 
 `GetEnabledAsync` verifies that the plist exists and points to the current executable. Disable removes only Butchi's own plist.
 
@@ -111,13 +136,14 @@ The toggle uses the same asynchronous `RunAsync` pattern as the other General co
 
 `ButchiRuntimeFactory.CreateManagementAsync` passes the service to `GeneralSettingsViewModel.CreateAsync`.
 
-No autostart operation runs merely because the application starts. Startup registration changes only when the user changes the setting or when General settings reconciles stale persisted state.
+No registration is created merely because Butchi launches. Registration changes only when the user toggles the setting; opening General settings may reconcile the stored preference to the existing OS registration state but does not silently enable startup.
 
 ## Security and reliability
 
 - User-level registration only; never request administrator privileges.
 - Quote/escape executable paths for every platform format.
-- Never execute shell commands to create startup entries when a direct file/registry API is available.
+- Never execute shell commands to create startup entries when a direct file/registry/API mechanism is available.
+- Respect Windows `DisabledByUser` and `DisabledByPolicy` states.
 - Disable operations delete only Butchi-owned entries with stable identifiers.
 - File-based registrations use atomic writes to avoid truncated plist/desktop files.
 - Reading malformed or foreign registration data returns disabled rather than throwing wherever practical.
@@ -149,7 +175,8 @@ Use a fake `IAutoStartService` to verify:
 
 Avoid modifying the CI runner's real login startup state.
 
-- Windows: separate registry access behind a tiny injectable registry abstraction or test pure entry-generation/parsing logic with an in-memory fake.
+- Windows unpackaged: separate registry access behind a tiny injectable registry abstraction or test pure entry-generation/parsing logic with an in-memory fake.
+- Windows packaged: test package-state selection and startup-task state mapping behind an injectable wrapper; validate the generated MSIX manifest contains the `ButchiStartup` extension. Do not enable a real CI runner startup task.
 - macOS: inject the LaunchAgents root and executable path, then test generated plist content and enable/disable behavior in a temporary directory.
 - Linux: inject the XDG config root and executable path, then test generated desktop-entry content and enable/disable behavior in a temporary directory.
 
@@ -169,9 +196,10 @@ All existing tests must continue to pass. Platform-specific tests should run onl
 ## Acceptance criteria
 
 1. General settings exposes `Launch Butchi at login`, default Off.
-2. Enabling it creates a valid user-level login startup registration on Windows, macOS, and Linux.
-3. Disabling it removes only Butchi's own registration.
+2. Enabling it creates a valid user-level login startup registration on unpackaged Windows, packaged/MSIX Windows, macOS, and Linux.
+3. Disabling it removes or disables only Butchi's own registration.
 4. The displayed toggle reflects actual OS state when settings opens.
 5. Persisted config is never left enabled after a failed registration operation.
-6. No implementation requires administrator privileges.
-7. Tests cover the shared behavior and platform registration logic without mutating CI runners' real startup configuration.
+6. Windows user/policy-disabled startup state is respected and is not bypassed through another mechanism.
+7. No implementation requires administrator privileges.
+8. Tests cover the shared behavior and platform registration logic without mutating CI runners' real startup configuration.
