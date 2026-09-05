@@ -42,7 +42,8 @@ public sealed class ButchiRuntimeFactory(
             popoverViewModel,
             scheduler,
             services.ConfigStore,
-            resultSink);
+            resultSink,
+            historyStore: services.HistoryStore);
         var popoverWindowController = new PopoverWindowController();
         var popover = new PopoverWindow(popoverViewModel, popoverWindowController);
         popover.Deactivated += (_, _) =>
