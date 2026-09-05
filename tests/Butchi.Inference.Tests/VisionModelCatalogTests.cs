@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace Butchi.Inference.Tests;
 
 public sealed class VisionModelCatalogTests
