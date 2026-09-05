@@ -214,8 +214,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         var bothActionsEnabled = ViewModel.TranslateEnabled && ViewModel.RewriteEnabled;
         var root = new StackPanel { Spacing = 12 };
 
-        root.Children.Add(BuildCenteredLogo());
-        root.Children.Add(BuildModeSelector());
+        root.Children.Add(BuildPrimaryHeader());
 
         if (!string.IsNullOrWhiteSpace(ViewModel.SourceText))
             root.Children.Add(BuildSourcePreview());
@@ -228,9 +227,6 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         root.Children.Add(BuildResultPanel(selected, bothActionsEnabled));
 
-        if (!selected.IsRunning && (!string.IsNullOrWhiteSpace(selected.Output) || selected.ErrorMessage is not null))
-            root.Children.Add(BuildFooterActions(selected));
-
         return new Border
         {
             Padding = new Thickness(18),
@@ -242,61 +238,72 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
     }
 
-    private Control BuildCenteredLogo() => new Image
+    private Control BuildPrimaryHeader()
     {
-        Source = BrandAssets.CreateBitmap(),
-        Width = 24,
-        Height = 24,
-        Stretch = Stretch.Uniform,
-        HorizontalAlignment = HorizontalAlignment.Center
-    };
-
-    private Control BuildModeSelector()
-    {
-        var selector = new StackPanel
+        var header = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            HorizontalAlignment = HorizontalAlignment.Center
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
+
+        header.Children.Add(new Image
+        {
+            Source = BrandAssets.CreateBitmap(),
+            Width = 30,
+            Height = 30,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 2, 0)
+        });
 
         if (ViewModel.TranslateEnabled)
-            selector.Children.Add(ModeIconButton("文A", "Translate", TextAction.Translate));
+            header.Children.Add(ModeIconButton("文A", "Translate", TextAction.Translate));
 
         if (ViewModel.RewriteEnabled)
-            selector.Children.Add(ModeIconButton("✎", "Rewrite", TextAction.Rewrite));
+            header.Children.Add(ModeIconButton("✎", "Rewrite", TextAction.Rewrite));
 
-        return new Border
-        {
-            Padding = new Thickness(3),
-            CornerRadius = new CornerRadius(12),
-            Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
-            BorderThickness = new Thickness(1),
-            BorderBrush = ButchiTheme.DividerBrush,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Child = selector
-        };
+        return header;
     }
 
     private Button ModeIconButton(string glyph, string tooltip, TextAction action)
     {
         var selected = ViewModel.SelectedAction == action;
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 7,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = glyph,
+            FontSize = action == TextAction.Translate ? 17 : 18,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = tooltip,
+            FontSize = 12,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
         var button = new Button
         {
-            Content = new TextBlock
-            {
-                Text = glyph,
-                FontSize = action == TextAction.Translate ? 17 : 18,
-                FontWeight = FontWeight.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center
-            },
-            Width = 64,
-            Height = 38,
-            Padding = new Thickness(0),
-            CornerRadius = new CornerRadius(10),
+            Content = content,
+            MinWidth = action == TextAction.Translate ? 112 : 104,
+            Height = 42,
+            Padding = new Thickness(14, 0),
+            CornerRadius = new CornerRadius(14),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Background = selected ? ButchiTheme.CobaltBrush : Brushes.Transparent
+            Background = selected ? ButchiTheme.CobaltBrush : ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush
         };
         if (selected) button.Foreground = ButchiTheme.WhiteBrush;
         ToolTip.SetTip(button, tooltip);
@@ -306,12 +313,12 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
     private Control BuildSourcePreview()
     {
-        var row = new Grid
+        var content = new StackPanel { Spacing = 7 };
+        var header = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto")
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
         };
-
-        row.Children.Add(new TextBlock
+        header.Children.Add(new TextBlock
         {
             Text = "SOURCE",
             FontSize = 10,
@@ -321,18 +328,6 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var preview = new TextBlock
-        {
-            Text = ViewModel.SourcePreviewText,
-            FontSize = 12,
-            TextWrapping = ViewModel.IsSourceExpanded ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            TextTrimming = ViewModel.IsSourceExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis,
-            Margin = new Thickness(16, 0, 12, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        preview.SetValue(Grid.ColumnProperty, 1);
-        row.Children.Add(preview);
-
         var chevron = new TextBlock
         {
             Text = ViewModel.IsSourceExpanded ? "⌃" : "›",
@@ -340,13 +335,22 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             Opacity = 0.65,
             VerticalAlignment = VerticalAlignment.Center
         };
-        chevron.SetValue(Grid.ColumnProperty, 2);
-        row.Children.Add(chevron);
+        chevron.SetValue(Grid.ColumnProperty, 1);
+        header.Children.Add(chevron);
+        content.Children.Add(header);
+
+        content.Children.Add(new TextBlock
+        {
+            Text = ViewModel.SourcePreviewText,
+            FontSize = 12,
+            TextWrapping = ViewModel.IsSourceExpanded ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            TextTrimming = ViewModel.IsSourceExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis
+        });
 
         var toggle = new Button
         {
-            Content = row,
-            Padding = new Thickness(14, 10),
+            Content = content,
+            Padding = new Thickness(14, 11),
             CornerRadius = new CornerRadius(12),
             Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
             BorderThickness = new Thickness(1),
@@ -479,7 +483,11 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
     private Control BuildResultPanel(ActionPresentationState selected, bool bothActionsEnabled)
     {
         var result = new StackPanel { Spacing = 10 };
-        result.Children.Add(new TextBlock
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
+        };
+        header.Children.Add(new TextBlock
         {
             Text = selected.IsRunning ? "WORKING" : selected.ErrorMessage is null ? "RESULT" : "ERROR",
             FontSize = 10,
@@ -487,8 +495,14 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             Foreground = selected.ErrorMessage is null
                 ? ButchiTheme.CobaltBrush
                 : new SolidColorBrush(ButchiTheme.Error),
-            LetterSpacing = 1
+            LetterSpacing = 1,
+            VerticalAlignment = VerticalAlignment.Center
         });
+
+        var actions = BuildResultActions(selected);
+        actions.SetValue(Grid.ColumnProperty, 1);
+        header.Children.Add(actions);
+        result.Children.Add(header);
 
         Control body;
         if (selected.IsRunning)
@@ -535,7 +549,6 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         result.Children.Add(new ScrollViewer
         {
-            MinHeight = 180,
             MaxHeight = ResultScrollMaxHeight,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             Content = body
@@ -552,65 +565,60 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
     }
 
-    private Control BuildFooterActions(ActionPresentationState selected)
+    private Control BuildResultActions(ActionPresentationState selected)
     {
-        var actions = new Grid
+        var actions = new StackPanel
         {
-            ColumnDefinitions = new ColumnDefinitions(
-                string.IsNullOrWhiteSpace(selected.Output) ? "*" : "*,*,*")
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        var rerun = FooterButton("↻", "Run again");
+        if (selected.IsRunning || (string.IsNullOrWhiteSpace(selected.Output) && selected.ErrorMessage is null))
+            return actions;
+
+        var rerun = CompactActionIconButton("↻", "Run again");
         rerun.Click += (_, _) => ViewModel.RequestRerun();
         actions.Children.Add(rerun);
 
         if (!string.IsNullOrWhiteSpace(selected.Output))
         {
-            var copy = FooterButton("⧉", "Copy");
+            var copy = CompactActionIconButton("⧉", "Copy");
             copy.Click += (_, _) => ViewModel.RequestCopy();
-            copy.Margin = new Thickness(8, 0, 4, 0);
-            copy.SetValue(Grid.ColumnProperty, 1);
             actions.Children.Add(copy);
 
-            var replace = FooterButton("⇄", "Replace selection");
+            var replace = CompactActionIconButton("⇄", "Replace");
             replace.Click += (_, _) => ViewModel.RequestReplace();
-            replace.Margin = new Thickness(4, 0, 0, 0);
-            replace.SetValue(Grid.ColumnProperty, 2);
             actions.Children.Add(replace);
         }
 
         return actions;
     }
 
-    private static Button FooterButton(string glyph, string text)
+    private static Button CompactActionIconButton(string glyph, string tooltip)
     {
-        var content = new StackPanel
+        var button = new Button
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Center
+            Content = new TextBlock
+            {
+                Text = glyph,
+                FontSize = 16,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            Width = 34,
+            Height = 34,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(17),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            BorderBrush = ButchiTheme.DividerBrush,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
-        content.Children.Add(new TextBlock
-        {
-            Text = glyph,
-            FontSize = 16,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = text,
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        return new Button
-        {
-            Content = content,
-            Padding = new Thickness(12, 8),
-            CornerRadius = new CornerRadius(10),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Center
-        };
+        ToolTip.SetTip(button, tooltip);
+        return button;
     }
 
     private void OnActionStarted(object? sender, TextAction action)
