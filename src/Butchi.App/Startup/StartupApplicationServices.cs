@@ -19,6 +19,7 @@ public sealed class StartupApplicationServices : IAsyncDisposable
         InferenceEngine = new LLamaSharpInferenceEngine(
             new LLamaSharpRuntimeFactory(request => Paths.ModelPath(request.ModelRepo, request.ModelFile)));
         var downloader = new ModelDownloader(new HuggingFaceModelDownloadSource(HttpClient));
+        VisionInferenceEngine = new LLamaSharpVisionInferenceEngine(downloader, Paths.ModelPath);
         ModelManager = new FileModelManager(Paths, downloader, InferenceEngine, ConfigStore);
         HistoryStore = new SqliteHistoryStoreAdapter(new SqliteHistoryStore(Paths));
     }
@@ -27,6 +28,7 @@ public sealed class StartupApplicationServices : IAsyncDisposable
     public JsonAppConfigStoreAdapter ConfigStore { get; }
     public HttpClient HttpClient { get; }
     public LLamaSharpInferenceEngine InferenceEngine { get; }
+    public LLamaSharpVisionInferenceEngine VisionInferenceEngine { get; }
     public FileModelManager ModelManager { get; }
     public IHistoryStore HistoryStore { get; }
 
@@ -35,11 +37,18 @@ public sealed class StartupApplicationServices : IAsyncDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         try
         {
-            await InferenceEngine.DisposeAsync();
+            await VisionInferenceEngine.DisposeAsync();
         }
         finally
         {
-            HttpClient.Dispose();
+            try
+            {
+                await InferenceEngine.DisposeAsync();
+            }
+            finally
+            {
+                HttpClient.Dispose();
+            }
         }
     }
 }

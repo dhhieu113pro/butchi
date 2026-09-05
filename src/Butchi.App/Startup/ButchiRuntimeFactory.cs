@@ -8,11 +8,13 @@ using Butchi.App.Screenshots;
 using Butchi.App.Settings;
 using Butchi.App.Styling;
 using Butchi.App.Tray;
+using Butchi.App.Vision;
 using Butchi.App.Windows;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
 using Butchi.Infrastructure;
 using Butchi.Platform.Windows.Actions;
+using Butchi.Platform.Windows.Capture;
 using Butchi.Platform.Windows.Pointer;
 using Butchi.Platform.Windows.Selection;
 using Butchi.Platform.Windows.Triggers;
@@ -46,6 +48,13 @@ public sealed class ButchiRuntimeFactory(
             historyStore: services.HistoryStore);
         var popoverWindowController = new PopoverWindowController();
         var popover = new PopoverWindow(popoverViewModel, popoverWindowController);
+        var visionViewModel = new VisionViewModel();
+        var visionController = new VisionController(
+            visionViewModel,
+            services.VisionInferenceEngine,
+            new WindowsScreenCaptureService(),
+            services.ConfigStore,
+            popover);
         popover.Deactivated += (_, _) =>
         {
             if (popoverWindowController.HandleDeactivated())
@@ -69,7 +78,9 @@ public sealed class ButchiRuntimeFactory(
             management,
             popover,
             interaction,
-            popoverActionController, scheduler,
+            popoverActionController,
+            visionController,
+            scheduler,
             shutdown);
     }
 
