@@ -31,6 +31,19 @@ public sealed class PopoverWindowPolicyTests
     }
 
     [Fact]
+    public void Window_deactivation_requests_immediate_hide_without_destroying_window()
+    {
+        var controller = new PopoverWindowController();
+        controller.Show();
+        controller.HandleWorkStarted();
+
+        controller.HandleDeactivated();
+
+        Assert.False(controller.IsVisible);
+        Assert.False(controller.IsDisposed);
+    }
+
+    [Fact]
     public void Same_controller_instance_is_reused_across_show_hide_cycles()
     {
         var controller = new PopoverWindowController();
