@@ -28,15 +28,16 @@ public sealed class WindowsAutoStartServiceTests
     }
 
     [Theory]
-    [InlineData(WindowsStartupTaskStatus.Enabled, true)]
-    [InlineData(WindowsStartupTaskStatus.EnabledByPolicy, true)]
-    [InlineData(WindowsStartupTaskStatus.Disabled, false)]
-    [InlineData(WindowsStartupTaskStatus.DisabledByUser, false)]
-    [InlineData(WindowsStartupTaskStatus.DisabledByPolicy, false)]
+    [InlineData((int)WindowsStartupTaskStatus.Enabled, true)]
+    [InlineData((int)WindowsStartupTaskStatus.EnabledByPolicy, true)]
+    [InlineData((int)WindowsStartupTaskStatus.Disabled, false)]
+    [InlineData((int)WindowsStartupTaskStatus.DisabledByUser, false)]
+    [InlineData((int)WindowsStartupTaskStatus.DisabledByPolicy, false)]
     public async Task Packaged_service_maps_all_startup_task_states(
-        WindowsStartupTaskStatus state,
+        int rawState,
         bool expected)
     {
+        var state = (WindowsStartupTaskStatus)rawState;
         var accessor = new FakeStartupTaskAccessor { State = state };
         var service = new WindowsStartupTaskAutoStartService(accessor);
 
@@ -44,11 +45,11 @@ public sealed class WindowsAutoStartServiceTests
     }
 
     [Theory]
-    [InlineData(WindowsStartupTaskStatus.DisabledByUser)]
-    [InlineData(WindowsStartupTaskStatus.DisabledByPolicy)]
-    public async Task Packaged_service_does_not_bypass_user_or_policy_disable(
-        WindowsStartupTaskStatus state)
+    [InlineData((int)WindowsStartupTaskStatus.DisabledByUser)]
+    [InlineData((int)WindowsStartupTaskStatus.DisabledByPolicy)]
+    public async Task Packaged_service_does_not_bypass_user_or_policy_disable(int rawState)
     {
+        var state = (WindowsStartupTaskStatus)rawState;
         var accessor = new FakeStartupTaskAccessor { State = state };
         var service = new WindowsStartupTaskAutoStartService(accessor);
 
