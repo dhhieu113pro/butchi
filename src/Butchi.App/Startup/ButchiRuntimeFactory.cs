@@ -43,7 +43,13 @@ public sealed class ButchiRuntimeFactory(
             scheduler,
             services.ConfigStore,
             resultSink);
-        var popover = new PopoverWindow(popoverViewModel);
+        var popoverWindowController = new PopoverWindowController();
+        var popover = new PopoverWindow(popoverViewModel, popoverWindowController);
+        popover.Deactivated += (_, _) =>
+        {
+            popoverWindowController.HandleDeactivated();
+            popover.Hide();
+        };
         var selectionReader = new WindowsSelectionReader(
             new WindowsUiAutomationSelectionSource(),
             clipboard);
