@@ -7,14 +7,15 @@ namespace Butchi.App.Tests;
 public sealed class GeneralSettingsPopoverTimeoutRegressionTests
 {
     [Fact]
-    public void General_settings_does_not_own_a_nested_vertical_scroll_viewport()
+    public void General_settings_owns_a_vertical_scroll_viewport_like_other_long_management_pages()
     {
         var root = FindRepositoryRoot();
         var viewPath = Path.Combine(root, "src", "Butchi.App", "Settings", "GeneralSettingsView.cs");
         var source = File.ReadAllText(viewPath);
 
-        Assert.Contains("public sealed class GeneralSettingsView : UserControl", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("VerticalScrollBarVisibility", source, StringComparison.Ordinal);
+        Assert.Contains("Content = new ScrollViewer", source, StringComparison.Ordinal);
+        Assert.Contains("VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto", source, StringComparison.Ordinal);
+        Assert.Contains("HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled", source, StringComparison.Ordinal);
     }
 
     [Fact]
