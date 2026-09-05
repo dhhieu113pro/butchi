@@ -78,9 +78,8 @@ public sealed class ButchiRuntimeFactory(
             management,
             popover,
             interaction,
-            popoverActionController,
+            popoverActionController, scheduler,
             visionController,
-            scheduler,
             shutdown);
     }
 

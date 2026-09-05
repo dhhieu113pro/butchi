@@ -28,8 +28,8 @@ public sealed class ButchiRuntime(
     PopoverWindow popoverWindow,
     WindowsInteractionRuntime interaction,
     PopoverActionController popoverActionController,
-    VisionController visionController,
     TextActionScheduler scheduler,
+    VisionController visionController,
     IApplicationShutdown shutdown) : IButchiRuntime
 {
     private TrayIcons? _trayIcons;
