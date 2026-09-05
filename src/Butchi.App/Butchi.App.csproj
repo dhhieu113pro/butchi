@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <ApplicationIcon>$(BaseIntermediateOutputPath)Butchi.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\Butchi.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\ButchiLogo.png" />
@@ -12,11 +12,4 @@
     <ProjectReference Include="../Butchi.Infrastructure/Butchi.Infrastructure.csproj" />
     <ProjectReference Include="../Butchi.Platform.Windows/Butchi.Platform.Windows.csproj" />
   </ItemGroup>
-
-  <Target Name="GenerateWindowsApplicationIcon"
-          BeforeTargets="PrepareForBuild"
-          Inputs="$(MSBuildProjectDirectory)\..\..\assets\butchi-logo.svg"
-          Outputs="$(MSBuildProjectDirectory)\$(ApplicationIcon)">
-    <Exec Command="dnx ImageToIco.Dnx@0.0.4 --yes -- &quot;$(MSBuildProjectDirectory)\..\..\assets\butchi-logo.svg&quot; &quot;$(MSBuildProjectDirectory)\$(ApplicationIcon)&quot; --overwrite" />
-  </Target>
 </Project>
