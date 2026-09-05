@@ -1,5 +1,6 @@
 using Avalonia;
 using Butchi.App.Vision;
+using Xunit;
 
 namespace Butchi.App.Tests;
 
