@@ -8,20 +8,24 @@ public sealed class BrandingContractTests
     public void Avalonia_app_restores_existing_butchi_branding_everywhere()
     {
         var repoRoot = FindRepositoryRoot();
-        var logoPath = Path.Combine(repoRoot, "assets", "butchi-logo.svg");
+        var sourceArtworkPath = Path.Combine(repoRoot, "assets", "butchi-logo.svg");
         var appLogoPath = Path.Combine(repoRoot, "src", "Butchi.App", "Assets", "ButchiLogo.png");
         var storeLogoPath = Path.Combine(repoRoot, "store", "Assets", "StoreLogo.png");
         var square44Path = Path.Combine(repoRoot, "store", "Assets", "Square44x44Logo.png");
         var square150Path = Path.Combine(repoRoot, "store", "Assets", "Square150x150Logo.png");
 
-        Assert.True(File.Exists(logoPath), $"Missing canonical Butchi logo: {logoPath}");
-        Assert.True(File.Exists(appLogoPath), $"Missing Avalonia logo asset: {appLogoPath}");
+        Assert.True(File.Exists(sourceArtworkPath), $"Missing Butchi source artwork: {sourceArtworkPath}");
+        Assert.True(File.Exists(appLogoPath), $"Missing canonical Avalonia/README logo asset: {appLogoPath}");
         Assert.True(File.Exists(storeLogoPath), $"Missing Store logo asset: {storeLogoPath}");
         Assert.True(File.Exists(square44Path), $"Missing Store square 44 logo: {square44Path}");
         Assert.True(File.Exists(square150Path), $"Missing Store square 150 logo: {square150Path}");
 
         var project = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Butchi.App.csproj"));
         Assert.Contains("Assets\\ButchiLogo.png", project, StringComparison.Ordinal);
+        Assert.Contains("<ApplicationIcon>$(BaseIntermediateOutputPath)Butchi.ico</ApplicationIcon>", project, StringComparison.Ordinal);
+        Assert.Contains("GenerateWindowsApplicationIcon", project, StringComparison.Ordinal);
+        Assert.Contains("dnx ImageToIco.Dnx@0.0.4 --yes --", project, StringComparison.Ordinal);
+        Assert.Contains("--overwrite", project, StringComparison.Ordinal);
 
         var runtime = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Startup", "ButchiRuntime.cs"));
         Assert.Contains("BrandAssets.CreateWindowIcon()", runtime, StringComparison.Ordinal);
@@ -37,7 +41,7 @@ public sealed class BrandingContractTests
         Assert.DoesNotContain("raw.githubusercontent.com/dhhieu113pro/butchi/$baseline/src-tauri/icons", release, StringComparison.Ordinal);
 
         var readme = File.ReadAllText(Path.Combine(repoRoot, "README.md"));
-        Assert.Contains("assets/butchi-logo.svg", readme, StringComparison.Ordinal);
+        Assert.Contains("src/Butchi.App/Assets/ButchiLogo.png", readme, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
