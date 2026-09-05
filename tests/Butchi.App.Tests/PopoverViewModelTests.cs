@@ -22,6 +22,22 @@ public sealed class PopoverViewModelTests
         Assert.Equal(action, requested);
     }
 
+    [Theory]
+    [InlineData(TextAction.Translate)]
+    [InlineData(TextAction.Rewrite)]
+    public void Selecting_action_enters_compact_state_before_action_request(TextAction action)
+    {
+        var vm = new PopoverViewModel();
+        vm.SetSession("new source", action, "Vietnamese");
+        bool? compactWhenRequested = null;
+        vm.ActionRequested += (_, _) => compactWhenRequested = vm.IsCompact;
+
+        vm.SelectAction(action);
+
+        Assert.True(compactWhenRequested);
+        Assert.True(vm.IsCompact);
+    }
+
     [Fact]
     public void New_selection_session_clears_previous_results_and_invalidates_old_runs()
     {
