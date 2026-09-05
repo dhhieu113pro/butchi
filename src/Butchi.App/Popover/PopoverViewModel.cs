@@ -32,6 +32,8 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
     public ActionPresentationState Translate { get; private set; } = ActionPresentationState.Empty;
     public ActionPresentationState Rewrite { get; private set; } = ActionPresentationState.Empty;
     public string SourceText { get; private set; } = string.Empty;
+    public bool IsSourceExpanded { get; private set; }
+    public string SourcePreviewText => IsSourceExpanded ? SourceText : CollapseWhitespace(SourceText);
     public TextAction SelectedAction { get; private set; } = TextAction.Translate;
     public string? TargetLanguage { get; private set; }
     public bool TranslateEnabled { get; private set; } = true;
@@ -184,6 +186,16 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         SetState(SelectedAction, state with { IsThinkingExpanded = !state.IsThinkingExpanded });
     }
 
+    public void RequestToggleSource()
+    {
+        if (string.IsNullOrWhiteSpace(SourceText))
+            return;
+
+        IsSourceExpanded = !IsSourceExpanded;
+        OnPropertyChanged(nameof(IsSourceExpanded));
+        OnPropertyChanged(nameof(SourcePreviewText));
+    }
+
     public void ArmAutoHide()
     {
         IsAutoHideArmed = true;
@@ -210,6 +222,7 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         Translate = ActionPresentationState.Empty;
         Rewrite = ActionPresentationState.Empty;
         SourceText = sourceText ?? string.Empty;
+        IsSourceExpanded = false;
         SelectedAction = action;
         TargetLanguage = string.IsNullOrWhiteSpace(targetLanguage) ? null : targetLanguage.Trim();
         TranslateEnabled = translateEnabled;
@@ -217,12 +230,39 @@ public sealed class PopoverViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Translate));
         OnPropertyChanged(nameof(Rewrite));
         OnPropertyChanged(nameof(SourceText));
+        OnPropertyChanged(nameof(IsSourceExpanded));
+        OnPropertyChanged(nameof(SourcePreviewText));
         OnPropertyChanged(nameof(SelectedAction));
         OnPropertyChanged(nameof(TargetLanguage));
         OnPropertyChanged(nameof(TranslateEnabled));
         OnPropertyChanged(nameof(RewriteEnabled));
         OnPropertyChanged(nameof(SelectedState));
         OnPropertyChanged(nameof(IsCompact));
+    }
+
+    private static string CollapseWhitespace(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+            return string.Empty;
+
+        var collapsed = new StringBuilder(source.Length);
+        var pendingSpace = false;
+        foreach (var character in source)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                pendingSpace = collapsed.Length > 0;
+                continue;
+            }
+
+            if (pendingSpace)
+                collapsed.Append(' ');
+
+            collapsed.Append(character);
+            pendingSpace = false;
+        }
+
+        return collapsed.ToString();
     }
 
     private bool IsActionEnabled(TextAction action) =>
