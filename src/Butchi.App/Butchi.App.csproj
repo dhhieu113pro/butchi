@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <Target Name="GenerateWindowsApplicationIcon"
-          BeforeTargets="CoreCompile"
+          BeforeTargets="PrepareForBuild"
           Inputs="$(MSBuildProjectDirectory)\..\..\assets\butchi-logo.svg"
           Outputs="$(MSBuildProjectDirectory)\$(ApplicationIcon)">
     <Exec Command="dnx ImageToIco.Dnx@0.0.4 --yes -- &quot;$(MSBuildProjectDirectory)\..\..\assets\butchi-logo.svg&quot; &quot;$(MSBuildProjectDirectory)\$(ApplicationIcon)&quot; --overwrite" />
