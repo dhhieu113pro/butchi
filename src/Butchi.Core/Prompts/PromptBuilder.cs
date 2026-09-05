@@ -5,7 +5,7 @@ namespace Butchi.Core.Prompts;
 
 public static class PromptBuilder
 {
-    public static string Build(TextAction action, string input, AppConfig config)
+    public static string Build(TextAction action, string input, AppConfig config, bool suppressThinking = false)
     {
         var source = input.Trim();
         if (source.Length == 0)
@@ -23,6 +23,11 @@ public static class PromptBuilder
             TextAction.Rewrite => config.RewriteSystemPrompt,
             _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
         };
+
+        if (suppressThinking)
+        {
+            system = $"{system}\n\n/no_think";
+        }
 
         var user = action switch
         {
