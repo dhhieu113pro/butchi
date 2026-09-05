@@ -78,6 +78,7 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("Segoe MDL2 Assets", source, StringComparison.Ordinal);
         Assert.Contains("\\uE718", source, StringComparison.Ordinal);
         Assert.Contains("\\uE77A", source, StringComparison.Ordinal);
+        Assert.Contains("HeaderIconButton(\"×\", \"Close popover\")", source, StringComparison.Ordinal);
         Assert.Contains("_controller.TogglePinned()", source, StringComparison.Ordinal);
     }
 
