@@ -39,6 +39,19 @@ public sealed class DynamicIslandPopoverContractTests
     }
 
     [Fact]
+    public void Popover_window_uses_a_transparent_host_so_the_rounded_surface_defines_its_visible_shape()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("TransparencyLevelHint = [WindowTransparencyLevel.Transparent]", source, StringComparison.Ordinal);
+        Assert.Contains("Background = Brushes.Transparent", source, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius = new CornerRadius(24)", source, StringComparison.Ordinal);
+        Assert.Contains("Background = ButchiTheme.NavigationSurfaceBrush(ActualThemeVariant)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Popover_animates_only_between_compact_and_expanded_states()
     {
         var root = FindRepositoryRoot();

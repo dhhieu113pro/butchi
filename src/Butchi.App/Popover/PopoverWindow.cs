@@ -35,6 +35,8 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         var profile = PopoverWindowProfile.Default;
         WindowDecorations = profile.Borderless ? WindowDecorations.None : WindowDecorations.Full;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        Background = Brushes.Transparent;
         Topmost = profile.Topmost;
         ShowInTaskbar = profile.ShowInTaskbar;
         CanResize = profile.CanResize;
@@ -233,6 +235,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         {
             Padding = new Thickness(18),
             CornerRadius = new CornerRadius(24),
+            Background = ButchiTheme.NavigationSurfaceBrush(ActualThemeVariant),
             BorderThickness = new Thickness(1),
             BorderBrush = ButchiTheme.DividerBrush,
             Child = root
