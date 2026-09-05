@@ -75,6 +75,9 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("Pin popover", source, StringComparison.Ordinal);
         Assert.Contains("Unpin popover", source, StringComparison.Ordinal);
         Assert.Contains("Close popover", source, StringComparison.Ordinal);
+        Assert.Contains("Segoe MDL2 Assets", source, StringComparison.Ordinal);
+        Assert.Contains("\\uE718", source, StringComparison.Ordinal);
+        Assert.Contains("\\uE77A", source, StringComparison.Ordinal);
         Assert.Contains("_controller.TogglePinned()", source, StringComparison.Ordinal);
     }
 
