@@ -197,4 +197,59 @@ public sealed class PopoverViewModelTests
         Assert.Equal(TextAction.Rewrite, vm.SelectedAction);
         Assert.Null(requested);
     }
+
+    [Fact]
+    public void Source_preview_collapses_embedded_newlines_and_whitespace_to_one_line()
+    {
+        var vm = new PopoverViewModel();
+        vm.SetSession("alpha\r\n  beta\tgamma\n\n delta", TextAction.Translate, "Vietnamese");
+        var previewProperty = typeof(PopoverViewModel).GetProperty("SourcePreviewText");
+        var expandedProperty = typeof(PopoverViewModel).GetProperty("IsSourceExpanded");
+
+        Assert.NotNull(previewProperty);
+        Assert.NotNull(expandedProperty);
+        Assert.False((bool)expandedProperty.GetValue(vm)!);
+        Assert.Equal("alpha beta gamma delta", previewProperty.GetValue(vm));
+    }
+
+    [Fact]
+    public void Source_preview_can_expand_to_original_text_and_collapse_again()
+    {
+        const string source = "line one\r\n  line two\nline three";
+        var vm = new PopoverViewModel();
+        vm.SetSession(source, TextAction.Translate, "Vietnamese");
+        var previewProperty = typeof(PopoverViewModel).GetProperty("SourcePreviewText");
+        var expandedProperty = typeof(PopoverViewModel).GetProperty("IsSourceExpanded");
+        var toggleMethod = typeof(PopoverViewModel).GetMethod("RequestToggleSource");
+
+        Assert.NotNull(previewProperty);
+        Assert.NotNull(expandedProperty);
+        Assert.NotNull(toggleMethod);
+
+        toggleMethod.Invoke(vm, null);
+        Assert.True((bool)expandedProperty.GetValue(vm)!);
+        Assert.Equal(source, previewProperty.GetValue(vm));
+
+        toggleMethod.Invoke(vm, null);
+        Assert.False((bool)expandedProperty.GetValue(vm)!);
+        Assert.Equal("line one line two line three", previewProperty.GetValue(vm));
+    }
+
+    [Fact]
+    public void New_selection_session_resets_source_preview_to_collapsed()
+    {
+        var vm = new PopoverViewModel();
+        vm.SetSession("first source", TextAction.Translate, "Vietnamese");
+        var expandedProperty = typeof(PopoverViewModel).GetProperty("IsSourceExpanded");
+        var toggleMethod = typeof(PopoverViewModel).GetMethod("RequestToggleSource");
+
+        Assert.NotNull(expandedProperty);
+        Assert.NotNull(toggleMethod);
+        toggleMethod.Invoke(vm, null);
+        Assert.True((bool)expandedProperty.GetValue(vm)!);
+
+        vm.SetSession("second source", TextAction.Translate, "Vietnamese");
+
+        Assert.False((bool)expandedProperty.GetValue(vm)!);
+    }
 }
