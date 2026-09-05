@@ -24,6 +24,7 @@ public sealed class BrandingContractTests
         Assert.Contains("Assets\\ButchiLogo.png", project, StringComparison.Ordinal);
         Assert.Contains("<ApplicationIcon>$(BaseIntermediateOutputPath)Butchi.ico</ApplicationIcon>", project, StringComparison.Ordinal);
         Assert.Contains("GenerateWindowsApplicationIcon", project, StringComparison.Ordinal);
+        Assert.Contains("BeforeTargets=\"PrepareForBuild\"", project, StringComparison.Ordinal);
         Assert.Contains("dnx ImageToIco.Dnx@0.0.4 --yes --", project, StringComparison.Ordinal);
         Assert.Contains("..\\..\\assets\\butchi-logo.svg", project, StringComparison.Ordinal);
         Assert.Contains("--overwrite", project, StringComparison.Ordinal);
