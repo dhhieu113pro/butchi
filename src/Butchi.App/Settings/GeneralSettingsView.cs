@@ -7,7 +7,7 @@ using Butchi.Core.Configuration;
 
 namespace Butchi.App.Settings;
 
-public sealed class GeneralSettingsView : ScrollViewer
+public sealed class GeneralSettingsView : UserControl
 {
     private static readonly string[] Languages =
     [
@@ -27,8 +27,6 @@ public sealed class GeneralSettingsView : ScrollViewer
     {
         _viewModel = viewModel;
         _applyTheme = applyTheme;
-        HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
-        VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
 
         _saveStatus = new TextBlock
         {
@@ -59,6 +57,7 @@ public sealed class GeneralSettingsView : ScrollViewer
 
         content.Children.Add(BuildHeader());
         content.Children.Add(BuildAppearanceCard());
+        content.Children.Add(BuildPopoverCard());
         content.Children.Add(BuildActionsCard());
         return content;
     }
@@ -115,6 +114,31 @@ public sealed class GeneralSettingsView : ScrollViewer
         body.Children.Add(SectionHeading("Appearance", "Choose a fixed theme or follow Windows automatically."));
         body.Children.Add(Field("Theme", theme));
         body.Children.Add(Hint("System follows your Windows light/dark preference."));
+        return Card(body);
+    }
+
+    private Control BuildPopoverCard()
+    {
+        var hideSeconds = new NumericUpDown
+        {
+            Minimum = 2,
+            Maximum = 30,
+            Increment = 1,
+            Value = _viewModel.PopoverHideSeconds,
+            Width = 120,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        hideSeconds.ValueChanged += async (_, _) =>
+        {
+            if (!_ready || hideSeconds.Value is not decimal value)
+                return;
+            await RunAsync(() => _viewModel.SetPopoverHideSecondsAsync((uint)value, CancellationToken.None));
+        };
+
+        var body = new StackPanel { Spacing = 14 };
+        body.Children.Add(SectionHeading("Popover", "Choose how long the result stays visible when idle."));
+        body.Children.Add(Field("Auto-close after (seconds)", hideSeconds));
+        body.Children.Add(Hint("2–30 seconds after the result completes or the pointer leaves. Escape closes immediately."));
         return Card(body);
     }
 
@@ -190,22 +214,6 @@ public sealed class GeneralSettingsView : ScrollViewer
             await RunAsync(() => _viewModel.SetResultActionAsync(selected, CancellationToken.None));
         };
 
-        var hideSeconds = new NumericUpDown
-        {
-            Minimum = 2,
-            Maximum = 30,
-            Increment = 1,
-            Value = _viewModel.PopoverHideSeconds,
-            Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        hideSeconds.ValueChanged += async (_, _) =>
-        {
-            if (!_ready || hideSeconds.Value is not decimal value)
-                return;
-            await RunAsync(() => _viewModel.SetPopoverHideSecondsAsync((uint)value, CancellationToken.None));
-        };
-
         var body = new StackPanel { Spacing = 18 };
         body.Children.Add(SectionHeading("Actions", "Control the two local AI actions and their default result behavior."));
         body.Children.Add(RowField("Enable Translate", "Show translation alongside Rewrite.", translate));
@@ -214,8 +222,6 @@ public sealed class GeneralSettingsView : ScrollViewer
         body.Children.Add(Field("Favorite target languages", favoritePanel));
         body.Children.Add(Hint("Choose up to 5. These become fast target-language choices in the Translate popover."));
         body.Children.Add(Field("After an explicit action", resultAction));
-        body.Children.Add(Field("Popover auto-hide (seconds)", hideSeconds));
-        body.Children.Add(Hint("2–30 seconds. Escape still closes the popover immediately."));
         return Card(body);
     }
 
