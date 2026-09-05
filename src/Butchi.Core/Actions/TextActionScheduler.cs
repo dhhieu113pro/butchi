@@ -64,24 +64,57 @@ public sealed class TextActionScheduler : IAsyncDisposable
                 var prompt = PromptBuilder.Build(action, input, config);
                 var request = new InferenceRequest(prompt, config.MaxTokens, config.Temperature, 0);
                 var output = new StringBuilder();
+                var sawReasoning = false;
 
-                try
+                async Task<bool> StreamAsync(InferenceRequest generationRequest, bool publishReasoning)
                 {
-                    await foreach (var chunk in _engine.GenerateDetailedAsync(request, linkedCts.Token).ConfigureAwait(false))
+                    await foreach (var chunk in _engine.GenerateDetailedAsync(generationRequest, linkedCts.Token).ConfigureAwait(false))
                     {
                         if (IsObsolete(action, runId))
                         {
-                            return new TextActionRunResult(action, runId, output.ToString(), true);
+                            return false;
                         }
 
                         if (chunk.Kind == InferenceStreamChunkKind.Reasoning)
                         {
-                            callbacks?.ReasoningChunk?.Invoke(runId, chunk.Text);
+                            sawReasoning = true;
+                            if (publishReasoning)
+                            {
+                                callbacks?.ReasoningChunk?.Invoke(runId, chunk.Text);
+                            }
                             continue;
                         }
 
                         callbacks?.Chunk?.Invoke(runId, chunk.Text);
                         output.Append(chunk.Text);
+                    }
+
+                    return true;
+                }
+
+                try
+                {
+                    if (!await StreamAsync(request, publishReasoning: true).ConfigureAwait(false))
+                    {
+                        return new TextActionRunResult(action, runId, output.ToString(), true);
+                    }
+
+                    // A reasoning model can consume the entire generation budget before
+                    // it reaches </think> and the final answer. Retry once without
+                    // thinking so the action still produces the requested result.
+                    if (sawReasoning && string.IsNullOrWhiteSpace(output.ToString()))
+                    {
+                        var fallbackPrompt = PromptBuilder.Build(action, input, config, suppressThinking: true);
+                        var fallbackRequest = new InferenceRequest(
+                            fallbackPrompt,
+                            config.MaxTokens,
+                            config.Temperature,
+                            0);
+
+                        if (!await StreamAsync(fallbackRequest, publishReasoning: false).ConfigureAwait(false))
+                        {
+                            return new TextActionRunResult(action, runId, output.ToString(), true);
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (IsObsolete(action, runId) && !cancellationToken.IsCancellationRequested)
