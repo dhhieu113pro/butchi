@@ -68,6 +68,19 @@ public sealed class DynamicIslandPopoverContractTests
         Assert.Contains("HandleResultCompletedAsync", window, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Source_row_is_collapsed_by_default_and_clickable_to_expand()
+    {
+        var root = FindRepositoryRoot();
+        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
+        var source = File.ReadAllText(windowPath);
+
+        Assert.Contains("Text = ViewModel.SourcePreviewText", source, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.IsSourceExpanded ? TextWrapping.Wrap : TextWrapping.NoWrap", source, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.IsSourceExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis", source, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.RequestToggleSource()", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
