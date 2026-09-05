@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.NET.Ref" />
     <ProjectReference Include="../Butchi.Core/Butchi.Core.csproj" />
   </ItemGroup>
 </Project>
