@@ -21,18 +21,25 @@ public sealed class DynamicIslandPopoverContractTests
     }
 
     [Fact]
-    public void Expanded_popover_matches_the_approved_wide_result_first_design()
+    public void Expanded_popover_matches_the_approved_compact_result_first_design()
     {
         var root = FindRepositoryRoot();
         var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
         var source = File.ReadAllText(windowPath);
 
-        Assert.Contains("BuildCenteredLogo", source, StringComparison.Ordinal);
+        Assert.Contains("BuildPrimaryHeader", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildCenteredLogo", source, StringComparison.Ordinal);
         Assert.Contains("ModeIconButton", source, StringComparison.Ordinal);
         Assert.Contains("TextTrimming.CharacterEllipsis", source, StringComparison.Ordinal);
         Assert.Contains("BuildThinkingDisclosure", source, StringComparison.Ordinal);
         Assert.Contains("BuildResultPanel", source, StringComparison.Ordinal);
+        Assert.Contains("BuildResultActions", source, StringComparison.Ordinal);
+        Assert.Contains("CompactActionIconButton", source, StringComparison.Ordinal);
         Assert.Contains("ResultScrollMaxHeight = 340", source, StringComparison.Ordinal);
+        Assert.Contains("MaxHeight = ResultScrollMaxHeight", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("MinHeight = 180", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildFooterActions", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("FooterButton", source, StringComparison.Ordinal);
         Assert.Contains("VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Text = \"Local AI\"", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Text = \"On device\"", source, StringComparison.Ordinal);
