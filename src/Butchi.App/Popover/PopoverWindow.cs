@@ -343,7 +343,12 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         };
 
         var pinTooltip = _controller.IsPinned ? "Unpin popover" : "Pin popover";
-        var pin = HeaderIconButton("⌖", pinTooltip, _controller.IsPinned);
+        var pinGlyph = _controller.IsPinned ? "\uE77A" : "\uE718";
+        var pin = HeaderIconButton(
+            pinGlyph,
+            pinTooltip,
+            _controller.IsPinned,
+            new FontFamily("Segoe MDL2 Assets"));
         pin.Click += (_, _) =>
         {
             _controller.TogglePinned();
@@ -367,18 +372,26 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         return actions;
     }
 
-    private Button HeaderIconButton(string glyph, string tooltip, bool selected = false)
+    private Button HeaderIconButton(
+        string glyph,
+        string tooltip,
+        bool selected = false,
+        FontFamily? fontFamily = null)
     {
+        var icon = new TextBlock
+        {
+            Text = glyph,
+            FontSize = fontFamily is null ? glyph == "×" ? 22 : 17 : 16,
+            FontWeight = FontWeight.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        if (fontFamily is not null)
+            icon.FontFamily = fontFamily;
+
         var button = new Button
         {
-            Content = new TextBlock
-            {
-                Text = glyph,
-                FontSize = glyph == "×" ? 22 : 17,
-                FontWeight = FontWeight.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            },
+            Content = icon,
             Width = 34,
             Height = 34,
             Padding = new Thickness(0),
