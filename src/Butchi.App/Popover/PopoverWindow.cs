@@ -320,10 +320,10 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         var preview = new TextBlock
         {
-            Text = ViewModel.SourceText,
+            Text = ViewModel.SourcePreviewText,
             FontSize = 12,
-            TextWrapping = TextWrapping.NoWrap,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = ViewModel.IsSourceExpanded ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            TextTrimming = ViewModel.IsSourceExpanded ? TextTrimming.None : TextTrimming.CharacterEllipsis,
             Margin = new Thickness(16, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -332,7 +332,7 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
 
         var chevron = new TextBlock
         {
-            Text = "›",
+            Text = ViewModel.IsSourceExpanded ? "⌃" : "›",
             FontSize = 19,
             Opacity = 0.65,
             VerticalAlignment = VerticalAlignment.Center
@@ -340,15 +340,20 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         chevron.SetValue(Grid.ColumnProperty, 2);
         row.Children.Add(chevron);
 
-        return new Border
+        var toggle = new Button
         {
+            Content = row,
             Padding = new Thickness(14, 10),
             CornerRadius = new CornerRadius(12),
             Background = ButchiTheme.CardSurfaceBrush(ActualThemeVariant),
             BorderThickness = new Thickness(1),
             BorderBrush = ButchiTheme.DividerBrush,
-            Child = row
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
+        ToolTip.SetTip(toggle, ViewModel.IsSourceExpanded ? "Collapse source" : "Expand source");
+        toggle.Click += (_, _) => ViewModel.RequestToggleSource();
+        return toggle;
     }
 
     private Control BuildLanguageSelector()
