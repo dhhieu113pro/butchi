@@ -22,6 +22,7 @@ public sealed class StartupApplicationServices : IAsyncDisposable
         var downloader = new ModelDownloader(new HuggingFaceModelDownloadSource(HttpClient));
         VisionInferenceEngine = new LLamaSharpVisionInferenceEngine(downloader, Paths.ModelPath);
         ModelManager = new FileModelManager(Paths, downloader, InferenceEngine, ConfigStore);
+        VisionModelManager = new FileVisionModelManager(Paths, downloader);
         HistoryStore = new SqliteHistoryStoreAdapter(new SqliteHistoryStore(Paths));
 
         var executablePath = Environment.ProcessPath
@@ -39,6 +40,7 @@ public sealed class StartupApplicationServices : IAsyncDisposable
     public LLamaSharpInferenceEngine InferenceEngine { get; }
     public LLamaSharpVisionInferenceEngine VisionInferenceEngine { get; }
     public FileModelManager ModelManager { get; }
+    public FileVisionModelManager VisionModelManager { get; }
     public IHistoryStore HistoryStore { get; }
     public IAutoStartService AutoStartService { get; }
 
