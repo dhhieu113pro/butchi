@@ -11,6 +11,7 @@ using Butchi.App.Styling;
 using Butchi.App.Windows;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
+using Markdown.Avalonia;
 
 namespace Butchi.App.Popover;
 
@@ -621,12 +622,13 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
         }
         else if (!string.IsNullOrWhiteSpace(selected.Output))
         {
-            body = new TextBlock
+            body = new MarkdownScrollViewer
             {
-                Text = selected.Output,
-                FontSize = 14,
-                FontWeight = FontWeight.SemiBold,
-                TextWrapping = TextWrapping.Wrap
+                Markdown = selected.Output,
+                SelectionEnabled = true,
+                SaveScrollValueWhenContentUpdated = true,
+                MaxHeight = ResultScrollMaxHeight,
+                Padding = new Thickness(0)
             };
         }
         else
@@ -642,12 +644,19 @@ public sealed class PopoverWindow : Window, IWindowsPopoverView
             };
         }
 
-        result.Children.Add(new ScrollViewer
+        if (body is MarkdownScrollViewer)
         {
-            MaxHeight = ResultScrollMaxHeight,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = body
-        });
+            result.Children.Add(body);
+        }
+        else
+        {
+            result.Children.Add(new ScrollViewer
+            {
+                MaxHeight = ResultScrollMaxHeight,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                Content = body
+            });
+        }
 
         return new Border
         {
