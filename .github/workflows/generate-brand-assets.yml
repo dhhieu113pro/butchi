@@ -1,0 +1,65 @@
+name: Generate Butchi brand assets
+
+on:
+  push:
+    branches: [feat/simple-pencil-logo]
+    paths:
+      - assets/butchi-logo.svg
+      - .github/workflows/generate-brand-assets.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/simple-pencil-logo
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Ensure ImageMagick
+        shell: pwsh
+        run: |
+          if (-not (Get-Command magick -ErrorAction SilentlyContinue)) {
+            choco install imagemagick -y --no-progress
+            $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+          }
+          magick -version
+
+      - name: Generate PNG brand assets
+        shell: pwsh
+        run: |
+          magick -background none assets/butchi-logo.svg -resize 512x512 src/Butchi.App/Assets/ButchiLogo.png
+          magick -background none assets/butchi-logo.svg -resize 50x50 store/Assets/StoreLogo.png
+          magick -background none assets/butchi-logo.svg -resize 44x44 store/Assets/Square44x44Logo.png
+          magick -background none assets/butchi-logo.svg -resize 150x150 store/Assets/Square150x150Logo.png
+
+      - name: Generate Windows ICO
+        shell: pwsh
+        run: dnx ImageToIco.Dnx@0.0.4 --yes -- assets/butchi-logo.svg src/Butchi.App/Assets/Butchi.ico --overwrite
+
+      - name: Verify generated assets
+        shell: pwsh
+        run: |
+          magick identify src/Butchi.App/Assets/ButchiLogo.png
+          magick identify store/Assets/StoreLogo.png
+          magick identify store/Assets/Square44x44Logo.png
+          magick identify store/Assets/Square150x150Logo.png
+          if (-not (Test-Path src/Butchi.App/Assets/Butchi.ico)) { throw 'Butchi.ico was not generated.' }
+
+      - name: Commit generated assets
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/Butchi.App/Assets/ButchiLogo.png src/Butchi.App/Assets/Butchi.ico store/Assets/StoreLogo.png store/Assets/Square44x44Logo.png store/Assets/Square150x150Logo.png
+          if (-not (git diff --cached --quiet)) {
+            git commit -m 'chore: regenerate pencil brand assets'
+            git push
+          }
