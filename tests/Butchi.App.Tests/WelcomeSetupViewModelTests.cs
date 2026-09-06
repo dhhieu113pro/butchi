@@ -31,6 +31,32 @@ public sealed class WelcomeSetupViewModelTests
     }
 
     [Fact]
+    public async Task Missing_model_shows_download_stage_before_first_network_progress()
+    {
+        var downloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseDownload = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var manager = new FakeModelManager
+        {
+            Downloaded = false,
+            DownloadStarted = downloadStarted,
+            ReleaseDownload = releaseDownload
+        };
+        var vm = CreateViewModel(new FakeConfigStore(), manager);
+
+        var pending = vm.FinishAsync(CancellationToken.None).AsTask();
+        await downloadStarted.Task;
+
+        Assert.Equal(WelcomeSetupStage.Downloading, vm.Stage);
+        Assert.True(vm.IsBusy);
+        Assert.NotNull(vm.DownloadProgress);
+        Assert.Equal(0, vm.DownloadProgress!.BytesDownloaded);
+        Assert.Contains(ModelCatalog.Options[0].Label, vm.StatusText, StringComparison.Ordinal);
+
+        releaseDownload.SetResult();
+        Assert.NotNull(await pending);
+    }
+
+    [Fact]
     public async Task Finish_does_not_download_an_existing_model()
     {
         var manager = new FakeModelManager { Downloaded = true };
@@ -116,6 +142,8 @@ public sealed class WelcomeSetupViewModelTests
         public IReadOnlyList<ModelOption> Catalog => [_model];
         public bool Downloaded { get; set; }
         public Exception? LoadError { get; init; }
+        public TaskCompletionSource? DownloadStarted { get; init; }
+        public TaskCompletionSource? ReleaseDownload { get; init; }
         public TaskCompletionSource? LoadStarted { get; init; }
         public TaskCompletionSource? ReleaseLoad { get; init; }
         public List<string> Operations { get; } = [];
@@ -125,12 +153,14 @@ public sealed class WelcomeSetupViewModelTests
         public bool IsDownloaded(ModelOption model) => Downloaded;
         public InferenceStatus GetStatus() => Status;
 
-        public ValueTask DownloadAsync(ModelOption model, IProgress<ModelDownloadProgress>? progress, CancellationToken cancellationToken)
+        public async ValueTask DownloadAsync(ModelOption model, IProgress<ModelDownloadProgress>? progress, CancellationToken cancellationToken)
         {
             Operations.Add("download");
+            DownloadStarted?.TrySetResult();
+            if (ReleaseDownload is not null)
+                await ReleaseDownload.Task.WaitAsync(cancellationToken);
             Downloaded = true;
             progress?.Report(new ModelDownloadProgress(100, 100));
-            return ValueTask.CompletedTask;
         }
 
         public async ValueTask LoadAsync(ModelOption model, CancellationToken cancellationToken)
