@@ -110,7 +110,7 @@ public sealed class ModelManagementView : UserControl
     private Control BuildModelSection()
     {
         var panel = new StackPanel { Spacing = 14 };
-        panel.Children.Add(SectionTitle("Text model"));
+        panel.Children.Add(SectionTitle("Model setup"));
         panel.Children.Add(new TextBlock
         {
             Text = "Recommended",
