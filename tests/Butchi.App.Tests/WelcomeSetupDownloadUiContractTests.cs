@@ -5,7 +5,7 @@ namespace Butchi.App.Tests;
 public sealed class WelcomeSetupDownloadUiContractTests
 {
     [Fact]
-    public void Welcome_setup_surfaces_download_progress_and_operation_controls()
+    public void Welcome_setup_surfaces_separate_download_and_finish_controls()
     {
         var root = FindRepositoryRoot();
         var viewModel = File.ReadAllText(Path.Combine(
@@ -21,11 +21,13 @@ public sealed class WelcomeSetupDownloadUiContractTests
             "Startup",
             "WelcomeSetupWindow.cs"));
 
-        Assert.Contains("Download & finish setup", viewModel, StringComparison.Ordinal);
+        Assert.Contains("DownloadActionText", viewModel, StringComparison.Ordinal);
+        Assert.Contains("DownloadSelectedModelAsync", viewModel, StringComparison.Ordinal);
         Assert.Contains("Retry download", viewModel, StringComparison.Ordinal);
-        Assert.Contains("Retry load", viewModel, StringComparison.Ordinal);
         Assert.Contains("DownloadProgressText", viewModel, StringComparison.Ordinal);
 
+        Assert.Contains("_download = new Button", view, StringComparison.Ordinal);
+        Assert.Contains("DownloadModelAsync()", view, StringComparison.Ordinal);
         Assert.Contains("_progressText", view, StringComparison.Ordinal);
         Assert.Contains("_progress.IsIndeterminate", view, StringComparison.Ordinal);
         Assert.Contains("_theme.IsEnabled = !isBusy", view, StringComparison.Ordinal);

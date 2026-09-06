@@ -12,6 +12,7 @@ public enum WelcomeSetupStage
     NeedsSettings,
     NeedsModel,
     Downloading,
+    ModelDownloaded,
     Loading,
     Cancelled,
     Error,
@@ -37,7 +38,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
 {
     private readonly IAppConfigStore _configStore;
     private readonly IModelManager _modelManager;
-    private readonly SemaphoreSlim _finishGate = new(1, 1);
+    private readonly SemaphoreSlim _operationGate = new(1, 1);
     private AppConfig _config;
     private AppThemePreference _theme;
     private string _targetLanguage;
@@ -98,13 +99,22 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
     public WelcomeSetupStage Stage => _stage;
     public string? ErrorMessage => _errorMessage;
     public bool IsBusy => _isBusy;
-    public bool CanFinish => !IsBusy && SelectedModel is not null && !string.IsNullOrWhiteSpace(TargetLanguage);
+
+    public bool CanDownloadModel =>
+        !IsBusy && SelectedModel is { } model && !_modelManager.IsDownloaded(model);
+
+    public bool CanFinish =>
+        !IsBusy &&
+        SelectedModel is { } model &&
+        _modelManager.IsDownloaded(model) &&
+        !string.IsNullOrWhiteSpace(TargetLanguage);
 
     public string StatusText => Stage switch
     {
         WelcomeSetupStage.NeedsSettings => "Confirm your settings to continue.",
-        WelcomeSetupStage.NeedsModel => "Choose a local model to continue.",
+        WelcomeSetupStage.NeedsModel => "Choose and download a local model to continue.",
         WelcomeSetupStage.Downloading => $"Downloading {SelectedModel?.Label ?? "the local model"}…",
+        WelcomeSetupStage.ModelDownloaded => "Model downloaded. Finish setup to start Butchi.",
         WelcomeSetupStage.Loading => $"Loading {SelectedModel?.Label ?? "the local model"}…",
         WelcomeSetupStage.Cancelled => "Setup canceled. You can continue when ready.",
         WelcomeSetupStage.Error => "Setup needs your attention.",
@@ -112,26 +122,31 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         _ => string.Empty
     };
 
+    public string DownloadActionText
+    {
+        get
+        {
+            if (IsBusy && Stage == WelcomeSetupStage.Downloading)
+                return "Cancel";
+
+            if (Stage == WelcomeSetupStage.Error && _retryStage == WelcomeSetupStage.Downloading)
+                return "Retry download";
+
+            return "Download model";
+        }
+    }
+
     public string PrimaryActionText
     {
         get
         {
-            if (IsBusy)
+            if (IsBusy && Stage == WelcomeSetupStage.Loading)
                 return "Cancel";
 
-            if (Stage == WelcomeSetupStage.Error)
-            {
-                return _retryStage switch
-                {
-                    WelcomeSetupStage.Downloading => "Retry download",
-                    WelcomeSetupStage.Loading => "Retry load",
-                    _ => "Retry"
-                };
-            }
+            if (Stage == WelcomeSetupStage.Error && _retryStage == WelcomeSetupStage.Loading)
+                return "Retry load";
 
-            return SelectedModel is { } model && !_modelManager.IsDownloaded(model)
-                ? "Download & finish setup"
-                : "Finish setup";
+            return "Finish setup";
         }
     }
 
@@ -161,15 +176,87 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             throw new ArgumentException("Model must come from the current catalog.", nameof(model));
         if (SetField(ref _selectedModel, model, nameof(SelectedModel)))
         {
+            _retryStage = null;
+            SetError(null);
+            SetDownloadProgress(null);
+            SetStage(_modelManager.IsDownloaded(model)
+                ? WelcomeSetupStage.ModelDownloaded
+                : WelcomeSetupStage.NeedsModel);
+            OnPropertyChanged(nameof(CanDownloadModel));
             OnPropertyChanged(nameof(CanFinish));
+            OnPropertyChanged(nameof(DownloadActionText));
             OnPropertyChanged(nameof(PrimaryActionText));
             OnPropertyChanged(nameof(StatusText));
         }
     }
 
+    public async ValueTask<bool> DownloadSelectedModelAsync(CancellationToken cancellationToken)
+    {
+        if (!await _operationGate.WaitAsync(0, cancellationToken))
+            return false;
+
+        SetBusy(true);
+        SetError(null);
+        _retryStage = null;
+        try
+        {
+            var model = SelectedModel ?? throw new InvalidOperationException("Choose a model to continue.");
+            if (_modelManager.IsDownloaded(model))
+            {
+                SetStage(WelcomeSetupStage.ModelDownloaded);
+                return true;
+            }
+
+            SetDownloadProgress(new ModelDownloadProgress(0, null));
+            SetStage(WelcomeSetupStage.Downloading);
+            var progress = new LatestProgress<ModelDownloadProgress>(value => SetDownloadProgress(value));
+            await _modelManager.DownloadAsync(model, progress, cancellationToken);
+            progress.FlushLatest();
+
+            if (!_modelManager.IsDownloaded(model))
+                throw new IOException("Downloaded model was not found locally.");
+
+            SetStage(WelcomeSetupStage.ModelDownloaded);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _retryStage = null;
+            SetError(null);
+            SetStage(WelcomeSetupStage.Cancelled);
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            SetFailure(
+                "The model could not be downloaded. Check your connection and retry.",
+                WelcomeSetupStage.Downloading);
+            return false;
+        }
+        catch (IOException)
+        {
+            SetFailure(
+                "The model download could not access local files. Check access and retry.",
+                WelcomeSetupStage.Downloading);
+            return false;
+        }
+        catch (Exception)
+        {
+            SetFailure(
+                "The model could not be downloaded. Retry or choose another model.",
+                WelcomeSetupStage.Downloading);
+            return false;
+        }
+        finally
+        {
+            SetBusy(false);
+            _operationGate.Release();
+        }
+    }
+
     public async ValueTask<WelcomeSetupCompletion?> FinishAsync(CancellationToken cancellationToken)
     {
-        if (!await _finishGate.WaitAsync(0, cancellationToken))
+        if (!await _operationGate.WaitAsync(0, cancellationToken))
             return null;
 
         SetBusy(true);
@@ -178,6 +265,12 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         try
         {
             var model = SelectedModel ?? throw new InvalidOperationException("Choose a model to continue.");
+            if (!_modelManager.IsDownloaded(model))
+            {
+                SetFailure("Download the selected model before finishing setup.");
+                return null;
+            }
+
             var config = _config with
             {
                 Theme = Theme,
@@ -188,15 +281,6 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             };
 
             await _configStore.SaveAsync(config, cancellationToken);
-            if (!_modelManager.IsDownloaded(model))
-            {
-                SetDownloadProgress(new ModelDownloadProgress(0, null));
-                SetStage(WelcomeSetupStage.Downloading);
-                var progress = new LatestProgress<ModelDownloadProgress>(SetDownloadProgress);
-                await _modelManager.DownloadAsync(model, progress, cancellationToken);
-                progress.FlushLatest();
-            }
-
             SetStage(WelcomeSetupStage.Loading);
             await _modelManager.LoadAsync(model, config, cancellationToken);
             var status = _modelManager.GetStatus();
@@ -219,13 +303,6 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             SetFailure("Enter a valid target language and try again.");
             return null;
         }
-        catch (HttpRequestException)
-        {
-            SetFailure(
-                "The model could not be downloaded. Check your connection and retry.",
-                WelcomeSetupStage.Downloading);
-            return null;
-        }
         catch (IOException)
         {
             SetFailure(
@@ -243,22 +320,25 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         finally
         {
             SetBusy(false);
-            _finishGate.Release();
+            _operationGate.Release();
         }
     }
 
     private WelcomeSetupStage? RetryStageForCurrentOperation() =>
-        Stage is WelcomeSetupStage.Downloading or WelcomeSetupStage.Loading ? Stage : null;
+        Stage == WelcomeSetupStage.Loading ? WelcomeSetupStage.Loading : null;
 
     private void SetFailure(string message, WelcomeSetupStage? retryStage = null)
     {
         _retryStage = retryStage;
         SetError(message);
         SetStage(WelcomeSetupStage.Error);
+        OnPropertyChanged(nameof(DownloadActionText));
         OnPropertyChanged(nameof(PrimaryActionText));
+        OnPropertyChanged(nameof(CanDownloadModel));
+        OnPropertyChanged(nameof(CanFinish));
     }
 
-    private void SetDownloadProgress(ModelDownloadProgress value)
+    private void SetDownloadProgress(ModelDownloadProgress? value)
     {
         _downloadProgress = value;
         OnPropertyChanged(nameof(DownloadProgress));
@@ -270,7 +350,9 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         if (_isBusy == value) return;
         _isBusy = value;
         OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(CanDownloadModel));
         OnPropertyChanged(nameof(CanFinish));
+        OnPropertyChanged(nameof(DownloadActionText));
         OnPropertyChanged(nameof(PrimaryActionText));
     }
 
@@ -280,7 +362,10 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         _stage = value;
         OnPropertyChanged(nameof(Stage));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(DownloadActionText));
         OnPropertyChanged(nameof(PrimaryActionText));
+        OnPropertyChanged(nameof(CanDownloadModel));
+        OnPropertyChanged(nameof(CanFinish));
     }
 
     private void SetError(string? value)
