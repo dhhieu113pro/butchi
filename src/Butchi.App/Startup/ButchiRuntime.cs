@@ -4,6 +4,7 @@ using Butchi.App.Branding;
 using Butchi.App.Management;
 using Butchi.App.Popover;
 using Butchi.App.Tray;
+using Butchi.App.Vision;
 using Butchi.App.Windows;
 using Butchi.Core.Actions;
 using Butchi.Core.Configuration;
@@ -28,6 +29,7 @@ public sealed class ButchiRuntime(
     WindowsInteractionRuntime interaction,
     PopoverActionController popoverActionController,
     TextActionScheduler scheduler,
+    VisionController visionController,
     IApplicationShutdown shutdown) : IButchiRuntime
 {
     private TrayIcons? _trayIcons;
@@ -69,6 +71,7 @@ public sealed class ButchiRuntime(
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         interaction.Dispose();
+        await visionController.DisposeAsync();
         _trayIcon?.Dispose();
         _trayIcon = null;
         _trayIcons = null;
