@@ -12,17 +12,27 @@ namespace Butchi.App.Models;
 public sealed class ModelManagementView : UserControl
 {
     private readonly ModelManagementViewModel _viewModel;
+    private readonly VisionModelManagementViewModel _visionViewModel;
     private readonly StackPanel _statusPanel;
+    private readonly StackPanel _visionStatusPanel;
     private readonly TextBlock _saveStatus;
+    private readonly TextBlock _visionSaveStatus;
     private readonly ComboBox _modelPicker;
+    private readonly ComboBox _visionModelPicker;
 
-    public ModelManagementView(ModelManagementViewModel viewModel, bool autoPrepareModel = true)
+    public ModelManagementView(
+        ModelManagementViewModel viewModel,
+        VisionModelManagementViewModel visionViewModel,
+        bool autoPrepareModel = true)
     {
         _viewModel = viewModel;
+        _visionViewModel = visionViewModel;
         DataContext = viewModel;
 
         _statusPanel = new StackPanel { Spacing = 8 };
+        _visionStatusPanel = new StackPanel { Spacing = 8 };
         _saveStatus = new TextBlock { FontSize = 11, Opacity = 0.68 };
+        _visionSaveStatus = new TextBlock { FontSize = 11, Opacity = 0.68 };
         _modelPicker = new ComboBox
         {
             ItemsSource = viewModel.Catalog,
@@ -34,6 +44,19 @@ public sealed class ModelManagementView : UserControl
         {
             if (_modelPicker.SelectedItem is ModelOption model)
                 _viewModel.SelectModel(model);
+        };
+
+        _visionModelPicker = new ComboBox
+        {
+            ItemsSource = visionViewModel.Catalog,
+            SelectedItem = visionViewModel.SelectedModel,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 38
+        };
+        _visionModelPicker.SelectionChanged += (_, _) =>
+        {
+            if (_visionModelPicker.SelectedItem is VisionModelOption model)
+                _visionViewModel.SelectModel(model);
         };
 
         var content = new StackPanel
@@ -54,34 +77,40 @@ public sealed class ModelManagementView : UserControl
         });
         content.Children.Add(new TextBlock
         {
-            Text = "Local model",
+            Text = "Local models",
             FontSize = 30,
             FontWeight = FontWeight.SemiBold
         });
         content.Children.Add(new TextBlock
         {
-            Text = "Butchi keeps the selected GGUF model ready automatically. Your text stays on this device.",
+            Text = "Butchi keeps the selected text and vision GGUF models ready automatically. Your text and screenshots stay on this device.",
             FontSize = 14,
             Opacity = 0.72,
             TextWrapping = TextWrapping.Wrap
         });
 
         content.Children.Add(Card(BuildModelSection()));
+        content.Children.Add(Card(BuildVisionModelSection()));
         content.Children.Add(Card(BuildDeviceSection()));
         content.Children.Add(BuildAdvancedSection());
         content.Children.Add(_saveStatus);
 
         Content = new ScrollViewer { Content = content };
         _viewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(Refresh);
+        _visionViewModel.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RefreshVision);
         Refresh();
+        RefreshVision();
         if (autoPrepareModel)
+        {
             _viewModel.EnsureSelectedModelReady();
+            _visionViewModel.EnsureSelectedModelReady();
+        }
     }
 
     private Control BuildModelSection()
     {
         var panel = new StackPanel { Spacing = 14 };
-        panel.Children.Add(SectionTitle("Model setup"));
+        panel.Children.Add(SectionTitle("Text model"));
         panel.Children.Add(new TextBlock
         {
             Text = "Recommended",
@@ -104,6 +133,36 @@ public sealed class ModelManagementView : UserControl
         });
         panel.Children.Add(_modelPicker);
         panel.Children.Add(_statusPanel);
+        return panel;
+    }
+
+    private Control BuildVisionModelSection()
+    {
+        var panel = new StackPanel { Spacing = 14 };
+        panel.Children.Add(SectionTitle("Vision model"));
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Screenshot analysis",
+            FontSize = 11,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ButchiTheme.CobaltBrush
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "LFM2.5-VL 450M · Q4_K_M",
+            FontSize = 18,
+            FontWeight = FontWeight.SemiBold
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Used by Vision screenshot capture. Butchi downloads the GGUF model and its multimodal projector together when selected.",
+            FontSize = 13,
+            Opacity = 0.72,
+            TextWrapping = TextWrapping.Wrap
+        });
+        panel.Children.Add(_visionModelPicker);
+        panel.Children.Add(_visionStatusPanel);
+        panel.Children.Add(_visionSaveStatus);
         return panel;
     }
 
@@ -241,6 +300,63 @@ public sealed class ModelManagementView : UserControl
         _saveStatus.Text = _viewModel.SaveStatus;
     }
 
+    private void RefreshVision()
+    {
+        _visionStatusPanel.Children.Clear();
+
+        switch (_visionViewModel.LifecycleState)
+        {
+            case ModelLifecycleState.Checking:
+                AddVisionStatus("Checking vision model", ButchiTheme.Cobalt, "Checking the model and projector on this device…");
+                break;
+            case ModelLifecycleState.Downloading:
+                AddVisionDownloadStatus();
+                break;
+            case ModelLifecycleState.Error:
+                AddVisionStatus(
+                    "Vision model error",
+                    ButchiTheme.Warning,
+                    string.IsNullOrWhiteSpace(_visionViewModel.LifecycleError)
+                        ? "The selected vision model could not be downloaded."
+                        : _visionViewModel.LifecycleError);
+                var retry = new Button
+                {
+                    Content = "Retry",
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Padding = new Thickness(14, 7),
+                    CornerRadius = new CornerRadius(8)
+                };
+                retry.Click += (_, _) => _visionViewModel.EnsureSelectedModelReady();
+                _visionStatusPanel.Children.Add(retry);
+                break;
+            default:
+                if (_visionViewModel.IsDownloaded)
+                {
+                    _visionStatusPanel.Children.Add(StatePill("Ready", ButchiTheme.Success));
+                    var selected = _visionViewModel.SelectedModel;
+                    _visionStatusPanel.Children.Add(new TextBlock
+                    {
+                        Text = selected is null
+                            ? "Vision model is ready."
+                            : $"{selected.ModelFile} + {selected.ProjectorFile} · loaded on demand",
+                        FontSize = 12,
+                        Opacity = 0.76,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                }
+                else
+                {
+                    AddVisionStatus(
+                        "Preparing vision model",
+                        ButchiTheme.Cobalt,
+                        "The selected model and projector will be fetched automatically.");
+                }
+                break;
+        }
+
+        _visionSaveStatus.Text = _visionViewModel.SaveStatus;
+    }
+
     private void AddDownloadStatus()
     {
         _statusPanel.Children.Add(StatePill("Downloading", ButchiTheme.Cobalt));
@@ -268,10 +384,49 @@ public sealed class ModelManagementView : UserControl
         });
     }
 
+    private void AddVisionDownloadStatus()
+    {
+        _visionStatusPanel.Children.Add(StatePill("Downloading", ButchiTheme.Cobalt));
+        var progress = _visionViewModel.DownloadProgress;
+        var fraction = progress?.Fraction;
+        _visionStatusPanel.Children.Add(new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 1,
+            Value = fraction ?? 0,
+            IsIndeterminate = fraction is null,
+            Height = 6,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        });
+
+        var text = progress is null
+            ? "Starting vision model transfer…"
+            : $"File {progress.FileIndex}/{progress.FileCount}: {progress.FileName} · {FormatDownloadProgress(progress.Progress)}";
+        _visionStatusPanel.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontSize = 12,
+            Opacity = 0.76,
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
     private void AddStatus(string title, Color color, string description)
     {
         _statusPanel.Children.Add(StatePill(title, color));
         _statusPanel.Children.Add(new TextBlock
+        {
+            Text = description,
+            FontSize = 12,
+            Opacity = 0.72,
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
+    private void AddVisionStatus(string title, Color color, string description)
+    {
+        _visionStatusPanel.Children.Add(StatePill(title, color));
+        _visionStatusPanel.Children.Add(new TextBlock
         {
             Text = description,
             FontSize = 12,
