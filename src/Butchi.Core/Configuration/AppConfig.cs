@@ -14,6 +14,9 @@ public sealed record AppConfig
     public BackendPreference BackendPreference { get; init; } = BackendPreference.Auto;
     public string ModelRepo { get; init; } = "unsloth/Qwen3.5-0.8B-GGUF";
     public string ModelFile { get; init; } = "Qwen3.5-0.8B-Q4_K_M.gguf";
+    public string VisionModelRepo { get; init; } = "LiquidAI/LFM2.5-VL-450M-GGUF";
+    public string VisionModelFile { get; init; } = "LFM2.5-VL-450M-Q4_K_M.gguf";
+    public string VisionProjectorFile { get; init; } = "mmproj-LFM2.5-VL-450m-Q8_0.gguf";
     public uint MaxTokens { get; init; } = 256;
     public float Temperature { get; init; } = 0.3f;
     public uint GpuLayers { get; init; } = 999;

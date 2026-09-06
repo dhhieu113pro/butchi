@@ -31,6 +31,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
         GeneralSettingsViewModel generalSettings,
         PromptsViewModel prompts,
         ModelManagementViewModel models,
+        VisionModelManagementViewModel visionModels,
         HistoryViewModel history,
         AboutPrivacyViewModel aboutPrivacy,
         Action<AppThemePreference> applyTheme,
@@ -48,7 +49,7 @@ public sealed class ManagementWindow : Window, IManagementWindowHost
 
         _generalView = new GeneralSettingsView(generalSettings, applyTheme);
         _promptsView = new PromptsView(prompts);
-        _modelView = new ModelManagementView(models, autoPrepareModel);
+        _modelView = new ModelManagementView(models, visionModels, autoPrepareModel);
         _historyView = new HistoryView(history);
         _aboutPrivacyView = new AboutPrivacyView(aboutPrivacy);
         _contentHost = new Border { Padding = new Thickness(0), Child = _generalView };

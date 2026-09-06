@@ -58,7 +58,13 @@ public sealed class LLamaSharpVisionInferenceEngine : IVisionInferenceEngine
     private async Task<Runtime> EnsureRuntimeAsync(AppConfig config, CancellationToken cancellationToken)
     {
         var contextSize = Math.Max(4_096u, checked(config.MaxTokens + 2_048u));
-        var key = new RuntimeKey(config.GpuLayers, contextSize);
+        var model = VisionModelCatalog.Resolve(config);
+        var key = new RuntimeKey(
+            config.GpuLayers,
+            contextSize,
+            model.Repo,
+            model.ModelFile,
+            model.ProjectorFile);
         if (_runtime is not null && _runtimeKey == key)
             return _runtime;
 
@@ -66,7 +72,6 @@ public sealed class LLamaSharpVisionInferenceEngine : IVisionInferenceEngine
         _runtime = null;
         _runtimeKey = null;
 
-        var model = VisionModelCatalog.Default;
         var modelPath = await EnsureFileAsync(model.Repo, model.ModelFile, cancellationToken).ConfigureAwait(false);
         var projectorPath = await EnsureFileAsync(model.Repo, model.ProjectorFile, cancellationToken).ConfigureAwait(false);
 
@@ -202,5 +207,10 @@ public sealed class LLamaSharpVisionInferenceEngine : IVisionInferenceEngine
         }
     }
 
-    private sealed record RuntimeKey(uint GpuLayers, uint ContextSize);
+    private sealed record RuntimeKey(
+        uint GpuLayers,
+        uint ContextSize,
+        string ModelRepo,
+        string ModelFile,
+        string ProjectorFile);
 }

@@ -111,6 +111,10 @@ public sealed class ButchiRuntimeFactory(
             cancellationToken);
         var prompts = await PromptsViewModel.CreateAsync(services.ConfigStore, cancellationToken);
         var models = await ModelManagementViewModel.CreateAsync(services.ModelManager, services.ConfigStore, cancellationToken);
+        var visionModels = await VisionModelManagementViewModel.CreateAsync(
+            services.VisionModelManager,
+            services.ConfigStore,
+            cancellationToken);
         ManagementWindow? management = null;
         var history = await HistoryViewModel.CreateAsync(
             historyStore,
@@ -127,7 +131,7 @@ public sealed class ButchiRuntimeFactory(
                 "https://github.com/dhhieu113pro/butchi"),
             new AboutRuntimeStatus(status.IsLoaded, status.ActualBackend, status.ActualDevice));
         management = new ManagementWindow(
-            new ManagementShellViewModel(), general, prompts, models, history, about,
+            new ManagementShellViewModel(), general, prompts, models, visionModels, history, about,
             preference => ButchiTheme.Apply(application, preference),
             autoPrepareModel);
         return management;
