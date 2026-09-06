@@ -45,6 +45,39 @@ function Read-ZipManifest([System.IO.Compression.ZipArchive]$Archive) {
     }
 }
 
+function Assert-StartupTask([xml]$Manifest, [string]$Context) {
+    $startupNs = New-Object System.Xml.XmlNamespaceManager($Manifest.NameTable)
+    $startupNs.AddNamespace('f', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
+    $startupNs.AddNamespace('uap5', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/5')
+
+    $extension = $Manifest.SelectSingleNode(
+        '/f:Package/f:Applications/f:Application/f:Extensions/uap5:Extension[@Category="windows.startupTask"]',
+        $startupNs)
+    if (-not $extension) {
+        throw "$Context must declare one windows.startupTask extension."
+    }
+    if ([string]$extension.Executable -ne 'butchi.exe') {
+        throw "$Context startup task executable must be butchi.exe."
+    }
+    if ([string]$extension.EntryPoint -ne 'Windows.FullTrustApplication') {
+        throw "$Context startup task must use Windows.FullTrustApplication entry point."
+    }
+
+    $startupTask = $extension.SelectSingleNode('uap5:StartupTask', $startupNs)
+    if (-not $startupTask) {
+        throw "$Context startup task declaration is missing uap5:StartupTask."
+    }
+    if ([string]$startupTask.TaskId -ne 'ButchiStartup') {
+        throw "$Context startup task TaskId must be ButchiStartup."
+    }
+    if ([string]$startupTask.Enabled -ne 'false') {
+        throw "$Context startup task Enabled must be false by default."
+    }
+    if ([string]$startupTask.DisplayName -ne 'Butchi') {
+        throw "$Context startup task DisplayName must be Butchi."
+    }
+}
+
 $versionParts = @($Version.Split('.'))
 if ($versionParts.Count -ne 4) {
     throw "MSIX version must contain exactly four numeric components: $Version"
@@ -86,6 +119,7 @@ if ($application.EntryPoint -ne 'Windows.FullTrustApplication') {
 if ($application.Executable -ne 'butchi.exe') {
     throw "Store manifest executable must be butchi.exe."
 }
+Assert-StartupTask -Manifest $manifest -Context "Staged manifest"
 
 if ($PackagePath) {
     Assert-Exists $PackagePath 'Architecture-specific MSIX package'
@@ -107,6 +141,7 @@ if ($PackagePath) {
         if ([string]$packageIdentity.Name -ne [string]$identity.Name) {
             throw "Packaged manifest identity '$($packageIdentity.Name)' does not match staged identity '$($identity.Name)'."
         }
+        Assert-StartupTask -Manifest $packageManifest -Context "Packaged manifest"
 
         $packageEntries = @($package.Entries | ForEach-Object { $_.FullName })
         foreach ($requiredFile in 'butchi.exe', 'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll') {
