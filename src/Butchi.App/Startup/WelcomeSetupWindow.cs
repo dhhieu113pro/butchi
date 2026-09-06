@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -124,6 +125,13 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
             IsVisible = false
         };
         _finish = new Button { HorizontalAlignment = HorizontalAlignment.Right };
+
+        AutomationProperties.SetAutomationId(_model, "WelcomeModel");
+        AutomationProperties.SetAutomationId(_download, "WelcomeDownloadModel");
+        AutomationProperties.SetAutomationId(_progress, "WelcomeDownloadProgress");
+        AutomationProperties.SetAutomationId(_status, "WelcomeStatus");
+        AutomationProperties.SetAutomationId(_error, "WelcomeError");
+        AutomationProperties.SetAutomationId(_finish, "WelcomeFinishSetup");
 
         _theme.SelectionChanged += (_, _) =>
         {
