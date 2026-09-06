@@ -49,6 +49,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
     private WelcomeSetupStage? _retryStage;
     private string? _errorMessage;
     private bool _isBusy;
+    private bool _isRuntimeRetry;
 
     public WelcomeSetupViewModel(
         StartupReadinessResult readiness,
@@ -66,6 +67,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             ?? modelManager.Catalog.FirstOrDefault();
         _stage = InitialStage(readiness.Reason);
         _errorMessage = InitialError(readiness);
+        _isRuntimeRetry = readiness.Reason == StartupReadinessReason.RuntimeFailed;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -117,6 +119,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         WelcomeSetupStage.ModelDownloaded => "Model downloaded. Finish setup to start Butchi.",
         WelcomeSetupStage.Loading => $"Loading {SelectedModel?.Label ?? "the local model"}…",
         WelcomeSetupStage.Cancelled => "Setup canceled. You can continue when ready.",
+        WelcomeSetupStage.Error when _isRuntimeRetry => "Setup is complete, but the Butchi desktop runtime could not start.",
         WelcomeSetupStage.Error => "Setup needs your attention.",
         WelcomeSetupStage.Ready => "Butchi is ready.",
         _ => string.Empty
@@ -145,6 +148,9 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
 
             if (Stage == WelcomeSetupStage.Error && _retryStage == WelcomeSetupStage.Loading)
                 return "Retry load";
+
+            if (_isRuntimeRetry)
+                return "Retry startup";
 
             return "Finish setup";
         }
@@ -176,6 +182,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             throw new ArgumentException("Model must come from the current catalog.", nameof(model));
         if (SetField(ref _selectedModel, model, nameof(SelectedModel)))
         {
+            _isRuntimeRetry = false;
             _retryStage = null;
             SetError(null);
             SetDownloadProgress(null);
@@ -281,13 +288,16 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             };
 
             await _configStore.SaveAsync(config, cancellationToken);
-            SetStage(WelcomeSetupStage.Loading);
-            await _modelManager.LoadAsync(model, config, cancellationToken);
-            var status = _modelManager.GetStatus();
-            if (!status.IsLoaded || status.ModelRepo != model.Repo || status.ModelFile != model.File)
-                throw new InvalidOperationException("Selected model did not become ready.");
+            if (!_isRuntimeRetry || !IsLoadedFor(model))
+            {
+                SetStage(WelcomeSetupStage.Loading);
+                await _modelManager.LoadAsync(model, config, cancellationToken);
+                if (!IsLoadedFor(model))
+                    throw new InvalidOperationException("Selected model did not become ready.");
+            }
 
             _config = config;
+            _isRuntimeRetry = false;
             SetStage(WelcomeSetupStage.Ready);
             return new WelcomeSetupCompletion(config);
         }
@@ -324,11 +334,20 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool IsLoadedFor(ModelOption model)
+    {
+        var status = _modelManager.GetStatus();
+        return status.IsLoaded &&
+               string.Equals(status.ModelRepo, model.Repo, StringComparison.Ordinal) &&
+               string.Equals(status.ModelFile, model.File, StringComparison.Ordinal);
+    }
+
     private WelcomeSetupStage? RetryStageForCurrentOperation() =>
         Stage == WelcomeSetupStage.Loading ? WelcomeSetupStage.Loading : null;
 
     private void SetFailure(string message, WelcomeSetupStage? retryStage = null)
     {
+        _isRuntimeRetry = false;
         _retryStage = retryStage;
         SetError(message);
         SetStage(WelcomeSetupStage.Error);
@@ -413,9 +432,14 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         StartupReadinessReason.SettingsInvalid => "Existing settings could not be read. Confirm and save them again.",
         StartupReadinessReason.SettingsUnavailable => "Settings are unavailable. Check local file access and retry.",
         StartupReadinessReason.ModelLoadFailed => "The configured local model could not be loaded.",
-        StartupReadinessReason.RuntimeFailed => "Butchi could not finish starting.",
+        StartupReadinessReason.RuntimeFailed => RuntimeFailureMessage(readiness.ErrorCode),
         _ => null
     };
+
+    private static string RuntimeFailureMessage(string? details) =>
+        string.IsNullOrWhiteSpace(details)
+            ? "Butchi could not finish starting."
+            : $"Butchi could not finish starting. {details}";
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

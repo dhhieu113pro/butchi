@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Butchi.App.Startup;
 
 public enum StartupCoordinatorState
@@ -77,7 +79,7 @@ public sealed class StartupCoordinator(
                         false,
                         config,
                         StartupReadinessReason.RuntimeFailed,
-                        exception.GetType().Name);
+                        DescribeRuntimeFailure(exception));
                 }
             }
         }
@@ -106,4 +108,9 @@ public sealed class StartupCoordinator(
             _runGate.Dispose();
         }
     }
+
+    private static string DescribeRuntimeFailure(Exception exception) =>
+        exception is Win32Exception win32
+            ? $"{exception.GetType().Name} ({win32.NativeErrorCode}): {exception.Message}"
+            : $"{exception.GetType().Name}: {exception.Message}";
 }
