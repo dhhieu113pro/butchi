@@ -82,9 +82,11 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
     private readonly ComboBox _resultAction;
     private readonly ComboBox _model;
     private readonly ProgressBar _progress;
+    private readonly TextBlock _progressText;
     private readonly TextBlock _status;
     private readonly TextBlock _error;
     private readonly Button _finish;
+    private CancellationToken _hostCancellationToken;
     private CancellationTokenSource? _operationCancellation;
     private Task _activeOperation = Task.CompletedTask;
     private bool _completed;
@@ -106,6 +108,12 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
         _resultAction = new ComboBox { ItemsSource = Enum.GetValues<ResultAction>(), SelectedItem = viewModel.ResultAction };
         _model = new ComboBox { ItemsSource = viewModel.Catalog, SelectedItem = viewModel.SelectedModel };
         _progress = new ProgressBar { Minimum = 0, Maximum = 1, IsVisible = false };
+        _progressText = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.72,
+            IsVisible = false
+        };
         _status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         _error = new TextBlock
         {
@@ -131,7 +139,16 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
 
         var exit = new Button { Content = "Exit" };
         exit.Click += (_, _) => ExitRequested?.Invoke();
-        _finish.Click += (_, _) => _activeOperation = FinishSetupAsync();
+        _finish.Click += (_, _) =>
+        {
+            if (_viewModel.IsBusy)
+            {
+                CancelActiveOperation();
+                return;
+            }
+
+            _activeOperation = FinishSetupAsync();
+        };
 
         var actions = new StackPanel
         {
@@ -178,8 +195,9 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
 
     public void SetOperationCancellation(CancellationToken cancellationToken)
     {
+        _hostCancellationToken = cancellationToken;
         _operationCancellation?.Dispose();
-        _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _operationCancellation = null;
     }
 
     public void CancelActiveOperation() => _operationCancellation?.Cancel();
@@ -202,14 +220,17 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
 
     private async Task FinishSetupAsync()
     {
+        _operationCancellation?.Dispose();
+        _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_hostCancellationToken);
+        var operationCancellation = _operationCancellation;
+
         try
         {
-            var result = await _viewModel.FinishAsync(
-                _operationCancellation?.Token ?? CancellationToken.None);
+            var result = await _viewModel.FinishAsync(operationCancellation.Token);
             Refresh();
             if (result is not null) Completed?.Invoke(result);
         }
-        catch (OperationCanceledException) when (_operationCancellation?.IsCancellationRequested == true)
+        catch (OperationCanceledException) when (operationCancellation.IsCancellationRequested)
         {
             Refresh();
         }
@@ -260,6 +281,7 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
             Opacity = 0.7
         });
         panel.Children.Add(_progress);
+        panel.Children.Add(_progressText);
         return Card("Local model", "A loaded model is required before Butchi can start in the tray.", panel);
     }
 
@@ -297,12 +319,26 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
 
     private void Refresh()
     {
+        var isBusy = _viewModel.IsBusy;
+        var progress = _viewModel.DownloadProgress;
+        var showProgress = _viewModel.Stage == WelcomeSetupStage.Downloading && progress is not null;
+
         _status.Text = _viewModel.StatusText;
         _error.Text = _viewModel.ErrorMessage;
         _error.IsVisible = !string.IsNullOrWhiteSpace(_viewModel.ErrorMessage);
-        _finish.Content = _viewModel.Stage == WelcomeSetupStage.Error ? "Retry" : "Finish setup";
-        _finish.IsEnabled = _viewModel.CanFinish;
-        _progress.IsVisible = _viewModel.DownloadProgress is not null;
-        _progress.Value = _viewModel.DownloadProgress?.Fraction ?? 0;
+
+        _theme.IsEnabled = !isBusy;
+        _targetLanguage.IsEnabled = !isBusy;
+        _resultAction.IsEnabled = !isBusy;
+        _model.IsEnabled = !isBusy;
+
+        _finish.Content = _viewModel.PrimaryActionText;
+        _finish.IsEnabled = isBusy || _viewModel.CanFinish;
+
+        _progress.IsVisible = showProgress;
+        _progress.IsIndeterminate = showProgress && progress?.TotalBytes is not > 0;
+        _progress.Value = progress?.Fraction ?? 0;
+        _progressText.Text = _viewModel.DownloadProgressText;
+        _progressText.IsVisible = showProgress;
     }
 }
