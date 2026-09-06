@@ -44,6 +44,13 @@ public sealed class App : Application, IApplicationShutdown
     {
         try
         {
+            if (FirstRunE2EStartup.TryCreate(Program.StartupArgs, Shutdown, out var e2eCoordinator))
+            {
+                _coordinator = e2eCoordinator;
+                await _coordinator!.RunAsync(cancellationToken);
+                return;
+            }
+
             _services = new StartupApplicationServices();
             var runtimeFactory = new ButchiRuntimeFactory(this, _services, this);
             if (await new ScreenshotStartup(runtimeFactory).TryRunAsync(Program.StartupArgs, cancellationToken))
