@@ -43,7 +43,22 @@ public sealed class GeneralSettingsViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(autoStart);
 
         var config = await store.LoadAsync(cancellationToken);
-        var actualLaunchAtLogin = await autoStart.GetEnabledAsync(cancellationToken);
+        bool actualLaunchAtLogin;
+        try
+        {
+            actualLaunchAtLogin = await autoStart.GetEnabledAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // Launch-at-login is optional. Preserve the persisted preference if the
+            // platform cannot report its state instead of blocking the whole app startup.
+            return new GeneralSettingsViewModel(store, autoStart, config);
+        }
+
         if (config.LaunchAtLogin != actualLaunchAtLogin)
         {
             config = config with { LaunchAtLogin = actualLaunchAtLogin };
