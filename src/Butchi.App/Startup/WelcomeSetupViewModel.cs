@@ -13,6 +13,7 @@ public enum WelcomeSetupStage
     NeedsModel,
     Downloading,
     Loading,
+    Cancelled,
     Error,
     Ready
 }
@@ -44,6 +45,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
     private ModelOption? _selectedModel;
     private ModelDownloadProgress? _downloadProgress;
     private WelcomeSetupStage _stage;
+    private WelcomeSetupStage? _retryStage;
     private string? _errorMessage;
     private bool _isBusy;
 
@@ -102,12 +104,55 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
     {
         WelcomeSetupStage.NeedsSettings => "Confirm your settings to continue.",
         WelcomeSetupStage.NeedsModel => "Choose a local model to continue.",
-        WelcomeSetupStage.Downloading => "Downloading the local model…",
-        WelcomeSetupStage.Loading => "Loading the local model…",
+        WelcomeSetupStage.Downloading => $"Downloading {SelectedModel?.Label ?? "the local model"}…",
+        WelcomeSetupStage.Loading => $"Loading {SelectedModel?.Label ?? "the local model"}…",
+        WelcomeSetupStage.Cancelled => "Setup canceled. You can continue when ready.",
         WelcomeSetupStage.Error => "Setup needs your attention.",
         WelcomeSetupStage.Ready => "Butchi is ready.",
         _ => string.Empty
     };
+
+    public string PrimaryActionText
+    {
+        get
+        {
+            if (IsBusy)
+                return "Cancel";
+
+            if (Stage == WelcomeSetupStage.Error)
+            {
+                return _retryStage switch
+                {
+                    WelcomeSetupStage.Downloading => "Retry download",
+                    WelcomeSetupStage.Loading => "Retry load",
+                    _ => "Retry"
+                };
+            }
+
+            return SelectedModel is { } model && !_modelManager.IsDownloaded(model)
+                ? "Download & finish setup"
+                : "Finish setup";
+        }
+    }
+
+    public string DownloadProgressText
+    {
+        get
+        {
+            if (DownloadProgress is not { } progress)
+                return string.Empty;
+
+            if (progress.TotalBytes is > 0 and var total)
+            {
+                var fraction = Math.Clamp(progress.Fraction ?? 0d, 0d, 1d);
+                return $"{fraction * 100d:0}% · {FormatBytes(progress.BytesDownloaded)} / {FormatBytes(total)}";
+            }
+
+            return progress.BytesDownloaded == 0
+                ? "Starting download…"
+                : $"{FormatBytes(progress.BytesDownloaded)} downloaded";
+        }
+    }
 
     public void SelectModel(ModelOption model)
     {
@@ -115,7 +160,11 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         if (!Catalog.Contains(model))
             throw new ArgumentException("Model must come from the current catalog.", nameof(model));
         if (SetField(ref _selectedModel, model, nameof(SelectedModel)))
+        {
             OnPropertyChanged(nameof(CanFinish));
+            OnPropertyChanged(nameof(PrimaryActionText));
+            OnPropertyChanged(nameof(StatusText));
+        }
     }
 
     public async ValueTask<WelcomeSetupCompletion?> FinishAsync(CancellationToken cancellationToken)
@@ -125,6 +174,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
 
         SetBusy(true);
         SetError(null);
+        _retryStage = null;
         try
         {
             var model = SelectedModel ?? throw new InvalidOperationException("Choose a model to continue.");
@@ -140,6 +190,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
             await _configStore.SaveAsync(config, cancellationToken);
             if (!_modelManager.IsDownloaded(model))
             {
+                SetDownloadProgress(new ModelDownloadProgress(0, null));
                 SetStage(WelcomeSetupStage.Downloading);
                 var progress = new LatestProgress<ModelDownloadProgress>(SetDownloadProgress);
                 await _modelManager.DownloadAsync(model, progress, cancellationToken);
@@ -158,6 +209,9 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            _retryStage = null;
+            SetError(null);
+            SetStage(WelcomeSetupStage.Cancelled);
             throw;
         }
         catch (ArgumentException)
@@ -167,17 +221,23 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         }
         catch (HttpRequestException)
         {
-            SetFailure("The model could not be downloaded. Check your connection and retry.");
+            SetFailure(
+                "The model could not be downloaded. Check your connection and retry.",
+                WelcomeSetupStage.Downloading);
             return null;
         }
         catch (IOException)
         {
-            SetFailure("Setup could not access local files. Check access and retry.");
+            SetFailure(
+                "Setup could not access local files. Check access and retry.",
+                RetryStageForCurrentOperation());
             return null;
         }
         catch (Exception)
         {
-            SetFailure("The local model could not be loaded. Retry or choose another model.");
+            SetFailure(
+                "The local model could not be loaded. Retry or choose another model.",
+                RetryStageForCurrentOperation());
             return null;
         }
         finally
@@ -187,16 +247,22 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         }
     }
 
-    private void SetFailure(string message)
+    private WelcomeSetupStage? RetryStageForCurrentOperation() =>
+        Stage is WelcomeSetupStage.Downloading or WelcomeSetupStage.Loading ? Stage : null;
+
+    private void SetFailure(string message, WelcomeSetupStage? retryStage = null)
     {
+        _retryStage = retryStage;
         SetError(message);
         SetStage(WelcomeSetupStage.Error);
+        OnPropertyChanged(nameof(PrimaryActionText));
     }
 
     private void SetDownloadProgress(ModelDownloadProgress value)
     {
         _downloadProgress = value;
         OnPropertyChanged(nameof(DownloadProgress));
+        OnPropertyChanged(nameof(DownloadProgressText));
     }
 
     private void SetBusy(bool value)
@@ -205,6 +271,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         _isBusy = value;
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanFinish));
+        OnPropertyChanged(nameof(PrimaryActionText));
     }
 
     private void SetStage(WelcomeSetupStage value)
@@ -213,6 +280,7 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         _stage = value;
         OnPropertyChanged(nameof(Stage));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(PrimaryActionText));
     }
 
     private void SetError(string? value)
@@ -228,6 +296,21 @@ public sealed class WelcomeSetupViewModel : INotifyPropertyChanged
         field = value;
         OnPropertyChanged(propertyName);
         return true;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        const double kib = 1024d;
+        const double mib = kib * 1024d;
+        const double gib = mib * 1024d;
+
+        if (bytes >= gib)
+            return $"{bytes / gib:0.#} GB";
+        if (bytes >= mib)
+            return $"{bytes / mib:0.#} MB";
+        if (bytes >= kib)
+            return $"{bytes / kib:0.#} KB";
+        return $"{bytes} B";
     }
 
     private static WelcomeSetupStage InitialStage(StartupReadinessReason reason) => reason switch
