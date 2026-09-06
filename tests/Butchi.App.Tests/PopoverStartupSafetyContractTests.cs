@@ -5,14 +5,24 @@ namespace Butchi.App.Tests;
 public sealed class PopoverStartupSafetyContractTests
 {
     [Fact]
-    public void Popover_host_does_not_use_transitioning_content_control_during_runtime_startup()
+    public void Popover_transition_host_is_backed_by_plain_content_control_for_startup_safety()
     {
         var root = FindRepositoryRoot();
-        var windowPath = Path.Combine(root, "src", "Butchi.App", "Popover", "PopoverWindow.cs");
-        var source = File.ReadAllText(windowPath);
+        var hostPath = Path.Combine(root, "src", "Butchi.App", "Popover", "SafeTransitionContentControl.cs");
+        var source = File.ReadAllText(hostPath);
 
-        Assert.DoesNotContain("TransitioningContentControl", source, StringComparison.Ordinal);
-        Assert.Contains("private readonly ContentControl _islandHost = new();", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "global using TransitioningContentControl = Butchi.App.Popover.SafeTransitionContentControl;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "internal sealed class SafeTransitionContentControl : ContentControl",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "SafeTransitionContentControl : Avalonia.Controls.TransitioningContentControl",
+            source,
+            StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()
