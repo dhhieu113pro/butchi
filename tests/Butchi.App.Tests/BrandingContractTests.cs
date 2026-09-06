@@ -22,6 +22,11 @@ public sealed class BrandingContractTests
         Assert.True(File.Exists(square44Path), $"Missing Store square 44 logo: {square44Path}");
         Assert.True(File.Exists(square150Path), $"Missing Store square 150 logo: {square150Path}");
 
+        var sourceArtwork = File.ReadAllText(sourceArtworkPath);
+        Assert.Contains("id=\"pencil\"", sourceArtwork, StringComparison.Ordinal);
+        Assert.Contains("simple pencil", sourceArtwork, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("chat, motion", sourceArtwork, StringComparison.OrdinalIgnoreCase);
+
         var project = File.ReadAllText(Path.Combine(repoRoot, "src", "Butchi.App", "Butchi.App.csproj"));
         Assert.Contains("Assets\\ButchiLogo.png", project, StringComparison.Ordinal);
         Assert.Contains("<ApplicationIcon>Assets\\Butchi.ico</ApplicationIcon>", project, StringComparison.Ordinal);
