@@ -1,4 +1,5 @@
 using Butchi.App.Models;
+using Butchi.App.Settings;
 using Butchi.App.Startup;
 using Butchi.Core.Configuration;
 using Butchi.Core.Inference;
