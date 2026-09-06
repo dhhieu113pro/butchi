@@ -81,6 +81,7 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
     private readonly TextBox _targetLanguage;
     private readonly ComboBox _resultAction;
     private readonly ComboBox _model;
+    private readonly Button _download;
     private readonly ProgressBar _progress;
     private readonly TextBlock _progressText;
     private readonly TextBlock _status;
@@ -107,6 +108,7 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
         _targetLanguage = new TextBox { Text = viewModel.TargetLanguage, PlaceholderText = "Target language" };
         _resultAction = new ComboBox { ItemsSource = Enum.GetValues<ResultAction>(), SelectedItem = viewModel.ResultAction };
         _model = new ComboBox { ItemsSource = viewModel.Catalog, SelectedItem = viewModel.SelectedModel };
+        _download = new Button { HorizontalAlignment = HorizontalAlignment.Right };
         _progress = new ProgressBar { Minimum = 0, Maximum = 1, IsVisible = false };
         _progressText = new TextBlock
         {
@@ -136,12 +138,22 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
         {
             if (_model.SelectedItem is ModelOption value) _viewModel.SelectModel(value);
         };
+        _download.Click += (_, _) =>
+        {
+            if (_viewModel.IsBusy && _viewModel.Stage == WelcomeSetupStage.Downloading)
+            {
+                CancelActiveOperation();
+                return;
+            }
+
+            _activeOperation = DownloadModelAsync();
+        };
 
         var exit = new Button { Content = "Exit" };
         exit.Click += (_, _) => ExitRequested?.Invoke();
         _finish.Click += (_, _) =>
         {
-            if (_viewModel.IsBusy)
+            if (_viewModel.IsBusy && _viewModel.Stage == WelcomeSetupStage.Loading)
             {
                 CancelActiveOperation();
                 return;
@@ -218,6 +230,23 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
         }
     }
 
+    private async Task DownloadModelAsync()
+    {
+        _operationCancellation?.Dispose();
+        _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_hostCancellationToken);
+        var operationCancellation = _operationCancellation;
+
+        try
+        {
+            await _viewModel.DownloadSelectedModelAsync(operationCancellation.Token);
+            Refresh();
+        }
+        catch (OperationCanceledException) when (operationCancellation.IsCancellationRequested)
+        {
+            Refresh();
+        }
+    }
+
     private async Task FinishSetupAsync()
     {
         _operationCancellation?.Dispose();
@@ -272,11 +301,21 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
 
     private Control BuildModelCard()
     {
+        var picker = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            ColumnSpacing = 10
+        };
+        _model.SetValue(Grid.ColumnProperty, 0);
+        _download.SetValue(Grid.ColumnProperty, 1);
+        picker.Children.Add(_model);
+        picker.Children.Add(_download);
+
         var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(_model);
+        panel.Children.Add(picker);
         panel.Children.Add(new TextBlock
         {
-            Text = "Models run on this device. If the selected model is missing, Finish setup downloads it first.",
+            Text = "Models run on this device. Download the selected model, then finish setup.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.7
         });
@@ -321,7 +360,9 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
     {
         var isBusy = _viewModel.IsBusy;
         var progress = _viewModel.DownloadProgress;
-        var showProgress = _viewModel.Stage == WelcomeSetupStage.Downloading && progress is not null;
+        var isDownloading = _viewModel.Stage == WelcomeSetupStage.Downloading;
+        var isLoading = _viewModel.Stage == WelcomeSetupStage.Loading;
+        var showProgress = isDownloading && progress is not null;
 
         _status.Text = _viewModel.StatusText;
         _error.Text = _viewModel.ErrorMessage;
@@ -332,8 +373,12 @@ public sealed class WelcomeSetupWindow : Window, IWelcomeSetupSurface, ICancella
         _resultAction.IsEnabled = !isBusy;
         _model.IsEnabled = !isBusy;
 
+        _download.Content = _viewModel.DownloadActionText;
+        _download.IsEnabled = _viewModel.CanDownloadModel || (isBusy && isDownloading);
+        _download.IsVisible = _viewModel.CanDownloadModel || (isBusy && isDownloading);
+
         _finish.Content = _viewModel.PrimaryActionText;
-        _finish.IsEnabled = isBusy || _viewModel.CanFinish;
+        _finish.IsEnabled = _viewModel.CanFinish || (isBusy && isLoading);
 
         _progress.IsVisible = showProgress;
         _progress.IsIndeterminate = showProgress && progress?.TotalBytes is not > 0;
