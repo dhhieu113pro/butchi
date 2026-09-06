@@ -11,13 +11,14 @@ namespace Butchi.App.Tests;
 public sealed class WelcomeSetupViewModelTests
 {
     [Fact]
-    public async Task Finish_saves_settings_downloads_missing_model_and_loads_it()
+    public async Task Download_then_finish_saves_settings_and_loads_selected_model()
     {
         var store = new FakeConfigStore();
         var manager = new FakeModelManager { Downloaded = false };
         var vm = CreateViewModel(store, manager);
         vm.TargetLanguage = "Japanese";
 
+        Assert.True(await vm.DownloadSelectedModelAsync(CancellationToken.None));
         var completion = await vm.FinishAsync(CancellationToken.None);
 
         Assert.NotNull(completion);
@@ -31,7 +32,7 @@ public sealed class WelcomeSetupViewModelTests
     }
 
     [Fact]
-    public async Task Missing_model_shows_download_stage_before_first_network_progress()
+    public async Task Download_action_shows_download_stage_before_first_network_progress()
     {
         var downloadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseDownload = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -43,7 +44,7 @@ public sealed class WelcomeSetupViewModelTests
         };
         var vm = CreateViewModel(new FakeConfigStore(), manager);
 
-        var pending = vm.FinishAsync(CancellationToken.None).AsTask();
+        var pending = vm.DownloadSelectedModelAsync(CancellationToken.None).AsTask();
         await downloadStarted.Task;
 
         Assert.Equal(WelcomeSetupStage.Downloading, vm.Stage);
@@ -53,7 +54,8 @@ public sealed class WelcomeSetupViewModelTests
         Assert.Contains(ModelCatalog.Options[0].Label, vm.StatusText, StringComparison.Ordinal);
 
         releaseDownload.SetResult();
-        Assert.NotNull(await pending);
+        Assert.True(await pending);
+        Assert.Equal(WelcomeSetupStage.ModelDownloaded, vm.Stage);
     }
 
     [Fact]
