@@ -24,12 +24,14 @@ namespace Butchi.App.Startup;
 public sealed class ButchiRuntimeFactory(
     Application application,
     StartupApplicationServices services,
-    IApplicationShutdown shutdown) : IButchiRuntimeFactory
+    IApplicationShutdown shutdown,
+    bool autoPrepareModel = true) : IButchiRuntimeFactory
 {
     public async ValueTask<IButchiRuntime> CreateAsync(AppConfig config, CancellationToken cancellationToken)
     {
         ButchiTheme.Apply(application, config.Theme);
-        var management = await CreateManagementAsync(services.HistoryStore, cancellationToken);
+        var management = await CreateManagementAsync(
+            services.HistoryStore, cancellationToken, autoPrepareModel);
 
         var clipboard = new WindowsClipboardSelectionSource();
         var pasteSender = new WindowsPasteSender();
