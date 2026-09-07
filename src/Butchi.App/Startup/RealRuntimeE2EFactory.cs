@@ -16,20 +16,34 @@ namespace Butchi.App.Startup;
 /// </summary>
 internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRuntimeFactory
 {
+    private void Record(string stage, Exception? exception = null)
+    {
+        // This mode uses a fresh temporary data directory and synthetic input only.
+        // Do not enable full exception logging for the normal user-facing startup path.
+        File.AppendAllText(
+            Path.Combine(dataDirectory, "startup-diagnostics.txt"),
+            stage + Environment.NewLine +
+            (exception is null ? string.Empty : exception + Environment.NewLine));
+    }
+
     public async ValueTask<IButchiRuntime> CreateAsync(AppConfig config, CancellationToken cancellationToken)
     {
         if (Application.Current is not App application)
             throw new InvalidOperationException("The real-runtime E2E requires the Butchi application.");
 
+        Record("Creating production application services");
         var services = new StartupApplicationServices(dataDirectory);
         try
         {
+            Record("Creating production desktop runtime");
             var factory = new ButchiRuntimeFactory(application, services, application, autoPrepareModel: false);
             var runtime = (ButchiRuntime)await factory.CreateAsync(config, cancellationToken);
-            return new RealRuntimeE2E(runtime, services);
+            Record("Production desktop runtime created");
+            return new RealRuntimeE2E(runtime, services, Record);
         }
-        catch
+        catch (Exception exception)
         {
+            Record("Production runtime composition failed", exception);
             await services.DisposeAsync();
             throw;
         }
@@ -37,7 +51,8 @@ internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRunti
 
     private sealed class RealRuntimeE2E(
         ButchiRuntime runtime,
-        StartupApplicationServices services) : IButchiRuntime
+        StartupApplicationServices services,
+        Action<string, Exception?> record) : IButchiRuntime
     {
         private Window? _resultWindow;
         private bool _disposed;
@@ -46,9 +61,19 @@ internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRunti
 
         public void StartTray()
         {
-            runtime.StartTray();
-            runtime.ManagementWindow.Show(ManagementPage.General);
-            Dispatcher.UIThread.Post(() => _ = ExercisePopoverAsync(), DispatcherPriority.Loaded);
+            try
+            {
+                record("Starting production tray and interaction runtime", null);
+                runtime.StartTray();
+                runtime.ManagementWindow.Show(ManagementPage.General);
+                record("Production tray and management window started", null);
+                Dispatcher.UIThread.Post(() => _ = ExercisePopoverAsync(), DispatcherPriority.Loaded);
+            }
+            catch (Exception exception)
+            {
+                record("Production tray startup failed", exception);
+                throw;
+            }
         }
 
         private async Task ExercisePopoverAsync()
@@ -57,17 +82,20 @@ internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRunti
             {
                 var popover = runtime.PopoverWindow;
                 var vm = popover.ViewModel;
+                record("Showing expanded popover", null);
                 vm.SetSession("Hello", TextAction.Translate, "Vietnamese");
                 popover.ShowPersistent();
                 await RenderAsync();
                 AssertLogicalTree(popover);
 
+                record("Switching to compact popover", null);
                 vm.Begin(TextAction.Translate, 1);
                 await RenderAsync();
                 if (!vm.IsCompact)
                     throw new InvalidOperationException("The popover did not enter compact mode.");
                 AssertLogicalTree(popover);
 
+                record("Switching to expanded result", null);
                 vm.Append(TextAction.Translate, 1, "Xin chào");
                 vm.Complete(TextAction.Translate, 1);
                 await RenderAsync();
@@ -75,29 +103,31 @@ internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRunti
                     throw new InvalidOperationException("The popover did not return to expanded mode.");
                 AssertLogicalTree(popover);
 
+                record("Hiding and showing the popover", null);
                 popover.HidePersistent();
                 popover.ShowPersistent();
                 await RenderAsync();
                 AssertLogicalTree(popover);
 
+                record("Changing popover theme to dark", null);
                 popover.RequestedThemeVariant = ThemeVariant.Dark;
                 await RenderAsync();
                 AssertLogicalTree(popover);
+                record("Changing popover theme to light", null);
                 popover.RequestedThemeVariant = ThemeVariant.Light;
                 await RenderAsync();
                 AssertLogicalTree(popover);
 
                 popover.HidePersistent();
+                record("Real popover lifecycle completed", null);
                 if (!_disposed)
                     ShowResult("Butchi Popover Lifecycle Complete", "Real desktop runtime and popover lifecycle completed.");
             }
             catch (Exception exception)
             {
-                // Only synthetic E2E data is used here. Keep full details in the
-                // CI log to identify the actual failing framework/application frame.
-                Console.Error.WriteLine(exception);
+                record("Real popover lifecycle failed", exception);
                 if (!_disposed)
-                    ShowResult("Butchi Popover Lifecycle Failed", exception.ToString());
+                    ShowResult("Butchi Popover Lifecycle Failed", exception.GetType().Name);
             }
         }
 
@@ -124,15 +154,7 @@ internal sealed class RealRuntimeE2EFactory(string dataDirectory) : IButchiRunti
                 Title = title,
                 Width = 600,
                 Height = 360,
-                Content = new ScrollViewer
-                {
-                    Content = new TextBlock
-                    {
-                        Text = details,
-                        TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                        Margin = new Thickness(16)
-                    }
-                }
+                Content = new TextBlock { Text = details, Margin = new Thickness(16) }
             };
             _resultWindow.Show();
         }
