@@ -18,6 +18,11 @@ public sealed class RealRuntimeFirstRunTests
         Assert.True(File.Exists(appPath), $"Butchi executable missing: {appPath}");
         var dataDirectory = Path.Combine(Path.GetTempPath(), "butchi-e2e-real-runtime", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dataDirectory);
+        string Diagnostics()
+        {
+            var path = Path.Combine(dataDirectory, "startup-diagnostics.txt");
+            return File.Exists(path) ? File.ReadAllText(path) : "No runtime diagnostics were written.";
+        }
 
         using var app = Application.Launch(appPath, $"--e2e-first-run-real-runtime \"{dataDirectory}\"");
         using var automation = new UIA3Automation();
@@ -49,20 +54,20 @@ public sealed class RealRuntimeFirstRunTests
             var settings = Retry.WhileNull(
                 () => app.GetAllTopLevelWindows(automation).FirstOrDefault(w => w.Title == "Butchi Settings"),
                 TimeSpan.FromSeconds(15)).Result;
-            Assert.True(settings is not null, "Real desktop runtime did not start. " + ReadWelcomeError(welcome, cf));
+            Assert.True(settings is not null, "Real desktop runtime did not start. " + Diagnostics());
             Assert.True(Retry.WhileFalse(
                 () => app.GetAllTopLevelWindows(automation).All(w => w.Title != "Welcome to Butchi"),
                 TimeSpan.FromSeconds(5)).Success,
-                "Welcome did not close after runtime startup. " + ReadWelcomeError(welcome, cf));
+                "Welcome did not close after runtime startup. " + Diagnostics());
 
             var completed = Retry.WhileFalse(
                 () => app.GetAllTopLevelWindows(automation).Any(w =>
                     w.Title is "Butchi Popover Lifecycle Complete" or "Butchi Popover Lifecycle Failed"),
                 TimeSpan.FromSeconds(15)).Success;
-            Assert.True(completed, "Real popover lifecycle did not complete. " + ReadWelcomeError(welcome, cf));
+            Assert.True(completed, "Real popover lifecycle did not complete. " + Diagnostics());
             var result = app.GetAllTopLevelWindows(automation).First(w =>
                 w.Title is "Butchi Popover Lifecycle Complete" or "Butchi Popover Lifecycle Failed");
-            Assert.Equal("Butchi Popover Lifecycle Complete", result.Title);
+            Assert.True(result.Title == "Butchi Popover Lifecycle Complete", Diagnostics());
         }
         finally
         {
