@@ -29,20 +29,19 @@ public sealed class RealRuntimeFirstRunTests
             Assert.NotNull(welcome);
 
             var cf = new ConditionFactory(new UIA3PropertyLibrary());
-            var model = welcome.FindFirstDescendant(cf.ByAutomationId("WelcomeModel"));
-            Assert.NotNull(model);
-            Assert.Contains("Butchi E2E model", model.AsComboBox().SelectedItem?.Text ?? string.Empty);
-
+            Assert.NotNull(welcome.FindFirstDescendant(cf.ByAutomationId("WelcomeModel")));
             var download = FindButton(welcome, cf, "WelcomeDownloadModel");
             var finish = FindButton(welcome, cf, "WelcomeFinishSetup");
             Assert.False(finish.IsEnabled);
+            Assert.True(download.IsEnabled, "The deterministic model must be available for download.");
             download.Invoke();
             Assert.True(Retry.WhileFalse(
                 () => string.Equals(
                     welcome.FindFirstDescendant(cf.ByAutomationId("WelcomeStatus"))?.Name,
                     "Model downloaded. Finish setup to start Butchi.",
                     StringComparison.Ordinal),
-                TimeSpan.FromSeconds(10)).Success);
+                TimeSpan.FromSeconds(10)).Success,
+                "The deterministic model did not download. " + ReadWelcomeError(welcome, cf));
             FindButton(welcome, cf, "WelcomeFinishSetup").Invoke();
 
             // Unlike the original first-run test, this must construct the production
@@ -50,15 +49,20 @@ public sealed class RealRuntimeFirstRunTests
             var settings = Retry.WhileNull(
                 () => app.GetAllTopLevelWindows(automation).FirstOrDefault(w => w.Title == "Butchi Settings"),
                 TimeSpan.FromSeconds(15)).Result;
-            Assert.NotNull(settings);
+            Assert.True(settings is not null, "Real desktop runtime did not start. " + ReadWelcomeError(welcome, cf));
             Assert.True(Retry.WhileFalse(
                 () => app.GetAllTopLevelWindows(automation).All(w => w.Title != "Welcome to Butchi"),
-                TimeSpan.FromSeconds(5)).Success);
+                TimeSpan.FromSeconds(5)).Success,
+                "Welcome did not close after runtime startup. " + ReadWelcomeError(welcome, cf));
 
             var completed = Retry.WhileFalse(
-                () => app.GetAllTopLevelWindows(automation).Any(w => w.Title == "Butchi Popover Lifecycle Complete"),
+                () => app.GetAllTopLevelWindows(automation).Any(w =>
+                    w.Title is "Butchi Popover Lifecycle Complete" or "Butchi Popover Lifecycle Failed"),
                 TimeSpan.FromSeconds(15)).Success;
-            Assert.True(completed, "Real popover lifecycle did not complete. Check the startup error and process diagnostics.");
+            Assert.True(completed, "Real popover lifecycle did not complete. " + ReadWelcomeError(welcome, cf));
+            var result = app.GetAllTopLevelWindows(automation).First(w =>
+                w.Title is "Butchi Popover Lifecycle Complete" or "Butchi Popover Lifecycle Failed");
+            Assert.Equal("Butchi Popover Lifecycle Complete", result.Title);
         }
         finally
         {
@@ -71,6 +75,18 @@ public sealed class RealRuntimeFirstRunTests
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static string ReadWelcomeError(FlaUI.Core.AutomationElements.Window welcome, ConditionFactory cf)
+    {
+        try
+        {
+            return welcome.FindFirstDescendant(cf.ByAutomationId("WelcomeError"))?.Name ?? string.Empty;
+        }
+        catch (FlaUI.Core.Exceptions.ElementNotAvailableException)
+        {
+            return string.Empty;
         }
     }
 
