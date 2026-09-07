@@ -76,6 +76,11 @@ public sealed class VisionPopoverHost : IDisposable
         _visionPanel = BuildVisionPanel();
         _visionButton = BuildVisionButton();
         _root = new Grid();
+
+        // The text host is already a logical child of the window. Detach it
+        // before moving it into the vision grid so Avalonia never observes it
+        // with two parents during the new root's logical-tree attachment.
+        window.Content = null;
         _root.Children.Add(_textContent);
         _root.Children.Add(_visionPanel);
         _root.Children.Add(_visionButton);
