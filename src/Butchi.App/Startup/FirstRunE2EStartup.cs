@@ -11,15 +11,19 @@ namespace Butchi.App.Startup;
 internal static class FirstRunE2EStartup
 {
     private const string Flag = "--e2e-first-run";
+    private const string RealRuntimeFlag = "--e2e-first-run-real-runtime";
 
     public static bool TryCreate(
         string[] args,
         Action shutdown,
         out StartupCoordinator? coordinator)
     {
-        var flagIndex = Array.FindIndex(
+        var realRuntimeIndex = Array.FindIndex(
             args,
-            value => string.Equals(value, Flag, StringComparison.OrdinalIgnoreCase));
+            value => string.Equals(value, RealRuntimeFlag, StringComparison.OrdinalIgnoreCase));
+        var flagIndex = realRuntimeIndex >= 0
+            ? realRuntimeIndex
+            : Array.FindIndex(args, value => string.Equals(value, Flag, StringComparison.OrdinalIgnoreCase));
         if (flagIndex < 0)
         {
             coordinator = null;
@@ -35,12 +39,15 @@ internal static class FirstRunE2EStartup
         paths.EnsureDirectories();
         var configStore = new JsonAppConfigStoreAdapter(new JsonConfigStore(paths));
         var modelManager = new DeterministicModelManager();
+        IButchiRuntimeFactory runtimeFactory = realRuntimeIndex >= 0
+            ? new RealRuntimeE2EFactory(dataDirectory)
+            : new DeterministicRuntimeFactory();
 
         coordinator = new StartupCoordinator(
             new StartupReadinessService(configStore, modelManager),
             new WelcomeSetupViewModelFactory(configStore, modelManager),
             new WelcomeSetupHost(),
-            new DeterministicRuntimeFactory(),
+            runtimeFactory,
             shutdown);
         return true;
     }
